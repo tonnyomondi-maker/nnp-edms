@@ -1,0 +1,153 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Tables } from '@/integrations/supabase/types';
+
+export type DocumentRow = Tables<'documents'>;
+
+export function useMyDocuments() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['documents', 'mine', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*, teaching_assignments(*)')
+        .eq('trainer_id', user!.id)
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+}
+
+export function useDocumentsByStatus(status: string) {
+  return useQuery({
+    queryKey: ['documents', 'status', status],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*, teaching_assignments(*)')
+        .eq('status', status)
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useDocumentsByDepartmentAndStatus(department: string, status: string) {
+  return useQuery({
+    queryKey: ['documents', 'dept', department, status],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*, teaching_assignments(*)')
+        .eq('department', department)
+        .eq('status', status)
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!department,
+  });
+}
+
+export function useDocumentsByAssignment(assignmentId: string) {
+  return useQuery({
+    queryKey: ['documents', 'assignment', assignmentId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('assignment_id', assignmentId)
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!assignmentId,
+  });
+}
+
+export function useUpdateDocumentStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ docId, status, rejectionReason }: { docId: string; status: string; rejectionReason?: string }) => {
+      const updates: Record<string, unknown> = { status };
+      if (status === 'HOD_APPROVED') updates.hod_approved_at = new Date().toISOString();
+      if (status === 'DP_APPROVED') updates.dp_approved_at = new Date().toISOString();
+      if (status === 'ARCHIVED') updates.archived_at = new Date().toISOString();
+      if (status === 'REJECTED') updates.rejection_reason = rejectionReason || 'Does not meet standards';
+      
+      const { data, error } = await supabase
+        .from('documents')
+        .update(updates)
+        .eq('id', docId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+}
+
+export function useSubmitDocument() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({
+      file,
+      assignmentId,
+      documentType,
+      submissionType,
+      weekNumber,
+      department,
+    }: {
+      file: File;
+      assignmentId: string;
+      documentType: string;
+      submissionType: string;
+      weekNumber?: number;
+      department: string;
+    }) => {
+      // Upload file to storage
+      const filePath = `${user!.id}/${assignmentId}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}_${Date.now()}.pdf`;
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath);
+
+      // Insert document record
+      const { data, error } = await supabase
+        .from('documents')
+        .insert({
+          assignment_id: assignmentId,
+          trainer_id: user!.id,
+          document_type: documentType as any,
+          submission_type: submissionType as any,
+          week_number: weekNumber || null,
+          department,
+          file_name: file.name,
+          file_url: urlData.publicUrl,
+          status: 'SUBMITTED',
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+}
