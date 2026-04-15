@@ -1,9 +1,7 @@
-import { useAuth } from '@/contexts/AuthContext';
-import { UserRole, mockUsers } from '@/data/mockData';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Bell, GraduationCap, Users } from 'lucide-react';
+import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
-import { mockNotifications } from '@/data/mockData';
+import { Bell, GraduationCap, LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const roleLabels: Record<UserRole, string> = {
   TRAINER: 'Trainer',
@@ -13,8 +11,9 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 export function TopBar() {
-  const { currentUser, activeRole, setActiveRole, switchUser } = useAuth();
-  const unread = mockNotifications.filter(n => n.userId === currentUser.id && !n.read).length;
+  const { currentUser, activeRole, setActiveRole, signOut } = useAuth();
+
+  if (!currentUser) return null;
 
   return (
     <header className="sticky top-0 z-50 bg-card border-b px-4 py-3">
@@ -26,25 +25,11 @@ export function TopBar() {
         <div className="flex items-center gap-2">
           <Link to="/notifications" className="relative p-2">
             <Bell className="w-5 h-5 text-muted-foreground" />
-            {unread > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] flex items-center justify-center font-bold">
-                {unread}
-              </span>
-            )}
           </Link>
-          <Select value={currentUser.id} onValueChange={switchUser}>
-            <SelectTrigger className="w-auto gap-1 h-8 text-xs border-0 bg-secondary">
-              <Users className="w-3.5 h-3.5" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {mockUsers.map(u => (
-                <SelectItem key={u.id} value={u.id} className="text-xs">
-                  {u.name} ({u.roles.map(r => roleLabels[r]).join(', ')})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <span className="text-xs font-medium truncate max-w-[100px]">{currentUser.name}</span>
+          <Button variant="ghost" size="icon" onClick={signOut} className="h-8 w-8">
+            <LogOut className="w-4 h-4" />
+          </Button>
         </div>
       </div>
       {currentUser.roles.length > 1 && (
