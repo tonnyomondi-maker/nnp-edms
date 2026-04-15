@@ -1,20 +1,25 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { mockDocuments } from '@/data/mockData';
+import { useMyDocuments } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2 } from 'lucide-react';
 
 export default function MySubmissions() {
-  const { currentUser } = useAuth();
-  const myDocs = mockDocuments.filter(d => d.trainerId === currentUser.id);
+  const { data: docs, isLoading } = useMyDocuments();
 
-  const pending = myDocs.filter(d => ['SUBMITTED', 'HOD_APPROVED', 'DP_APPROVED'].includes(d.status));
-  const completed = myDocs.filter(d => d.status === 'ARCHIVED');
-  const rejected = myDocs.filter(d => d.status === 'REJECTED');
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  }
+
+  const allDocs = docs || [];
+  const pending = allDocs.filter(d => ['SUBMITTED', 'HOD_APPROVED', 'DP_APPROVED'].includes(d.status));
+  const completed = allDocs.filter(d => d.status === 'ARCHIVED');
+  const rejected = allDocs.filter(d => d.status === 'REJECTED');
 
   return (
     <div>
-      <PageHeader title="My Submissions" subtitle={`${myDocs.length} total documents`} />
+      <PageHeader title="My Submissions" subtitle={`${allDocs.length} total documents`} />
       <Tabs defaultValue="pending">
         <TabsList className="w-full mb-4">
           <TabsTrigger value="pending" className="flex-1">Pending ({pending.length})</TabsTrigger>
@@ -31,8 +36,8 @@ export default function MySubmissions() {
           {rejected.map(d => (
             <div key={d.id}>
               <DocumentCard doc={d} />
-              {d.rejectionReason && (
-                <p className="text-xs text-destructive mt-1 ml-1">Reason: {d.rejectionReason}</p>
+              {d.rejection_reason && (
+                <p className="text-xs text-destructive mt-1 ml-1">Reason: {d.rejection_reason}</p>
               )}
             </div>
           ))}

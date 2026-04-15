@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/layout/AppShell";
+import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import MyTeaching from "./pages/trainer/MyTeaching";
 import SubmitDocument from "./pages/trainer/SubmitDocument";
@@ -15,8 +16,42 @@ import ArchiveScreen from "./pages/iqa/ArchiveScreen";
 import Reports from "./pages/Reports";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
+import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
+
+function ProtectedRoutes() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  return (
+    <AppShell>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/teaching" element={<MyTeaching />} />
+        <Route path="/teaching/:assignmentId" element={<SubmitDocument />} />
+        <Route path="/submissions" element={<MySubmissions />} />
+        <Route path="/hod/queue" element={<DepartmentQueue />} />
+        <Route path="/dp/queue" element={<ApprovalQueue />} />
+        <Route path="/iqa/archive" element={<ArchiveScreen />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </AppShell>
+  );
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -25,20 +60,10 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <AppShell>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/teaching" element={<MyTeaching />} />
-              <Route path="/teaching/:assignmentId" element={<SubmitDocument />} />
-              <Route path="/submissions" element={<MySubmissions />} />
-              <Route path="/hod/queue" element={<DepartmentQueue />} />
-              <Route path="/dp/queue" element={<ApprovalQueue />} />
-              <Route path="/iqa/archive" element={<ArchiveScreen />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/notifications" element={<Notifications />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AppShell>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/*" element={<ProtectedRoutes />} />
+          </Routes>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

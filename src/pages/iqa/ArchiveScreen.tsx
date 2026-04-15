@@ -1,22 +1,30 @@
-import { useState } from 'react';
-import { mockDocuments } from '@/data/mockData';
+import { useDocumentsByStatus, useUpdateDocumentStatus } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { Archive } from 'lucide-react';
+import { Archive, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function ArchiveScreen() {
-  const [docs, setDocs] = useState(mockDocuments);
-
-  const pending = docs.filter(d => d.status === 'DP_APPROVED');
-  const archived = docs.filter(d => d.status === 'ARCHIVED');
+  const { data: pendingDocs, isLoading: loadingPending } = useDocumentsByStatus('DP_APPROVED');
+  const { data: archivedDocs, isLoading: loadingArchived } = useDocumentsByStatus('ARCHIVED');
+  const updateStatus = useUpdateDocumentStatus();
 
   const handleArchive = (docId: string) => {
-    setDocs(prev => prev.map(d => d.id === docId ? { ...d, status: 'ARCHIVED' as const, archivedAt: new Date().toISOString() } : d));
-    toast({ title: 'Document Archived', description: 'Document moved to final repository.' });
+    updateStatus.mutate({ docId, status: 'ARCHIVED' }, {
+      onSuccess: () => toast({ title: 'Document Archived', description: 'Document moved to final repository.' }),
+      onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
+    });
   };
+
+  const isLoading = loadingPending || loadingArchived;
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  }
+
+  const pending = pendingDocs || [];
+  const archived = archivedDocs || [];
 
   return (
     <div>
@@ -34,7 +42,7 @@ export default function ArchiveScreen() {
                 doc={doc}
                 showTrainer
                 actions={
-                  <Button size="sm" onClick={() => handleArchive(doc.id)} className="w-full touch-target gap-1">
+                  <Button size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
                     <Archive className="w-4 h-4" /> Archive
                   </Button>
                 }
