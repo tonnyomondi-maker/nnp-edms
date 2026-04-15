@@ -1,7 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Tables } from '@/integrations/supabase/types';
+import type { Tables, TablesUpdate } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/supabase/types';
+
+type DocumentStatus = Database['public']['Enums']['document_status'];
+type DocumentType = Database['public']['Enums']['document_type'];
+type SubmissionType = Database['public']['Enums']['submission_type'];
 
 export type DocumentRow = Tables<'documents'>;
 
@@ -22,7 +27,7 @@ export function useMyDocuments() {
   });
 }
 
-export function useDocumentsByStatus(status: string) {
+export function useDocumentsByStatus(status: DocumentStatus) {
   return useQuery({
     queryKey: ['documents', 'status', status],
     queryFn: async () => {
@@ -37,7 +42,7 @@ export function useDocumentsByStatus(status: string) {
   });
 }
 
-export function useDocumentsByDepartmentAndStatus(department: string, status: string) {
+export function useDocumentsByDepartmentAndStatus(department: string, status: DocumentStatus) {
   return useQuery({
     queryKey: ['documents', 'dept', department, status],
     queryFn: async () => {
@@ -73,8 +78,8 @@ export function useDocumentsByAssignment(assignmentId: string) {
 export function useUpdateDocumentStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ docId, status, rejectionReason }: { docId: string; status: string; rejectionReason?: string }) => {
-      const updates: Record<string, unknown> = { status };
+    mutationFn: async ({ docId, status, rejectionReason }: { docId: string; status: DocumentStatus; rejectionReason?: string }) => {
+      const updates: TablesUpdate<'documents'> = { status };
       if (status === 'HOD_APPROVED') updates.hod_approved_at = new Date().toISOString();
       if (status === 'DP_APPROVED') updates.dp_approved_at = new Date().toISOString();
       if (status === 'ARCHIVED') updates.archived_at = new Date().toISOString();
@@ -110,36 +115,32 @@ export function useSubmitDocument() {
     }: {
       file: File;
       assignmentId: string;
-      documentType: string;
-      submissionType: string;
+      documentType: DocumentType;
+      submissionType: SubmissionType;
       weekNumber?: number;
       department: string;
     }) => {
-      // Upload file to storage
       const filePath = `${user!.id}/${assignmentId}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}_${Date.now()}.pdf`;
       const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: urlData } = supabase.storage
         .from('documents')
         .getPublicUrl(filePath);
 
-      // Insert document record
       const { data, error } = await supabase
         .from('documents')
         .insert({
           assignment_id: assignmentId,
           trainer_id: user!.id,
-          document_type: documentType as any,
-          submission_type: submissionType as any,
+          document_type: documentType,
+          submission_type: submissionType,
           week_number: weekNumber || null,
           department,
           file_name: file.name,
           file_url: urlData.publicUrl,
-          status: 'SUBMITTED',
         })
         .select()
         .single();
