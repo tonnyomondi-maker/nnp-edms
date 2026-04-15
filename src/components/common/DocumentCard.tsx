@@ -1,15 +1,20 @@
-import { Document } from '@/data/mockData';
+import { Tables } from '@/integrations/supabase/types';
 import { StatusBadge } from './StatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { FileText, Calendar } from 'lucide-react';
 
+type DocumentRow = Tables<'documents'>;
+
 interface DocumentCardProps {
-  doc: Document;
+  doc: DocumentRow & { teaching_assignments?: Tables<'teaching_assignments'> | null };
   showTrainer?: boolean;
   actions?: React.ReactNode;
 }
 
 export function DocumentCard({ doc, showTrainer = false, actions }: DocumentCardProps) {
+  const unitCode = doc.teaching_assignments?.unit_code || '';
+  const className = doc.teaching_assignments?.class_code || '';
+
   return (
     <Card className="animate-slide-up">
       <CardContent className="p-4">
@@ -19,13 +24,12 @@ export function DocumentCard({ doc, showTrainer = false, actions }: DocumentCard
               <FileText className="w-5 h-5 text-primary" />
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-sm truncate">{doc.documentType}</p>
-              <p className="text-xs text-muted-foreground truncate">{doc.unitCode} • {doc.className}</p>
-              {showTrainer && <p className="text-xs text-muted-foreground">{doc.trainerName}</p>}
-              {doc.weekNumber && (
+              <p className="font-semibold text-sm truncate">{doc.document_type}</p>
+              <p className="text-xs text-muted-foreground truncate">{unitCode} • {className}</p>
+              {doc.week_number && (
                 <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                   <Calendar className="w-3 h-3" />
-                  <span>Week {doc.weekNumber}</span>
+                  <span>Week {doc.week_number}</span>
                 </div>
               )}
             </div>

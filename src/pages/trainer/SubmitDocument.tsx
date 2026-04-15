@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { mockAssignments, mockDocuments, ONE_TIME_DOCS, WEEKLY_DOCS, DocumentType } from '@/data/mockData';
+import { useAssignment } from '@/hooks/useAssignments';
+import { useDocumentsByAssignment, useSubmitDocument } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,41 +10,66 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DocumentCard } from '@/components/common/DocumentCard';
-import { Upload, FileText, AlertCircle } from 'lucide-react';
+import { Upload, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import type { Database } from '@/integrations/supabase/types';
+
+type DocumentType = Database['public']['Enums']['document_type'];
+
+const ONE_TIME_DOCS: DocumentType[] = ['Learning Plan', 'Personal Timetable', 'Workload Allocation', 'Scheme of Work'];
+const WEEKLY_DOCS: DocumentType[] = ['Session Plan', 'Class Attendance'];
 
 export default function SubmitDocument() {
   const { assignmentId } = useParams();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
-  const assignment = mockAssignments.find(a => a.id === assignmentId);
+  const { data: assignment, isLoading: loadingAssignment } = useAssignment(assignmentId || '');
+  const { data: existingDocs, isLoading: loadingDocs } = useDocumentsByAssignment(assignmentId || '');
+  const submitDoc = useSubmitDocument();
 
   const [docType, setDocType] = useState<DocumentType | ''>('');
   const [weekNumber, setWeekNumber] = useState('');
   const [file, setFile] = useState<File | null>(null);
 
+  if (loadingAssignment || loadingDocs) {
+    return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  }
+
   if (!assignment) {
     return <div className="p-4 text-center text-muted-foreground">Assignment not found</div>;
   }
 
-  const existingDocs = mockDocuments.filter(d => d.assignmentId === assignmentId);
+  const docs = existingDocs || [];
   const isWeekly = WEEKLY_DOCS.includes(docType as DocumentType);
-  const allDocTypes = [...ONE_TIME_DOCS, ...WEEKLY_DOCS];
-
-  // Check for duplicates
-  const isDuplicate = docType && !isWeekly && existingDocs.some(d => d.documentType === docType && d.status !== 'REJECTED');
-  const isWeekDuplicate = isWeekly && weekNumber && existingDocs.some(d => d.documentType === docType && d.weekNumber === parseInt(weekNumber) && d.status !== 'REJECTED');
-
+  const isDuplicate = docType && !isWeekly && docs.some(d => d.document_type === docType && d.status !== 'REJECTED');
+  const isWeekDuplicate = isWeekly && weekNumber && docs.some(d => d.document_type === docType && d.week_number === parseInt(weekNumber) && d.status !== 'REJECTED');
   const canSubmit = docType && file && !isDuplicate && (!isWeekly || (weekNumber && !isWeekDuplicate));
 
   const handleSubmit = () => {
-    toast({ title: 'Document Submitted', description: `${docType} for ${assignment.unitCode} has been submitted for review.` });
-    navigate('/submissions');
+    if (!file || !docType) return;
+    submitDoc.mutate(
+      {
+        file,
+        assignmentId: assignment.id,
+        documentType: docType as DocumentType,
+        submissionType: isWeekly ? 'WEEKLY' : 'ONE_TIME',
+        weekNumber: isWeekly ? parseInt(weekNumber) : undefined,
+        department: assignment.department,
+      },
+      {
+        onSuccess: () => {
+          toast({ title: 'Document Submitted', description: `${docType} for ${assignment.unit_code} has been submitted for review.` });
+          navigate('/submissions');
+        },
+        onError: (e) => {
+          toast({ title: 'Upload failed', description: e.message, variant: 'destructive' });
+        },
+      }
+    );
   };
 
   return (
     <div>
-      <PageHeader title="Submit Document" subtitle={`${assignment.unitCode} - ${assignment.unitName}`} />
+      <PageHeader title="Submit Document" subtitle={`${assignment.unit_code} - ${assignment.unit_name}`} />
 
       <Card className="mb-4">
         <CardContent className="p-4 space-y-4">
@@ -116,17 +142,17 @@ export default function SubmitDocument() {
             </div>
           )}
 
-          <Button onClick={handleSubmit} disabled={!canSubmit} className="w-full touch-target text-base">
+          <Button onClick={handleSubmit} disabled={!canSubmit || submitDoc.isPending} className="w-full touch-target text-base">
+            {submitDoc.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Submit Document
           </Button>
         </CardContent>
       </Card>
 
-      {/* Existing docs for this assignment */}
       <h2 className="text-sm font-semibold mb-3">Submitted Documents</h2>
       <div className="space-y-3">
-        {existingDocs.length > 0 ? (
-          existingDocs.map(doc => <DocumentCard key={doc.id} doc={doc} />)
+        {docs.length > 0 ? (
+          docs.map(doc => <DocumentCard key={doc.id} doc={doc} />)
         ) : (
           <p className="text-sm text-muted-foreground text-center py-4">No documents submitted yet</p>
         )}
