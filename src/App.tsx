@@ -47,6 +47,8 @@ function ProtectedRoutes() {
         <Route path="/hod/queue" element={<DepartmentQueue />} />
         <Route path="/dp/queue" element={<ApprovalQueue />} />
         <Route path="/iqa/archive" element={<ArchiveScreen />} />
+        <Route path="/admin/users" element={<ManageUsers />} />
+        <Route path="/admin/assignments" element={<ManageAssignments />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="*" element={<NotFound />} />
