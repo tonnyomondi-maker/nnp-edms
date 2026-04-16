@@ -1,90 +1,54 @@
-# Google Drive Integration Plan
 
-## Current State
 
-The app is a UI prototype with mock data — no backend, no database, no Lovable Cloud. The submit flow currently shows a toast and navigates away without actually uploading anything.
+# Plan: Admin Panel + Google OAuth
 
-## What's Needed
+## Overview
+Add an admin management panel (for DP_ACADEMICS role acting as admin) to manage users/roles and teaching assignments, plus Google OAuth sign-in.
 
-Google Drive integration requires server-side code (Edge Functions) to securely handle Google API credentials and file operations. This means we need to set up Lovable Cloud first.
+## 1. Database Changes (Migration)
 
-## Prerequisites (You Need to Do)
+- Add RLS policies on `teaching_assignments` allowing DP_ACADEMICS to INSERT, UPDATE, DELETE
+- Add RLS policies on `user_roles` allowing DP_ACADEMICS to INSERT, UPDATE, DELETE
+- Add RLS policy on `user_roles` allowing DP_ACADEMICS to SELECT all roles (currently users can only see their own)
+- Add RLS policy on `profiles` allowing DP_ACADEMICS to view all profiles (already allowed for all authenticated, so this is fine)
 
-1. **Create a Google Cloud project** at [console.cloud.google.com](https://console.cloud.google.com)
-2. **Enable the Google Drive API** in that project
-3. **Create a Service Account** (recommended for server-to-server access — no user OAuth needed):
-  - Go to IAM & Admin → Service Accounts → Create
-  - Download the JSON key file
-4. **Create a shared Drive folder** (or regular folder) for the institution and share it with the service account email
-5. **Enable Lovable Cloud** on this project (needed for Edge Functions and database)
+## 2. Admin Pages
 
-## Implementation Steps
+**`src/pages/admin/ManageUsers.tsx`** — User & Role Management
+- List all profiles with their current roles
+- Add/remove roles for any user (dropdown with TRAINER, HOD, DP_ACADEMICS, IQA)
+- Search/filter users by name or department
 
-### Step 1: Enable Lovable Cloud & Store Secrets
+**`src/pages/admin/ManageAssignments.tsx`** — Teaching Assignment Management
+- List all teaching assignments with trainer name, unit, class, department
+- Form to create new assignments: select trainer (from profiles), enter unit_code, unit_name, class_code, department, term, academic_year
+- Edit and delete existing assignments
 
-- Enable Lovable Cloud for database + Edge Functions
-- Store `GOOGLE_SERVICE_ACCOUNT_KEY` as a project secret
+## 3. Navigation Updates
 
-### Step 2: Create Database Tables
+- Add `ADMIN` equivalent using DP_ACADEMICS role — when active role is DP_ACADEMICS, show an "Admin" tab in BottomNav linking to `/admin/users`
+- Add routes: `/admin/users` and `/admin/assignments`
+- Admin pages get a tab bar at top to switch between Users and Assignments
 
-- `documents` table matching the existing mock data model
-- `audit_logs` table for action tracking
-- `teaching_assignments` table
-- RLS policies for role-based access
+## 4. Google OAuth
 
-### Step 3: Create Edge Function — `upload-to-drive`
+- Use the Configure Social Auth tool to set up Google OAuth with Lovable Cloud's managed credentials
+- Update `Auth.tsx` to add a "Sign in with Google" button using `lovable.auth.signInWithOAuth("google", ...)`
+- Handle the OAuth callback and redirect flow
 
-Handles:
+## 5. Auth Context Update
 
-- Receiving the PDF file from the frontend
-- **Auto-naming**: `[Department][UnitName][UnitCode][Class][DocType][Week(optional)]_[PF].pdf`
-  - Example: `ComputerScience_CS101_DITY1_SessionPlan_W3_PF001.pdf`
-- **Folder organization**: Creates/finds `/DEPARTMENTS/{Department}/{UnitCode}/` folder hierarchy
-- Uploading to Google Drive via service account
-- Setting permissions (view-only for trainer, department access for HOD, etc.)
-- Returning `file_url` and `file_drive_id`
-- Inserting the document record into the database
+- Update `AuthContext.tsx` to add a helper `isAdmin` computed from `has_role` check for DP_ACADEMICS
+- Protect admin routes so only DP_ACADEMICS users can access them
 
-### Step 4: Create Edge Function — `manage-drive-permissions`
+## Technical Notes
 
-Called during approval workflow to update Drive file permissions:
+- DP_ACADEMICS acts as the system admin (no new role enum needed)
+- The `handle_new_user` trigger already creates profiles on signup, so Google OAuth users get profiles automatically
+- Google OAuth uses Lovable Cloud's managed credentials — no setup needed from the user
 
-- HOD approval → grants DP view access
-- DP approval → grants IQA view access
-- Archive → sets final read-only permissions
+## Files to Create/Modify
+- **Create**: `src/pages/admin/ManageUsers.tsx`, `src/pages/admin/ManageAssignments.tsx`
+- **Modify**: `src/App.tsx` (add routes), `src/components/layout/BottomNav.tsx` (add admin nav), `src/pages/Auth.tsx` (Google button), `src/contexts/AuthContext.tsx` (isAdmin helper)
+- **Migration**: RLS policies for admin operations on `user_roles` and `teaching_assignments`
 
-### Step 5: Update Frontend
-
-- **SubmitDocument.tsx**: Replace mock submit with real upload to Edge Function, show upload progress
-- **All queue screens**: Fetch from database instead of mock data
-- **DocumentCard**: Link to actual Google Drive file URL
-
-### Step 6: Drive Folder Structure
-
-```text
-/DEPARTMENTS/
-├── Computer Science/
-│   ├── CS101/
-│   │   ├── ComputerScience_CS101_DITY1_LearningPlan_PF001.pdf
-│   │   └── ComputerScience_CS101_DITY1_SessionPlan_W1_PF001.pdf
-│   └── CS205/
-├── Electrical Engineering/
-│   └── EE101/
-└── Business Studies/
-```
-
-Also take note that the documents are sorted per trainer per department
-
-## Technical Details
-
-- **Google Drive API**: Uses `googleapis` npm package in Deno Edge Functions via `npm:googleapis`
-- **Auth**: JWT-based service account authentication (no user consent needed)
-- **File naming function**: Pure utility that constructs the standardized name from document metadata
-- **Permission model**: Service account owns all files; shares with appropriate Google accounts based on role transitions
-
-## Order of Work
-
-Since this requires Lovable Cloud + secrets setup before any code can work, I recommend:
-
-1. You enable Lovable Cloud and provide the Google service account JSON key
-2. I then build everything (database, Edge Functions, frontend updates) in one go
