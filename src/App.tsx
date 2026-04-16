@@ -13,6 +13,8 @@ import MySubmissions from "./pages/trainer/MySubmissions";
 import DepartmentQueue from "./pages/hod/DepartmentQueue";
 import ApprovalQueue from "./pages/dp/ApprovalQueue";
 import ArchiveScreen from "./pages/iqa/ArchiveScreen";
+import ManageUsers from "./pages/admin/ManageUsers";
+import ManageAssignments from "./pages/admin/ManageAssignments";
 import Reports from "./pages/Reports";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
@@ -45,6 +47,8 @@ function ProtectedRoutes() {
         <Route path="/hod/queue" element={<DepartmentQueue />} />
         <Route path="/dp/queue" element={<ApprovalQueue />} />
         <Route path="/iqa/archive" element={<ArchiveScreen />} />
+        <Route path="/admin/users" element={<ManageUsers />} />
+        <Route path="/admin/assignments" element={<ManageAssignments />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="*" element={<NotFound />} />
