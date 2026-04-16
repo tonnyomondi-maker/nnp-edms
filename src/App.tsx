@@ -13,6 +13,8 @@ import MySubmissions from "./pages/trainer/MySubmissions";
 import DepartmentQueue from "./pages/hod/DepartmentQueue";
 import ApprovalQueue from "./pages/dp/ApprovalQueue";
 import ArchiveScreen from "./pages/iqa/ArchiveScreen";
+import ManageUsers from "./pages/admin/ManageUsers";
+import ManageAssignments from "./pages/admin/ManageAssignments";
 import Reports from "./pages/Reports";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
