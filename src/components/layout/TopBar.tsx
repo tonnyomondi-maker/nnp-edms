@@ -1,6 +1,6 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
-import { Bell, GraduationCap, LogOut } from 'lucide-react';
+import { Bell, GraduationCap, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const roleLabels: Record<UserRole, string> = {
@@ -26,7 +26,10 @@ export function TopBar() {
           <Link to="/notifications" className="relative p-2">
             <Bell className="w-5 h-5 text-muted-foreground" />
           </Link>
-          <span className="text-xs font-medium truncate max-w-[100px]">{currentUser.name}</span>
+          <Link to="/profile" className="text-xs font-medium truncate max-w-[100px] flex items-center gap-1 hover:text-primary transition-colors">
+            <User className="w-3.5 h-3.5" />
+            {currentUser.name}
+          </Link>
           <Button variant="ghost" size="icon" onClick={signOut} className="h-8 w-8">
             <LogOut className="w-4 h-4" />
           </Button>

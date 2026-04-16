@@ -16,6 +16,7 @@ import ArchiveScreen from "./pages/iqa/ArchiveScreen";
 import ManageUsers from "./pages/admin/ManageUsers";
 import ManageAssignments from "./pages/admin/ManageAssignments";
 import Reports from "./pages/Reports";
+import ProfileSettings from "./pages/ProfileSettings";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
@@ -50,6 +51,7 @@ function ProtectedRoutes() {
         <Route path="/admin/users" element={<ManageUsers />} />
         <Route path="/admin/assignments" element={<ManageAssignments />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/profile" element={<ProfileSettings />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
