@@ -15,6 +15,8 @@ export default function Auth() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -63,6 +65,21 @@ export default function Auth() {
       toast({ title: 'Signup failed', description: error.message, variant: 'destructive' });
     } else {
       toast({ title: 'Check your email', description: 'A verification link has been sent to your email.' });
+    }
+  };
+
+  const handleResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setLoading(false);
+    if (error) {
+      toast({ title: 'Reset failed', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Check your email', description: 'A password reset link has been sent.' });
+      setResetMode(false);
     }
   };
 
@@ -127,19 +144,50 @@ export default function Auth() {
             </TabsList>
 
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <Label>Email</Label>
-                  <Input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="you@institution.ac.ke" required className="mt-1" />
-                </div>
-                <div>
-                  <Label>Password</Label>
-                  <Input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="••••••••" required className="mt-1" />
-                </div>
-                <Button type="submit" className="w-full touch-target" disabled={loading}>
-                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Login
-                </Button>
-              </form>
+              {resetMode ? (
+                <form onSubmit={handleResetRequest} className="space-y-4">
+                  <div>
+                    <Label>Email</Label>
+                    <Input type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} placeholder="you@institution.ac.ke" required className="mt-1" />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      We'll send a password reset link to this email.
+                    </p>
+                  </div>
+                  <Button type="submit" className="w-full touch-target" disabled={loading}>
+                    {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Send reset link
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setResetMode(false)}
+                    className="w-full text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    Back to login
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <Label>Email</Label>
+                    <Input type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="you@institution.ac.ke" required className="mt-1" />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>Password</Label>
+                      <button
+                        type="button"
+                        onClick={() => { setResetEmail(loginEmail); setResetMode(true); }}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <Input type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="••••••••" required className="mt-1" />
+                  </div>
+                  <Button type="submit" className="w-full touch-target" disabled={loading}>
+                    {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Login
+                  </Button>
+                </form>
+              )}
             </TabsContent>
 
             <TabsContent value="signup">
