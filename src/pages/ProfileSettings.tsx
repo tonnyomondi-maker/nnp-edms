@@ -59,10 +59,12 @@ export default function ProfileSettings() {
       if (upErr) throw upErr;
       const { data: urlData } = supabase.storage.from('signatures').getPublicUrl(path);
       const cacheBusted = `${urlData.publicUrl}?t=${Date.now()}`;
-      const column = kind === 'signature' ? 'signature_url' : 'stamp_url';
+      const updates = kind === 'signature'
+        ? { signature_url: urlData.publicUrl }
+        : { stamp_url: urlData.publicUrl };
       const { error: dbErr } = await supabase
         .from('profiles')
-        .update({ [column]: urlData.publicUrl })
+        .update(updates)
         .eq('user_id', currentUser.id);
       if (dbErr) throw dbErr;
       if (kind === 'signature') setSignatureUrl(cacheBusted); else setStampUrl(cacheBusted);
