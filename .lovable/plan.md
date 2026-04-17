@@ -1,54 +1,37 @@
 
+The user wants a password reset flow. This requires:
+1. A "Forgot password?" link on the login form in `Auth.tsx`
+2. A way to request the reset (calls `supabase.auth.resetPasswordForEmail` with `redirectTo`)
+3. A new `/reset-password` page where users land from the email link to set a new password (calls `supabase.auth.updateUser({ password })`)
+4. Route added in `App.tsx` (must be a public route, not behind auth)
 
-# Plan: Admin Panel + Google OAuth
+Keeping it simple — inline the "forgot password" UI as a third tab or a small inline mode on the login tab to avoid creating an extra page for the request step. A separate page is only required for the reset (post-email-click) step.
 
-## Overview
-Add an admin management panel (for DP_ACADEMICS role acting as admin) to manage users/roles and teaching assignments, plus Google OAuth sign-in.
+# Plan: Password Reset Flow
 
-## 1. Database Changes (Migration)
+## 1. Update `src/pages/Auth.tsx`
+- Add a "Forgot password?" link below the login password field
+- Clicking it switches the login form into "reset request" mode (email field + "Send reset link" button)
+- On submit: call `supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/reset-password' })`
+- Show a toast confirming the email was sent
+- Add a "Back to login" link to return
 
-- Add RLS policies on `teaching_assignments` allowing DP_ACADEMICS to INSERT, UPDATE, DELETE
-- Add RLS policies on `user_roles` allowing DP_ACADEMICS to INSERT, UPDATE, DELETE
-- Add RLS policy on `user_roles` allowing DP_ACADEMICS to SELECT all roles (currently users can only see their own)
-- Add RLS policy on `profiles` allowing DP_ACADEMICS to view all profiles (already allowed for all authenticated, so this is fine)
+## 2. Create `src/pages/ResetPassword.tsx`
+- Public route — no auth guard
+- Supabase auto-creates a recovery session when the user clicks the email link, so the page just needs:
+  - New password + confirm password inputs
+  - On submit: `supabase.auth.updateUser({ password })`
+  - On success: toast + navigate to `/` (user is now logged in with new password)
+- Show a loading state while the recovery session is being established
+- Handle the case where the user lands here without a recovery session (show error + link back to `/auth`)
 
-## 2. Admin Pages
+## 3. Update `src/App.tsx`
+- Add `/reset-password` route pointing to `ResetPassword` component
+- Place it alongside `/auth` as a public route (outside the authenticated `AppShell`)
 
-**`src/pages/admin/ManageUsers.tsx`** — User & Role Management
-- List all profiles with their current roles
-- Add/remove roles for any user (dropdown with TRAINER, HOD, DP_ACADEMICS, IQA)
-- Search/filter users by name or department
+## 4. Email delivery note
+The reset email will be sent using Lovable's default auth email template. No custom email setup is required for this to work. If the user later wants branded reset emails from their own domain, that's a separate setup step.
 
-**`src/pages/admin/ManageAssignments.tsx`** — Teaching Assignment Management
-- List all teaching assignments with trainer name, unit, class, department
-- Form to create new assignments: select trainer (from profiles), enter unit_code, unit_name, class_code, department, term, academic_year
-- Edit and delete existing assignments
-
-## 3. Navigation Updates
-
-- Add `ADMIN` equivalent using DP_ACADEMICS role — when active role is DP_ACADEMICS, show an "Admin" tab in BottomNav linking to `/admin/users`
-- Add routes: `/admin/users` and `/admin/assignments`
-- Admin pages get a tab bar at top to switch between Users and Assignments
-
-## 4. Google OAuth
-
-- Use the Configure Social Auth tool to set up Google OAuth with Lovable Cloud's managed credentials
-- Update `Auth.tsx` to add a "Sign in with Google" button using `lovable.auth.signInWithOAuth("google", ...)`
-- Handle the OAuth callback and redirect flow
-
-## 5. Auth Context Update
-
-- Update `AuthContext.tsx` to add a helper `isAdmin` computed from `has_role` check for DP_ACADEMICS
-- Protect admin routes so only DP_ACADEMICS users can access them
-
-## Technical Notes
-
-- DP_ACADEMICS acts as the system admin (no new role enum needed)
-- The `handle_new_user` trigger already creates profiles on signup, so Google OAuth users get profiles automatically
-- Google OAuth uses Lovable Cloud's managed credentials — no setup needed from the user
-
-## Files to Create/Modify
-- **Create**: `src/pages/admin/ManageUsers.tsx`, `src/pages/admin/ManageAssignments.tsx`
-- **Modify**: `src/App.tsx` (add routes), `src/components/layout/BottomNav.tsx` (add admin nav), `src/pages/Auth.tsx` (Google button), `src/contexts/AuthContext.tsx` (isAdmin helper)
-- **Migration**: RLS policies for admin operations on `user_roles` and `teaching_assignments`
-
+## Files
+- **Modify**: `src/pages/Auth.tsx`, `src/App.tsx`
+- **Create**: `src/pages/ResetPassword.tsx`
