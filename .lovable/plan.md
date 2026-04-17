@@ -1,37 +1,72 @@
+## Plan: Signature & Stamp on Approval (with Bulk Actions)
 
-The user wants a password reset flow. This requires:
-1. A "Forgot password?" link on the login form in `Auth.tsx`
-2. A way to request the reset (calls `supabase.auth.resetPasswordForEmail` with `redirectTo`)
-3. A new `/reset-password` page where users land from the email link to set a new password (calls `supabase.auth.updateUser({ password })`)
-4. Route added in `App.tsx` (must be a public route, not behind auth)
+### Concept
 
-Keeping it simple — inline the "forgot password" UI as a third tab or a small inline mode on the login tab to avoid creating an extra page for the request step. A separate page is only required for the reset (post-email-click) step.
+When HOD, DP Academics, or IQA approve a document, their digital **signature** and **stamp** images get applied to the document record. To avoid uploading them every approval, each approver uploads their signature + stamp **once** in profile settings, and the system auto-applies them on approval. Bulk approval lets them tick multiple documents and approve all at once with their saved signature/stamp.
 
-# Plan: Password Reset Flow
+### 1. Database Changes
 
-## 1. Update `src/pages/Auth.tsx`
-- Add a "Forgot password?" link below the login password field
-- Clicking it switches the login form into "reset request" mode (email field + "Send reset link" button)
-- On submit: call `supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/reset-password' })`
-- Show a toast confirming the email was sent
-- Add a "Back to login" link to return
+**Migration** — extend `profiles` and `documents`:
 
-## 2. Create `src/pages/ResetPassword.tsx`
-- Public route — no auth guard
-- Supabase auto-creates a recovery session when the user clicks the email link, so the page just needs:
-  - New password + confirm password inputs
-  - On submit: `supabase.auth.updateUser({ password })`
-  - On success: toast + navigate to `/` (user is now logged in with new password)
-- Show a loading state while the recovery session is being established
-- Handle the case where the user lands here without a recovery session (show error + link back to `/auth`)
+- `profiles`: add `signature_url TEXT`, `stamp_url TEXT` (nullable)
+- `documents`: add columns to track who signed/stamped at each stage:
+  - `hod_signature_url TEXT`, `hod_stamp_url TEXT`, `hod_approved_by UUID`
+  - `dp_signature_url TEXT`, `dp_stamp_url TEXT`, `dp_approved_by UUID`
+  - `iqa_signature_url TEXT`, `iqa_stamp_url TEXT`, `iqa_archived_by UUID`
 
-## 3. Update `src/App.tsx`
-- Add `/reset-password` route pointing to `ResetPassword` component
-- Place it alongside `/auth` as a public route (outside the authenticated `AppShell`)
+**Storage** — new public bucket `signatures` (separate from private `documents` bucket since approvers' marks need to be readable by anyone viewing the document later). RLS:
 
-## 4. Email delivery note
-The reset email will be sent using Lovable's default auth email template. No custom email setup is required for this to work. If the user later wants branded reset emails from their own domain, that's a separate setup step.
+- Anyone authenticated can read
+- Users can only upload/update files under `{user_id}/...`
 
-## Files
-- **Modify**: `src/pages/Auth.tsx`, `src/App.tsx`
-- **Create**: `src/pages/ResetPassword.tsx`
+### 2. Profile Settings — Upload Signature & Stamp
+
+Extend `src/pages/ProfileSettings.tsx`:
+
+- Two new file upload fields: **Signature** (PNG/JPG, transparent bg recommended) and **Stamp** (PNG/JPG)
+- Show current image preview if uploaded
+- Upload to `signatures/{user_id}/signature.png` and `signatures/{user_id}/stamp.png`
+- Save resulting public URLs to `profiles.signature_url` / `profiles.stamp_url`
+- Only shown for users with HOD, DP_ACADEMICS, or IQA roles (trainers don't approve)
+
+### 3. Approval Flow — Auto-apply Signature/Stamp
+
+Update `useUpdateDocumentStatus` hook in `src/hooks/useDocuments.ts`:
+
+- Before updating, fetch current user's `profiles.signature_url` and `stamp_url`
+- If user is approving (HOD_APPROVED / DP_APPROVED / ARCHIVED), require both to be set — else throw a friendly error ("Please upload your signature and stamp in Profile Settings first")
+- Write the URLs into the appropriate stage columns on the document along with the status change
+
+### 4. Bulk Approval UI
+
+Update three approval pages — `src/pages/hod/DepartmentQueue.tsx`, `src/pages/dp/ApprovalQueue.tsx`, `src/pages/iqa/ArchiveScreen.tsx`:
+
+- Add a checkbox to each `DocumentCard` (new optional `selectable` + `selected` + `onSelectChange` props)
+- Add a sticky action bar at the top showing **"N selected"** with **"Approve All"** and **"Reject All"** buttons (Reject opens a small dialog for a shared reason)
+- Add **"Select All"** / **"Clear"** toggle
+- New bulk mutation in `useDocuments.ts`: `useBulkUpdateDocumentStatus` that loops the approval mutation across selected ids in parallel, surfaces a single toast with success/failure counts
+
+### 5. Document Card Display
+
+Update `src/components/common/DocumentCard.tsx`:
+
+- When a document has signature/stamp URLs filled in for any stage, show small thumbnail icons next to the status badge (hover/tap → larger preview) so trainers and downstream approvers can see the chain of approvals visually
+
+### Files
+
+**Create**
+
+- Migration adding profile + document columns and `signatures` bucket with RLS
+
+**Modify**
+
+- `src/pages/ProfileSettings.tsx` — signature/stamp upload section
+- `src/hooks/useDocuments.ts` — enrich approval mutation, add bulk mutation
+- `src/pages/hod/DepartmentQueue.tsx`, `src/pages/dp/ApprovalQueue.tsx`, `src/pages/iqa/ArchiveScreen.tsx` — selection state + bulk action bar
+- `src/components/common/DocumentCard.tsx` — selectable prop + signature/stamp thumbnails
+
+### Open Questions
+
+1. **Stamp/signature requirement**: Should approval be **blocked** if the approver hasn't uploaded their signature & stamp yet, or should it just proceed without them? (I assumed blocked — safer for audit trail.)-BLOCKED
+2. **Visual application**: Currently signatures/stamps are stored against the document **record**, not burned into the PDF itself. PDF compositing (drawing the signature onto the actual PDF) would need an Edge Function with a PDF library — bigger scope. OK to defer that and just display them in the app UI for now? BURN THEM INTO THE PDF
+3. &nbsp;
