@@ -1,7 +1,9 @@
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useDocumentsByDepartmentAndStatus, useUpdateDocumentStatus } from '@/hooks/useDocuments';
+import { useDocumentsByDepartmentAndStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
+import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
@@ -10,8 +12,34 @@ export default function DepartmentQueue() {
   const { currentUser } = useAuth();
   const { data: queue, isLoading } = useDocumentsByDepartmentAndStatus(currentUser?.department || '', 'SUBMITTED');
   const updateStatus = useUpdateDocumentStatus();
+  const bulkUpdate = useBulkUpdateDocumentStatus();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const filteredQueue = (queue || []).filter(d => d.trainer_id !== currentUser?.id);
+  const filteredQueue = useMemo(
+    () => (queue || []).filter(d => d.trainer_id !== currentUser?.id),
+    [queue, currentUser?.id]
+  );
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      checked ? next.add(id) : next.delete(id);
+      return next;
+    });
+  };
+  const allSelected = filteredQueue.length > 0 && selected.size === filteredQueue.length;
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(filteredQueue.map(d => d.id)));
+
+  const handleBulk = async (status: 'HOD_APPROVED' | 'REJECTED', reason?: string) => {
+    const ids = Array.from(selected);
+    const res = await bulkUpdate.mutateAsync({ docIds: ids, status, rejectionReason: reason });
+    setSelected(new Set());
+    toast({
+      title: status === 'REJECTED' ? 'Bulk reject complete' : 'Bulk approve complete',
+      description: `${res.succeeded} succeeded, ${res.failed} failed${res.firstErrorMessage ? ` — ${res.firstErrorMessage}` : ''}`,
+      variant: res.failed > 0 ? 'destructive' : 'default',
+    });
+  };
 
   const handleApprove = (docId: string) => {
     updateStatus.mutate({ docId, status: 'HOD_APPROVED' }, {
@@ -34,13 +62,27 @@ export default function DepartmentQueue() {
   return (
     <div>
       <PageHeader title="Department Queue" subtitle={`${currentUser?.department || ''} • ${filteredQueue.length} pending`} />
-      <div className="space-y-3">
+      <BulkActionBar
+        selectedCount={selected.size}
+        totalCount={filteredQueue.length}
+        isAllSelected={allSelected}
+        onToggleAll={toggleAll}
+        onClear={() => setSelected(new Set())}
+        approveStatus="HOD_APPROVED"
+        approveLabel="Approve all"
+        onBulkAction={(s, r) => handleBulk(s as 'HOD_APPROVED' | 'REJECTED', r)}
+        isPending={bulkUpdate.isPending}
+      />
+      <div className="space-y-3 mt-3">
         {filteredQueue.length > 0 ? (
           filteredQueue.map(doc => (
             <DocumentCard
               key={doc.id}
               doc={doc}
               showTrainer
+              selectable
+              selected={selected.has(doc.id)}
+              onSelectChange={(c) => toggleOne(doc.id, c)}
               actions={
                 <>
                   <Button size="sm" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">

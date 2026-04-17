@@ -57,12 +57,22 @@ export type Database = {
           department: string
           document_type: Database["public"]["Enums"]["document_type"]
           dp_approved_at: string | null
+          dp_approved_by: string | null
+          dp_signature_url: string | null
+          dp_stamp_url: string | null
           file_drive_id: string | null
           file_name: string
           file_url: string | null
           hod_approved_at: string | null
+          hod_approved_by: string | null
+          hod_signature_url: string | null
+          hod_stamp_url: string | null
           id: string
+          iqa_archived_by: string | null
+          iqa_signature_url: string | null
+          iqa_stamp_url: string | null
           rejection_reason: string | null
+          signed_file_url: string | null
           status: Database["public"]["Enums"]["document_status"]
           submission_type: Database["public"]["Enums"]["submission_type"]
           submitted_at: string
@@ -77,12 +87,22 @@ export type Database = {
           department: string
           document_type: Database["public"]["Enums"]["document_type"]
           dp_approved_at?: string | null
+          dp_approved_by?: string | null
+          dp_signature_url?: string | null
+          dp_stamp_url?: string | null
           file_drive_id?: string | null
           file_name: string
           file_url?: string | null
           hod_approved_at?: string | null
+          hod_approved_by?: string | null
+          hod_signature_url?: string | null
+          hod_stamp_url?: string | null
           id?: string
+          iqa_archived_by?: string | null
+          iqa_signature_url?: string | null
+          iqa_stamp_url?: string | null
           rejection_reason?: string | null
+          signed_file_url?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           submission_type: Database["public"]["Enums"]["submission_type"]
           submitted_at?: string
@@ -97,12 +117,22 @@ export type Database = {
           department?: string
           document_type?: Database["public"]["Enums"]["document_type"]
           dp_approved_at?: string | null
+          dp_approved_by?: string | null
+          dp_signature_url?: string | null
+          dp_stamp_url?: string | null
           file_drive_id?: string | null
           file_name?: string
           file_url?: string | null
           hod_approved_at?: string | null
+          hod_approved_by?: string | null
+          hod_signature_url?: string | null
+          hod_stamp_url?: string | null
           id?: string
+          iqa_archived_by?: string | null
+          iqa_signature_url?: string | null
+          iqa_stamp_url?: string | null
           rejection_reason?: string | null
+          signed_file_url?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           submission_type?: Database["public"]["Enums"]["submission_type"]
           submitted_at?: string
@@ -128,6 +158,8 @@ export type Database = {
           full_name: string
           id: string
           pf_number: string | null
+          signature_url: string | null
+          stamp_url: string | null
           updated_at: string
           user_id: string
         }
@@ -138,6 +170,8 @@ export type Database = {
           full_name?: string
           id?: string
           pf_number?: string | null
+          signature_url?: string | null
+          stamp_url?: string | null
           updated_at?: string
           user_id: string
         }
@@ -148,6 +182,8 @@ export type Database = {
           full_name?: string
           id?: string
           pf_number?: string | null
+          signature_url?: string | null
+          stamp_url?: string | null
           updated_at?: string
           user_id?: string
         }

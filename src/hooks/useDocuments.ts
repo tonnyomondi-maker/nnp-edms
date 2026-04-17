@@ -75,24 +75,108 @@ export function useDocumentsByAssignment(assignmentId: string) {
   });
 }
 
+const APPROVAL_STATUSES: DocumentStatus[] = ['HOD_APPROVED', 'DP_APPROVED', 'ARCHIVED'];
+
+async function performApproval(
+  docId: string,
+  status: DocumentStatus,
+  rejectionReason: string | undefined,
+  userId: string,
+) {
+  const updates: TablesUpdate<'documents'> = { status };
+
+  if (status === 'REJECTED') {
+    updates.rejection_reason = rejectionReason || 'Does not meet standards';
+    const { data, error } = await supabase
+      .from('documents').update(updates).eq('id', docId).select().single();
+    if (error) throw error;
+    return data;
+  }
+
+  if (!APPROVAL_STATUSES.includes(status)) {
+    const { data, error } = await supabase
+      .from('documents').update(updates).eq('id', docId).select().single();
+    if (error) throw error;
+    return data;
+  }
+
+  // Approval flow — fetch profile, require signature + stamp
+  const { data: profile, error: profErr } = await supabase
+    .from('profiles')
+    .select('signature_url, stamp_url, full_name')
+    .eq('user_id', userId)
+    .single();
+  if (profErr) throw profErr;
+  if (!profile?.signature_url || !profile?.stamp_url) {
+    throw new Error('Please upload your signature and stamp in Profile Settings before approving.');
+  }
+
+  const stage = status === 'HOD_APPROVED' ? 'HOD' : status === 'DP_APPROVED' ? 'DP' : 'IQA';
+
+  // Burn signature + stamp into PDF via edge function
+  const { data: stampResp, error: stampErr } = await supabase.functions.invoke('stamp-document', {
+    body: {
+      documentId: docId,
+      stage,
+      signatureUrl: profile.signature_url,
+      stampUrl: profile.stamp_url,
+      approverName: profile.full_name || '',
+    },
+  });
+  if (stampErr) throw new Error(stampErr.message || 'Failed to stamp document');
+  const signedFileUrl = (stampResp as { signedFileUrl?: string })?.signedFileUrl;
+  if (signedFileUrl) updates.signed_file_url = signedFileUrl;
+
+  if (status === 'HOD_APPROVED') {
+    updates.hod_approved_at = new Date().toISOString();
+    updates.hod_signature_url = profile.signature_url;
+    updates.hod_stamp_url = profile.stamp_url;
+    updates.hod_approved_by = userId;
+  } else if (status === 'DP_APPROVED') {
+    updates.dp_approved_at = new Date().toISOString();
+    updates.dp_signature_url = profile.signature_url;
+    updates.dp_stamp_url = profile.stamp_url;
+    updates.dp_approved_by = userId;
+  } else if (status === 'ARCHIVED') {
+    updates.archived_at = new Date().toISOString();
+    updates.iqa_signature_url = profile.signature_url;
+    updates.iqa_stamp_url = profile.stamp_url;
+    updates.iqa_archived_by = userId;
+  }
+
+  const { data, error } = await supabase
+    .from('documents').update(updates).eq('id', docId).select().single();
+  if (error) throw error;
+  return data;
+}
+
 export function useUpdateDocumentStatus() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ docId, status, rejectionReason }: { docId: string; status: DocumentStatus; rejectionReason?: string }) => {
-      const updates: TablesUpdate<'documents'> = { status };
-      if (status === 'HOD_APPROVED') updates.hod_approved_at = new Date().toISOString();
-      if (status === 'DP_APPROVED') updates.dp_approved_at = new Date().toISOString();
-      if (status === 'ARCHIVED') updates.archived_at = new Date().toISOString();
-      if (status === 'REJECTED') updates.rejection_reason = rejectionReason || 'Does not meet standards';
-      
-      const { data, error } = await supabase
-        .from('documents')
-        .update(updates)
-        .eq('id', docId)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      if (!user) throw new Error('Not authenticated');
+      return performApproval(docId, status, rejectionReason, user.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+}
+
+export function useBulkUpdateDocumentStatus() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({ docIds, status, rejectionReason }: { docIds: string[]; status: DocumentStatus; rejectionReason?: string }) => {
+      if (!user) throw new Error('Not authenticated');
+      const results = await Promise.allSettled(
+        docIds.map(id => performApproval(id, status, rejectionReason, user.id))
+      );
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.length - succeeded;
+      const firstError = results.find(r => r.status === 'rejected') as PromiseRejectedResult | undefined;
+      return { succeeded, failed, firstErrorMessage: firstError ? (firstError.reason as Error).message : null };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
