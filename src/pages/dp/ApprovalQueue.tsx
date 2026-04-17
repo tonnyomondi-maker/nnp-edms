@@ -1,6 +1,8 @@
-import { useDocumentsByStatus, useUpdateDocumentStatus } from '@/hooks/useDocuments';
+import { useState } from 'react';
+import { useDocumentsByStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
+import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
@@ -8,6 +10,31 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 export default function ApprovalQueue() {
   const { data: queue, isLoading } = useDocumentsByStatus('HOD_APPROVED');
   const updateStatus = useUpdateDocumentStatus();
+  const bulkUpdate = useBulkUpdateDocumentStatus();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const docs = queue || [];
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      checked ? next.add(id) : next.delete(id);
+      return next;
+    });
+  };
+  const allSelected = docs.length > 0 && selected.size === docs.length;
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(docs.map(d => d.id)));
+
+  const handleBulk = async (status: 'DP_APPROVED' | 'REJECTED', reason?: string) => {
+    const ids = Array.from(selected);
+    const res = await bulkUpdate.mutateAsync({ docIds: ids, status, rejectionReason: reason });
+    setSelected(new Set());
+    toast({
+      title: status === 'REJECTED' ? 'Bulk reject complete' : 'Bulk approve complete',
+      description: `${res.succeeded} succeeded, ${res.failed} failed${res.firstErrorMessage ? ` — ${res.firstErrorMessage}` : ''}`,
+      variant: res.failed > 0 ? 'destructive' : 'default',
+    });
+  };
 
   const handleApprove = (docId: string) => {
     updateStatus.mutate({ docId, status: 'DP_APPROVED' }, {
@@ -27,18 +54,30 @@ export default function ApprovalQueue() {
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
 
-  const docs = queue || [];
-
   return (
     <div>
       <PageHeader title="DP Approval Queue" subtitle={`${docs.length} awaiting approval`} />
-      <div className="space-y-3">
+      <BulkActionBar
+        selectedCount={selected.size}
+        totalCount={docs.length}
+        isAllSelected={allSelected}
+        onToggleAll={toggleAll}
+        onClear={() => setSelected(new Set())}
+        approveStatus="DP_APPROVED"
+        approveLabel="Approve all"
+        onBulkAction={(s, r) => handleBulk(s as 'DP_APPROVED' | 'REJECTED', r)}
+        isPending={bulkUpdate.isPending}
+      />
+      <div className="space-y-3 mt-3">
         {docs.length > 0 ? (
           docs.map(doc => (
             <DocumentCard
               key={doc.id}
               doc={doc}
               showTrainer
+              selectable
+              selected={selected.has(doc.id)}
+              onSelectChange={(c) => toggleOne(doc.id, c)}
               actions={
                 <>
                   <Button size="sm" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
