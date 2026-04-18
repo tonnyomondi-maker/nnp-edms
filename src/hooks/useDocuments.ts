@@ -77,11 +77,20 @@ export function useDocumentsByAssignment(assignmentId: string) {
 
 const APPROVAL_STATUSES: DocumentStatus[] = ['HOD_APPROVED', 'DP_APPROVED', 'ARCHIVED'];
 
+export interface ApprovalPlacement {
+  page?: number | null;
+  sigX?: number | null;
+  sigY?: number | null;
+  stampX?: number | null;
+  stampY?: number | null;
+}
+
 async function performApproval(
   docId: string,
   status: DocumentStatus,
   rejectionReason: string | undefined,
   userId: string,
+  placement?: ApprovalPlacement | null,
 ) {
   const updates: TablesUpdate<'documents'> = { status };
 
@@ -121,6 +130,7 @@ async function performApproval(
       signatureUrl: profile.signature_url,
       stampUrl: profile.stamp_url,
       approverName: profile.full_name || '',
+      placement: placement || null,
     },
   });
   if (stampErr) throw new Error(stampErr.message || 'Failed to stamp document');
@@ -132,16 +142,40 @@ async function performApproval(
     updates.hod_signature_url = profile.signature_url;
     updates.hod_stamp_url = profile.stamp_url;
     updates.hod_approved_by = userId;
+    if (placement) {
+      updates.hod_sig_page = placement.page ?? null;
+      updates.hod_sig_x = placement.sigX ?? null;
+      updates.hod_sig_y = placement.sigY ?? null;
+      updates.hod_stamp_page = placement.page ?? null;
+      updates.hod_stamp_x = placement.stampX ?? null;
+      updates.hod_stamp_y = placement.stampY ?? null;
+    }
   } else if (status === 'DP_APPROVED') {
     updates.dp_approved_at = new Date().toISOString();
     updates.dp_signature_url = profile.signature_url;
     updates.dp_stamp_url = profile.stamp_url;
     updates.dp_approved_by = userId;
+    if (placement) {
+      updates.dp_sig_page = placement.page ?? null;
+      updates.dp_sig_x = placement.sigX ?? null;
+      updates.dp_sig_y = placement.sigY ?? null;
+      updates.dp_stamp_page = placement.page ?? null;
+      updates.dp_stamp_x = placement.stampX ?? null;
+      updates.dp_stamp_y = placement.stampY ?? null;
+    }
   } else if (status === 'ARCHIVED') {
     updates.archived_at = new Date().toISOString();
     updates.iqa_signature_url = profile.signature_url;
     updates.iqa_stamp_url = profile.stamp_url;
     updates.iqa_archived_by = userId;
+    if (placement) {
+      updates.iqa_sig_page = placement.page ?? null;
+      updates.iqa_sig_x = placement.sigX ?? null;
+      updates.iqa_sig_y = placement.sigY ?? null;
+      updates.iqa_stamp_page = placement.page ?? null;
+      updates.iqa_stamp_x = placement.stampX ?? null;
+      updates.iqa_stamp_y = placement.stampY ?? null;
+    }
   }
 
   const { data, error } = await supabase
@@ -154,9 +188,9 @@ export function useUpdateDocumentStatus() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ docId, status, rejectionReason }: { docId: string; status: DocumentStatus; rejectionReason?: string }) => {
+    mutationFn: async ({ docId, status, rejectionReason, placement }: { docId: string; status: DocumentStatus; rejectionReason?: string; placement?: ApprovalPlacement | null }) => {
       if (!user) throw new Error('Not authenticated');
-      return performApproval(docId, status, rejectionReason, user.id);
+      return performApproval(docId, status, rejectionReason, user.id, placement);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });

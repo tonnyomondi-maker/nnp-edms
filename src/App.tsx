@@ -19,6 +19,7 @@ import ManageAssignments from "./pages/admin/ManageAssignments";
 import Reports from "./pages/Reports";
 import ProfileSettings from "./pages/ProfileSettings";
 import Notifications from "./pages/Notifications";
+import VerifyDocument from "./pages/VerifyDocument";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -54,6 +55,7 @@ function ProtectedRoutes() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/profile" element={<ProfileSettings />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/verify/:documentId" element={<VerifyDocument />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppShell>

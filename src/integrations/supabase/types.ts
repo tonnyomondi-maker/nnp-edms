@@ -58,19 +58,37 @@ export type Database = {
           document_type: Database["public"]["Enums"]["document_type"]
           dp_approved_at: string | null
           dp_approved_by: string | null
+          dp_sig_page: number | null
+          dp_sig_x: number | null
+          dp_sig_y: number | null
           dp_signature_url: string | null
+          dp_stamp_page: number | null
           dp_stamp_url: string | null
+          dp_stamp_x: number | null
+          dp_stamp_y: number | null
           file_drive_id: string | null
           file_name: string
           file_url: string | null
           hod_approved_at: string | null
           hod_approved_by: string | null
+          hod_sig_page: number | null
+          hod_sig_x: number | null
+          hod_sig_y: number | null
           hod_signature_url: string | null
+          hod_stamp_page: number | null
           hod_stamp_url: string | null
+          hod_stamp_x: number | null
+          hod_stamp_y: number | null
           id: string
           iqa_archived_by: string | null
+          iqa_sig_page: number | null
+          iqa_sig_x: number | null
+          iqa_sig_y: number | null
           iqa_signature_url: string | null
+          iqa_stamp_page: number | null
           iqa_stamp_url: string | null
+          iqa_stamp_x: number | null
+          iqa_stamp_y: number | null
           rejection_reason: string | null
           signed_file_url: string | null
           status: Database["public"]["Enums"]["document_status"]
@@ -88,19 +106,37 @@ export type Database = {
           document_type: Database["public"]["Enums"]["document_type"]
           dp_approved_at?: string | null
           dp_approved_by?: string | null
+          dp_sig_page?: number | null
+          dp_sig_x?: number | null
+          dp_sig_y?: number | null
           dp_signature_url?: string | null
+          dp_stamp_page?: number | null
           dp_stamp_url?: string | null
+          dp_stamp_x?: number | null
+          dp_stamp_y?: number | null
           file_drive_id?: string | null
           file_name: string
           file_url?: string | null
           hod_approved_at?: string | null
           hod_approved_by?: string | null
+          hod_sig_page?: number | null
+          hod_sig_x?: number | null
+          hod_sig_y?: number | null
           hod_signature_url?: string | null
+          hod_stamp_page?: number | null
           hod_stamp_url?: string | null
+          hod_stamp_x?: number | null
+          hod_stamp_y?: number | null
           id?: string
           iqa_archived_by?: string | null
+          iqa_sig_page?: number | null
+          iqa_sig_x?: number | null
+          iqa_sig_y?: number | null
           iqa_signature_url?: string | null
+          iqa_stamp_page?: number | null
           iqa_stamp_url?: string | null
+          iqa_stamp_x?: number | null
+          iqa_stamp_y?: number | null
           rejection_reason?: string | null
           signed_file_url?: string | null
           status?: Database["public"]["Enums"]["document_status"]
@@ -118,19 +154,37 @@ export type Database = {
           document_type?: Database["public"]["Enums"]["document_type"]
           dp_approved_at?: string | null
           dp_approved_by?: string | null
+          dp_sig_page?: number | null
+          dp_sig_x?: number | null
+          dp_sig_y?: number | null
           dp_signature_url?: string | null
+          dp_stamp_page?: number | null
           dp_stamp_url?: string | null
+          dp_stamp_x?: number | null
+          dp_stamp_y?: number | null
           file_drive_id?: string | null
           file_name?: string
           file_url?: string | null
           hod_approved_at?: string | null
           hod_approved_by?: string | null
+          hod_sig_page?: number | null
+          hod_sig_x?: number | null
+          hod_sig_y?: number | null
           hod_signature_url?: string | null
+          hod_stamp_page?: number | null
           hod_stamp_url?: string | null
+          hod_stamp_x?: number | null
+          hod_stamp_y?: number | null
           id?: string
           iqa_archived_by?: string | null
+          iqa_sig_page?: number | null
+          iqa_sig_x?: number | null
+          iqa_sig_y?: number | null
           iqa_signature_url?: string | null
+          iqa_stamp_page?: number | null
           iqa_stamp_url?: string | null
+          iqa_stamp_x?: number | null
+          iqa_stamp_y?: number | null
           rejection_reason?: string | null
           signed_file_url?: string | null
           status?: Database["public"]["Enums"]["document_status"]

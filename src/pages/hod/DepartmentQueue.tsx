@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useDocumentsByDepartmentAndStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus } from '@/hooks/useDocuments';
+import { useDocumentsByDepartmentAndStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
+import { PlacementModal } from '@/components/common/PlacementModal';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 export default function DepartmentQueue() {
@@ -14,6 +16,7 @@ export default function DepartmentQueue() {
   const updateStatus = useUpdateDocumentStatus();
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
 
   const filteredQueue = useMemo(
     () => (queue || []).filter(d => d.trainer_id !== currentUser?.id),
@@ -41,8 +44,27 @@ export default function DepartmentQueue() {
     });
   };
 
-  const handleApprove = (docId: string) => {
-    updateStatus.mutate({ docId, status: 'HOD_APPROVED' }, {
+  const handleApprove = async (docId: string) => {
+    const doc = filteredQueue.find(d => d.id === docId);
+    if (!doc) return;
+    const { data: profile } = await supabase
+      .from('profiles').select('signature_url, stamp_url').eq('user_id', currentUser!.id).single();
+    if (!profile?.signature_url || !profile?.stamp_url) {
+      toast({ title: 'Setup required', description: 'Upload your signature & stamp in Profile Settings first.', variant: 'destructive' });
+      return;
+    }
+    setPlacementDoc({
+      id: docId,
+      pdfUrl: doc.signed_file_url || doc.file_url || '',
+      sigUrl: profile.signature_url,
+      stampUrl: profile.stamp_url,
+    });
+  };
+
+  const performApproveWithPlacement = (placement: ApprovalPlacement | null) => {
+    if (!placementDoc) return;
+    const docId = placementDoc.id;
+    updateStatus.mutate({ docId, status: 'HOD_APPROVED', placement }, {
       onSuccess: () => toast({ title: 'Document Approved', description: 'Forwarded to DP Academics.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
@@ -99,6 +121,17 @@ export default function DepartmentQueue() {
           <p className="text-sm text-muted-foreground text-center py-8">No documents awaiting review</p>
         )}
       </div>
+      {placementDoc && (
+        <PlacementModal
+          open={!!placementDoc}
+          onOpenChange={(o) => { if (!o) setPlacementDoc(null); }}
+          pdfUrl={placementDoc.pdfUrl}
+          signatureUrl={placementDoc.sigUrl}
+          stampUrl={placementDoc.stampUrl}
+          stage="HOD"
+          onConfirm={performApproveWithPlacement}
+        />
+      )}
     </div>
   );
 }

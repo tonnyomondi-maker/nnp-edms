@@ -1,22 +1,45 @@
 import { useState } from 'react';
-import { useDocumentsByStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus } from '@/hooks/useDocuments';
+import { useDocumentsByStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
+import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
+import { PlacementModal } from '@/components/common/PlacementModal';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { Archive, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function ArchiveScreen() {
+  const { currentUser } = useAuth();
   const { data: pendingDocs, isLoading: loadingPending } = useDocumentsByStatus('DP_APPROVED');
   const { data: archivedDocs, isLoading: loadingArchived } = useDocumentsByStatus('ARCHIVED');
   const updateStatus = useUpdateDocumentStatus();
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
 
-  const handleArchive = (docId: string) => {
-    updateStatus.mutate({ docId, status: 'ARCHIVED' }, {
+  const handleArchive = async (docId: string) => {
+    const doc = (pendingDocs || []).find(d => d.id === docId);
+    if (!doc) return;
+    const { data: profile } = await supabase
+      .from('profiles').select('signature_url, stamp_url').eq('user_id', currentUser!.id).single();
+    if (!profile?.signature_url || !profile?.stamp_url) {
+      toast({ title: 'Setup required', description: 'Upload your signature & stamp in Profile Settings first.', variant: 'destructive' });
+      return;
+    }
+    setPlacementDoc({
+      id: docId,
+      pdfUrl: doc.signed_file_url || doc.file_url || '',
+      sigUrl: profile.signature_url,
+      stampUrl: profile.stamp_url,
+    });
+  };
+
+  const performArchiveWithPlacement = (placement: ApprovalPlacement | null) => {
+    if (!placementDoc) return;
+    updateStatus.mutate({ docId: placementDoc.id, status: 'ARCHIVED', placement }, {
       onSuccess: () => toast({ title: 'Document Archived', description: 'Document moved to final repository.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
@@ -100,6 +123,17 @@ export default function ArchiveScreen() {
           )}
         </TabsContent>
       </Tabs>
+      {placementDoc && (
+        <PlacementModal
+          open={!!placementDoc}
+          onOpenChange={(o) => { if (!o) setPlacementDoc(null); }}
+          pdfUrl={placementDoc.pdfUrl}
+          signatureUrl={placementDoc.sigUrl}
+          stampUrl={placementDoc.stampUrl}
+          stage="IQA"
+          onConfirm={performArchiveWithPlacement}
+        />
+      )}
     </div>
   );
 }

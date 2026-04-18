@@ -1,17 +1,22 @@
 import { useState } from 'react';
-import { useDocumentsByStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus } from '@/hooks/useDocuments';
+import { useDocumentsByStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
+import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
+import { PlacementModal } from '@/components/common/PlacementModal';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 export default function ApprovalQueue() {
+  const { currentUser } = useAuth();
   const { data: queue, isLoading } = useDocumentsByStatus('HOD_APPROVED');
   const updateStatus = useUpdateDocumentStatus();
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
 
   const docs = queue || [];
 
@@ -36,8 +41,26 @@ export default function ApprovalQueue() {
     });
   };
 
-  const handleApprove = (docId: string) => {
-    updateStatus.mutate({ docId, status: 'DP_APPROVED' }, {
+  const handleApprove = async (docId: string) => {
+    const doc = docs.find(d => d.id === docId);
+    if (!doc) return;
+    const { data: profile } = await supabase
+      .from('profiles').select('signature_url, stamp_url').eq('user_id', currentUser!.id).single();
+    if (!profile?.signature_url || !profile?.stamp_url) {
+      toast({ title: 'Setup required', description: 'Upload your signature & stamp in Profile Settings first.', variant: 'destructive' });
+      return;
+    }
+    setPlacementDoc({
+      id: docId,
+      pdfUrl: doc.signed_file_url || doc.file_url || '',
+      sigUrl: profile.signature_url,
+      stampUrl: profile.stamp_url,
+    });
+  };
+
+  const performApproveWithPlacement = (placement: ApprovalPlacement | null) => {
+    if (!placementDoc) return;
+    updateStatus.mutate({ docId: placementDoc.id, status: 'DP_APPROVED', placement }, {
       onSuccess: () => toast({ title: 'Document Approved', description: 'Forwarded to IQA for archiving.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
@@ -94,6 +117,17 @@ export default function ApprovalQueue() {
           <p className="text-sm text-muted-foreground text-center py-8">No documents awaiting approval</p>
         )}
       </div>
+      {placementDoc && (
+        <PlacementModal
+          open={!!placementDoc}
+          onOpenChange={(o) => { if (!o) setPlacementDoc(null); }}
+          pdfUrl={placementDoc.pdfUrl}
+          signatureUrl={placementDoc.sigUrl}
+          stampUrl={placementDoc.stampUrl}
+          stage="DP"
+          onConfirm={performApproveWithPlacement}
+        />
+      )}
     </div>
   );
 }
