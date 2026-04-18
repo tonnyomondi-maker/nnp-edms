@@ -11,10 +11,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 export default function ApprovalQueue() {
+  const { currentUser } = useAuth();
   const { data: queue, isLoading } = useDocumentsByStatus('HOD_APPROVED');
   const updateStatus = useUpdateDocumentStatus();
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
 
   const docs = queue || [];
 
