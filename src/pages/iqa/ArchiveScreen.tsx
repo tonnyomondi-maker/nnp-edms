@@ -123,6 +123,17 @@ export default function ArchiveScreen() {
           )}
         </TabsContent>
       </Tabs>
+      {placementDoc && (
+        <PlacementModal
+          open={!!placementDoc}
+          onOpenChange={(o) => { if (!o) setPlacementDoc(null); }}
+          pdfUrl={placementDoc.pdfUrl}
+          signatureUrl={placementDoc.sigUrl}
+          stampUrl={placementDoc.stampUrl}
+          stage="IQA"
+          onConfirm={performArchiveWithPlacement}
+        />
+      )}
     </div>
   );
 }
