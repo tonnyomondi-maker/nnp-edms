@@ -177,7 +177,7 @@ export function PlacementModal({
             {/* Stamp draggable box */}
             <div
               onPointerDown={onPointerDown('stamp')}
-              className="absolute border-2 border-amber-500 bg-amber-500/15 cursor-move flex items-center justify-center select-none"
+              className="absolute border-2 border-accent-foreground bg-accent cursor-move flex items-center justify-center select-none"
               style={{
                 left: `${stamp.x * 100}%`, top: `${stamp.y * 100}%`,
                 width: `${stamp.w * 100}%`, height: `${stamp.h * 100}%`,
