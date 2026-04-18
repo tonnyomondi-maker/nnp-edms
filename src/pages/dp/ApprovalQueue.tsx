@@ -41,8 +41,26 @@ export default function ApprovalQueue() {
     });
   };
 
-  const handleApprove = (docId: string) => {
-    updateStatus.mutate({ docId, status: 'DP_APPROVED' }, {
+  const handleApprove = async (docId: string) => {
+    const doc = docs.find(d => d.id === docId);
+    if (!doc) return;
+    const { data: profile } = await supabase
+      .from('profiles').select('signature_url, stamp_url').eq('user_id', currentUser!.id).single();
+    if (!profile?.signature_url || !profile?.stamp_url) {
+      toast({ title: 'Setup required', description: 'Upload your signature & stamp in Profile Settings first.', variant: 'destructive' });
+      return;
+    }
+    setPlacementDoc({
+      id: docId,
+      pdfUrl: doc.signed_file_url || doc.file_url || '',
+      sigUrl: profile.signature_url,
+      stampUrl: profile.stamp_url,
+    });
+  };
+
+  const performApproveWithPlacement = (placement: ApprovalPlacement | null) => {
+    if (!placementDoc) return;
+    updateStatus.mutate({ docId: placementDoc.id, status: 'DP_APPROVED', placement }, {
       onSuccess: () => toast({ title: 'Document Approved', description: 'Forwarded to IQA for archiving.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
