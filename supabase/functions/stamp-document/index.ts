@@ -6,8 +6,12 @@ interface Placement {
   page?: number | null;        // 1-based; if null => last page
   sigX?: number | null;        // 0..1 fraction of page width (left of sig box)
   sigY?: number | null;        // 0..1 fraction of page height from TOP (top of sig box) — UI coords
+  sigW?: number | null;        // 0..1 fraction of page width
+  sigH?: number | null;        // 0..1 fraction of page height
   stampX?: number | null;
   stampY?: number | null;
+  stampW?: number | null;
+  stampH?: number | null;
 }
 interface StampRequest {
   documentId: string;
