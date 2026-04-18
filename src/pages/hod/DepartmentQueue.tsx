@@ -16,6 +16,7 @@ export default function DepartmentQueue() {
   const updateStatus = useUpdateDocumentStatus();
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
 
   const filteredQueue = useMemo(
     () => (queue || []).filter(d => d.trainer_id !== currentUser?.id),
