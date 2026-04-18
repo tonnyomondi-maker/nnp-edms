@@ -19,6 +19,7 @@ import ManageAssignments from "./pages/admin/ManageAssignments";
 import Reports from "./pages/Reports";
 import ProfileSettings from "./pages/ProfileSettings";
 import Notifications from "./pages/Notifications";
+import VerifyDocument from "./pages/VerifyDocument";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 

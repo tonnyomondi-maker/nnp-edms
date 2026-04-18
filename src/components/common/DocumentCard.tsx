@@ -2,8 +2,9 @@ import { Tables } from '@/integrations/supabase/types';
 import { StatusBadge } from './StatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileText, Calendar, ExternalLink } from 'lucide-react';
+import { FileText, Calendar, ExternalLink, ShieldCheck } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Link } from 'react-router-dom';
 
 type DocumentRow = Tables<'documents'> & {
   hod_signature_url?: string | null;
@@ -98,6 +99,12 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                     View PDF <ExternalLink className="w-2.5 h-2.5" />
                   </a>
                 )}
+                <Link
+                  to={`/verify/${doc.id}`}
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted hover:bg-muted/70 transition-colors text-[10px] font-medium"
+                >
+                  <ShieldCheck className="w-2.5 h-2.5" /> Verify
+                </Link>
               </div>
             </div>
           </div>
