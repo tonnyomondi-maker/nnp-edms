@@ -121,6 +121,17 @@ export default function DepartmentQueue() {
           <p className="text-sm text-muted-foreground text-center py-8">No documents awaiting review</p>
         )}
       </div>
+      {placementDoc && (
+        <PlacementModal
+          open={!!placementDoc}
+          onOpenChange={(o) => { if (!o) setPlacementDoc(null); }}
+          pdfUrl={placementDoc.pdfUrl}
+          signatureUrl={placementDoc.sigUrl}
+          stampUrl={placementDoc.stampUrl}
+          stage="HOD"
+          onConfirm={performApproveWithPlacement}
+        />
+      )}
     </div>
   );
 }
