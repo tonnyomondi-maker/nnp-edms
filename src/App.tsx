@@ -55,6 +55,7 @@ function ProtectedRoutes() {
         <Route path="/reports" element={<Reports />} />
         <Route path="/profile" element={<ProfileSettings />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/verify/:documentId" element={<VerifyDocument />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppShell>
