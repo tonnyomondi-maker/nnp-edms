@@ -117,6 +117,17 @@ export default function ApprovalQueue() {
           <p className="text-sm text-muted-foreground text-center py-8">No documents awaiting approval</p>
         )}
       </div>
+      {placementDoc && (
+        <PlacementModal
+          open={!!placementDoc}
+          onOpenChange={(o) => { if (!o) setPlacementDoc(null); }}
+          pdfUrl={placementDoc.pdfUrl}
+          signatureUrl={placementDoc.sigUrl}
+          stampUrl={placementDoc.stampUrl}
+          stage="DP"
+          onConfirm={performApproveWithPlacement}
+        />
+      )}
     </div>
   );
 }
