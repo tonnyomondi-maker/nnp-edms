@@ -77,11 +77,20 @@ export function useDocumentsByAssignment(assignmentId: string) {
 
 const APPROVAL_STATUSES: DocumentStatus[] = ['HOD_APPROVED', 'DP_APPROVED', 'ARCHIVED'];
 
+export interface ApprovalPlacement {
+  page?: number | null;
+  sigX?: number | null;
+  sigY?: number | null;
+  stampX?: number | null;
+  stampY?: number | null;
+}
+
 async function performApproval(
   docId: string,
   status: DocumentStatus,
   rejectionReason: string | undefined,
   userId: string,
+  placement?: ApprovalPlacement | null,
 ) {
   const updates: TablesUpdate<'documents'> = { status };
 
