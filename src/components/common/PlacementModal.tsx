@@ -20,8 +20,39 @@ interface PlacementModalProps {
 
 type Box = { x: number; y: number; w: number; h: number };
 
-const SIG_BOX = { w: 0.22, h: 0.05 };   // fraction of page
-const STAMP_BOX = { w: 0.12, h: 0.085 };
+const DEFAULT_SIG: Box = { x: 0.06, y: 0.85, w: 0.22, h: 0.05 };
+const DEFAULT_STAMP: Box = { x: 0.34, y: 0.83, w: 0.12, h: 0.085 };
+
+const MIN_W = 0.04;
+const MIN_H = 0.02;
+
+const storageKey = (stage: string) => `placement:${stage}`;
+
+type Stored = { sig: Box; stamp: Box; page?: number };
+
+function loadStored(stage: string): Stored | null {
+  try {
+    const raw = localStorage.getItem(storageKey(stage));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.sig || !parsed?.stamp) return null;
+    return parsed as Stored;
+  } catch {
+    return null;
+  }
+}
+
+function saveStored(stage: string, data: Stored) {
+  try {
+    localStorage.setItem(storageKey(stage), JSON.stringify(data));
+  } catch {
+    /* ignore */
+  }
+}
+
+type DragState =
+  | { kind: 'move'; which: 'sig' | 'stamp'; offX: number; offY: number }
+  | { kind: 'resize'; which: 'sig' | 'stamp'; startX: number; startY: number; startW: number; startH: number; anchorFx: number; anchorFy: number };
 
 export function PlacementModal({
   open, onOpenChange, pdfUrl, signatureUrl, stampUrl, stage, onConfirm,
@@ -34,10 +65,22 @@ export function PlacementModal({
   const [rendering, setRendering] = useState(false);
   const [pageSize, setPageSize] = useState({ w: 0, h: 0 });
 
-  // Default placement bottom-area on the rendered page
-  const [sig, setSig] = useState<Box>({ x: 0.06, y: 0.85, ...SIG_BOX });
-  const [stamp, setStamp] = useState<Box>({ x: 0.34, y: 0.83, ...STAMP_BOX });
-  const [drag, setDrag] = useState<{ which: 'sig' | 'stamp'; offX: number; offY: number } | null>(null);
+  const [sig, setSig] = useState<Box>(DEFAULT_SIG);
+  const [stamp, setStamp] = useState<Box>(DEFAULT_STAMP);
+  const [drag, setDrag] = useState<DragState | null>(null);
+
+  // Load stored placement for this stage when modal opens
+  useEffect(() => {
+    if (!open) return;
+    const stored = loadStored(stage);
+    if (stored) {
+      setSig(stored.sig);
+      setStamp(stored.stamp);
+    } else {
+      setSig(DEFAULT_SIG);
+      setStamp(DEFAULT_STAMP);
+    }
+  }, [open, stage]);
 
   useEffect(() => {
     if (!open || !pdfUrl) return;
@@ -50,7 +93,8 @@ export function PlacementModal({
         if (cancelled) return;
         setPdfDoc(doc);
         setNumPages(doc.numPages);
-        setPageNum(doc.numPages); // default last page
+        const stored = loadStored(stage);
+        setPageNum(stored?.page && stored.page <= doc.numPages ? stored.page : doc.numPages);
       } catch (e) {
         console.error('PDF load failed', e);
       } finally {
@@ -58,7 +102,7 @@ export function PlacementModal({
       }
     })();
     return () => { cancelled = true; };
-  }, [open, pdfUrl]);
+  }, [open, pdfUrl, stage]);
 
   useEffect(() => {
     if (!pdfDoc || !canvasRef.current || !containerRef.current) return;
@@ -86,14 +130,32 @@ export function PlacementModal({
     return () => { cancelled = true; };
   }, [pdfDoc, pageNum]);
 
-  const onPointerDown = (which: 'sig' | 'stamp') => (e: React.PointerEvent<HTMLDivElement>) => {
+  const onMovePointerDown = (which: 'sig' | 'stamp') => (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     const rect = (e.currentTarget.parentElement as HTMLDivElement).getBoundingClientRect();
     const fx = (e.clientX - rect.left) / rect.width;
     const fy = (e.clientY - rect.top) / rect.height;
     const box = which === 'sig' ? sig : stamp;
-    setDrag({ which, offX: fx - box.x, offY: fy - box.y });
+    setDrag({ kind: 'move', which, offX: fx - box.x, offY: fy - box.y });
+  };
+
+  const onResizePointerDown = (which: 'sig' | 'stamp') => (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const box = which === 'sig' ? sig : stamp;
+    setDrag({
+      kind: 'resize',
+      which,
+      startX: box.x,
+      startY: box.y,
+      startW: box.w,
+      startH: box.h,
+      anchorFx: box.x,
+      anchorFy: box.y,
+    });
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -102,11 +164,19 @@ export function PlacementModal({
     const fx = (e.clientX - rect.left) / rect.width;
     const fy = (e.clientY - rect.top) / rect.height;
     const setter = drag.which === 'sig' ? setSig : setStamp;
-    setter((b) => ({
-      ...b,
-      x: Math.min(1 - b.w, Math.max(0, fx - drag.offX)),
-      y: Math.min(1 - b.h, Math.max(0, fy - drag.offY)),
-    }));
+
+    if (drag.kind === 'move') {
+      setter((b) => ({
+        ...b,
+        x: Math.min(1 - b.w, Math.max(0, fx - drag.offX)),
+        y: Math.min(1 - b.h, Math.max(0, fy - drag.offY)),
+      }));
+    } else {
+      // resize from bottom-right corner; anchor stays at top-left
+      const newW = Math.min(1 - drag.anchorFx, Math.max(MIN_W, fx - drag.anchorFx));
+      const newH = Math.min(1 - drag.anchorFy, Math.max(MIN_H, fy - drag.anchorFy));
+      setter((b) => ({ ...b, w: newW, h: newH }));
+    }
   };
 
   const onPointerUp = () => setDrag(null);
@@ -115,15 +185,25 @@ export function PlacementModal({
     if (useDefault) {
       onConfirm(null);
     } else {
+      saveStored(stage, { sig, stamp, page: pageNum });
       onConfirm({
         page: pageNum,
         sigX: sig.x,
         sigY: sig.y,
+        sigW: sig.w,
+        sigH: sig.h,
         stampX: stamp.x,
         stampY: stamp.y,
+        stampW: stamp.w,
+        stampH: stamp.h,
       });
     }
     onOpenChange(false);
+  };
+
+  const handleResetDefaults = () => {
+    setSig(DEFAULT_SIG);
+    setStamp(DEFAULT_STAMP);
   };
 
   return (
@@ -132,7 +212,7 @@ export function PlacementModal({
         <DialogHeader>
           <DialogTitle>Position your {stage} signature & stamp</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Drag the boxes to your preferred position, or click <strong>Use default</strong> to stamp the bottom of the last page.
+            Drag to move, drag the bottom-right corner to resize. Your last-used placement for {stage} is remembered.
           </p>
         </DialogHeader>
 
@@ -146,7 +226,10 @@ export function PlacementModal({
               <ChevronRight className="w-3.5 h-3.5" />
             </Button>
           </div>
-          <span className="text-muted-foreground">Drag boxes • Sig (blue) • Stamp (amber)</span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={handleResetDefaults} className="h-7 px-2 text-xs">Reset</Button>
+            <span className="text-muted-foreground">Sig (blue) • Stamp (amber)</span>
+          </div>
         </div>
 
         <div ref={containerRef} className="flex-1 overflow-auto bg-muted rounded p-3 flex justify-center">
@@ -162,9 +245,9 @@ export function PlacementModal({
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
             )}
-            {/* Signature draggable box */}
+            {/* Signature draggable + resizable box */}
             <div
-              onPointerDown={onPointerDown('sig')}
+              onPointerDown={onMovePointerDown('sig')}
               className="absolute border-2 border-primary bg-primary/15 cursor-move flex items-center justify-center select-none"
               style={{
                 left: `${sig.x * 100}%`, top: `${sig.y * 100}%`,
@@ -173,10 +256,15 @@ export function PlacementModal({
               }}
             >
               <img src={signatureUrl} alt="sig" className="max-w-full max-h-full object-contain pointer-events-none" />
+              <div
+                onPointerDown={onResizePointerDown('sig')}
+                className="absolute -right-1 -bottom-1 w-3 h-3 bg-primary border border-background cursor-se-resize"
+                style={{ touchAction: 'none' }}
+              />
             </div>
-            {/* Stamp draggable box */}
+            {/* Stamp draggable + resizable box */}
             <div
-              onPointerDown={onPointerDown('stamp')}
+              onPointerDown={onMovePointerDown('stamp')}
               className="absolute border-2 border-accent-foreground bg-accent cursor-move flex items-center justify-center select-none"
               style={{
                 left: `${stamp.x * 100}%`, top: `${stamp.y * 100}%`,
@@ -185,6 +273,11 @@ export function PlacementModal({
               }}
             >
               <img src={stampUrl} alt="stamp" className="max-w-full max-h-full object-contain pointer-events-none" />
+              <div
+                onPointerDown={onResizePointerDown('stamp')}
+                className="absolute -right-1 -bottom-1 w-3 h-3 bg-accent-foreground border border-background cursor-se-resize"
+                style={{ touchAction: 'none' }}
+              />
             </div>
           </div>
         </div>

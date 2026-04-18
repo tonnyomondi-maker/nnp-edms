@@ -6,8 +6,12 @@ interface Placement {
   page?: number | null;        // 1-based; if null => last page
   sigX?: number | null;        // 0..1 fraction of page width (left of sig box)
   sigY?: number | null;        // 0..1 fraction of page height from TOP (top of sig box) — UI coords
+  sigW?: number | null;        // 0..1 fraction of page width
+  sigH?: number | null;        // 0..1 fraction of page height
   stampX?: number | null;
   stampY?: number | null;
+  stampW?: number | null;
+  stampH?: number | null;
 }
 interface StampRequest {
   documentId: string;
@@ -91,8 +95,14 @@ Deno.serve(async (req) => {
       const page = pages[pageIdx];
       const { width, height } = page.getSize();
 
-      const sigDims = sigImage.scaleToFit(SIG_W, SIG_H);
-      const stampDims = stampImage.scaleToFit(STAMP_W, STAMP_H);
+      // If user provided a custom width/height (resize), fit image to that box; else use defaults
+      const sigBoxW = (placement!.sigW != null ? placement!.sigW * width : SIG_W);
+      const sigBoxH = (placement!.sigH != null ? placement!.sigH * height : SIG_H);
+      const stampBoxW = (placement!.stampW != null ? placement!.stampW * width : STAMP_W);
+      const stampBoxH = (placement!.stampH != null ? placement!.stampH * height : STAMP_H);
+
+      const sigDims = sigImage.scaleToFit(sigBoxW, sigBoxH);
+      const stampDims = stampImage.scaleToFit(stampBoxW, stampBoxH);
 
       if (placement!.sigX != null && placement!.sigY != null) {
         const x = placement!.sigX * width;

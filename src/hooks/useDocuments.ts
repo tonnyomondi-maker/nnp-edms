@@ -81,8 +81,12 @@ export interface ApprovalPlacement {
   page?: number | null;
   sigX?: number | null;
   sigY?: number | null;
+  sigW?: number | null;
+  sigH?: number | null;
   stampX?: number | null;
   stampY?: number | null;
+  stampW?: number | null;
+  stampH?: number | null;
 }
 
 async function performApproval(
