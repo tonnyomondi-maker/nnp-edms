@@ -95,8 +95,14 @@ Deno.serve(async (req) => {
       const page = pages[pageIdx];
       const { width, height } = page.getSize();
 
-      const sigDims = sigImage.scaleToFit(SIG_W, SIG_H);
-      const stampDims = stampImage.scaleToFit(STAMP_W, STAMP_H);
+      // If user provided a custom width/height (resize), fit image to that box; else use defaults
+      const sigBoxW = (placement!.sigW != null ? placement!.sigW * width : SIG_W);
+      const sigBoxH = (placement!.sigH != null ? placement!.sigH * height : SIG_H);
+      const stampBoxW = (placement!.stampW != null ? placement!.stampW * width : STAMP_W);
+      const stampBoxH = (placement!.stampH != null ? placement!.stampH * height : STAMP_H);
+
+      const sigDims = sigImage.scaleToFit(sigBoxW, sigBoxH);
+      const stampDims = stampImage.scaleToFit(stampBoxW, stampBoxH);
 
       if (placement!.sigX != null && placement!.sigY != null) {
         const x = placement!.sigX * width;
