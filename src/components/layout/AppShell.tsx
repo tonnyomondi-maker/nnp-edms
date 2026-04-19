@@ -1,5 +1,6 @@
 import { TopBar } from './TopBar';
 import { BottomNav } from './BottomNav';
+import { Footer } from './Footer';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -8,7 +9,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 px-4 py-4 pb-24 max-w-screen-lg mx-auto w-full">
         {children}
       </main>
+      <Footer />
       <BottomNav />
     </div>
   );
 }
+

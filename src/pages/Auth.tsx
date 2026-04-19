@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import polytechnicLogo from '@/assets/polytechnic-logo.jpg';
+import { Footer } from '@/components/layout/Footer';
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -105,7 +106,8 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col bg-background">
+      <div className="flex-1 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <img src={polytechnicLogo} alt="Nyamira National Polytechnic" className="w-20 h-20 mx-auto object-contain mb-2" />
@@ -223,6 +225,8 @@ export default function Auth() {
           </Tabs>
         </CardContent>
       </Card>
+      </div>
+      <Footer />
     </div>
   );
 }
