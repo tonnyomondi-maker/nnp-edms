@@ -9,6 +9,7 @@ const statusStyles: Record<DocumentStatus, string> = {
   DP_APPROVED: 'bg-status-approved-bg text-status-approved',
   ARCHIVED: 'bg-status-archived-bg text-status-archived',
   REJECTED: 'bg-status-rejected-bg text-status-rejected',
+  EXPORTED: 'bg-muted text-muted-foreground',
 };
 
 const statusLabels: Record<DocumentStatus, string> = {
@@ -17,6 +18,7 @@ const statusLabels: Record<DocumentStatus, string> = {
   DP_APPROVED: 'DP Approved',
   ARCHIVED: 'Archived',
   REJECTED: 'Rejected',
+  EXPORTED: 'Exported',
 };
 
 export function StatusBadge({ status, className }: { status: DocumentStatus; className?: string }) {

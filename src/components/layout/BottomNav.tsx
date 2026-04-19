@@ -1,6 +1,6 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useLocation, Link } from 'react-router-dom';
-import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings } from 'lucide-react';
+import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const trainerItems = [
@@ -19,13 +19,14 @@ const hodItems = [
 const dpItems = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/dp/queue', icon: Shield, label: 'Approvals' },
+  { to: '/admin/exports', icon: FileArchive, label: 'Exports' },
   { to: '/admin/users', icon: Settings, label: 'Admin' },
-  { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 
 const iqaItems = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/iqa/archive', icon: ClipboardList, label: 'Archive' },
+  { to: '/admin/exports', icon: FileArchive, label: 'Exports' },
   { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 

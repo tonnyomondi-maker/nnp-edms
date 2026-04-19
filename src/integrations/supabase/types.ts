@@ -66,6 +66,8 @@ export type Database = {
           dp_stamp_url: string | null
           dp_stamp_x: number | null
           dp_stamp_y: number | null
+          exported_at: string | null
+          exported_by: string | null
           file_drive_id: string | null
           file_name: string
           file_url: string | null
@@ -114,6 +116,8 @@ export type Database = {
           dp_stamp_url?: string | null
           dp_stamp_x?: number | null
           dp_stamp_y?: number | null
+          exported_at?: string | null
+          exported_by?: string | null
           file_drive_id?: string | null
           file_name: string
           file_url?: string | null
@@ -162,6 +166,8 @@ export type Database = {
           dp_stamp_url?: string | null
           dp_stamp_x?: number | null
           dp_stamp_y?: number | null
+          exported_at?: string | null
+          exported_by?: string | null
           file_drive_id?: string | null
           file_name?: string
           file_url?: string | null
@@ -321,6 +327,7 @@ export type Database = {
         | "DP_APPROVED"
         | "ARCHIVED"
         | "REJECTED"
+        | "EXPORTED"
       document_type:
         | "Learning Plan"
         | "Personal Timetable"
@@ -463,6 +470,7 @@ export const Constants = {
         "DP_APPROVED",
         "ARCHIVED",
         "REJECTED",
+        "EXPORTED",
       ],
       document_type: [
         "Learning Plan",
