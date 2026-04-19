@@ -107,8 +107,10 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">EDMS</CardTitle>
-          <p className="text-sm text-muted-foreground">Academic Document Management System</p>
+          <img src={polytechnicLogo} alt="Nyamira National Polytechnic" className="w-20 h-20 mx-auto object-contain mb-2" />
+          <CardTitle className="text-xl font-bold text-primary">The Nyamira National Polytechnic</CardTitle>
+          <p className="text-xs text-secondary font-medium">Home of Innovation</p>
+          <p className="text-sm text-muted-foreground mt-2">Academic Document Management System</p>
         </CardHeader>
         <CardContent>
           <Button

@@ -1,7 +1,8 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
-import { Bell, GraduationCap, LogOut, User } from 'lucide-react';
+import { Bell, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import polytechnicLogo from '@/assets/polytechnic-logo.jpg';
 
 const roleLabels: Record<UserRole, string> = {
   TRAINER: 'Trainer',
@@ -18,10 +19,13 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-50 bg-card border-b px-4 py-3">
       <div className="flex items-center justify-between max-w-screen-lg mx-auto">
-        <div className="flex items-center gap-2">
-          <GraduationCap className="w-6 h-6 text-primary" />
-          <span className="font-bold text-sm">EDMS</span>
-        </div>
+        <Link to="/" className="flex items-center gap-2 min-w-0">
+          <img src={polytechnicLogo} alt="Nyamira National Polytechnic" className="w-8 h-8 object-contain shrink-0" />
+          <div className="flex flex-col leading-tight min-w-0">
+            <span className="font-bold text-xs text-primary truncate">Nyamira Polytechnic</span>
+            <span className="text-[10px] text-muted-foreground truncate">EDMS</span>
+          </div>
+        </Link>
         <div className="flex items-center gap-2">
           <Link to="/notifications" className="relative p-2">
             <Bell className="w-5 h-5 text-muted-foreground" />
