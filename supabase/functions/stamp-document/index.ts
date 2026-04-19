@@ -23,9 +23,6 @@ interface StampRequest {
 }
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
-const WATERMARK_URL = "https://yqxmtxivimuqowxuqumr.supabase.co/storage/v1/object/public/signatures/brand/polytechnic-logo.png";
-const WATERMARK_SIZE = 42; // max width/height in PDF points
-const WATERMARK_MARGIN = 18;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -70,18 +67,12 @@ Deno.serve(async (req) => {
     const sourceUrl = doc.signed_file_url || doc.file_url;
     if (!sourceUrl) throw new Error("Document has no file");
 
-    // Only watermark on the first stamping pass (when working from the original file).
-    const isFirstStamp = !doc.signed_file_url;
-
-    const fetches: Promise<Response>[] = [
+    const [pdfRes, sigRes, stampRes] = await Promise.all([
       fetch(sourceUrl), fetch(signatureUrl), fetch(stampUrl),
-    ];
-    if (isFirstStamp) fetches.push(fetch(WATERMARK_URL));
-
-    const responses = await Promise.all(fetches);
-    const [pdfRes, sigRes, stampRes, watermarkRes] = responses;
-    const buffers = await Promise.all(responses.map((r) => r.arrayBuffer()));
-    const [pdfBytes, sigBytes, stampBytes, watermarkBytes] = buffers;
+    ]);
+    const [pdfBytes, sigBytes, stampBytes] = await Promise.all([
+      pdfRes.arrayBuffer(), sigRes.arrayBuffer(), stampRes.arrayBuffer(),
+    ]);
 
     const pdfDoc = await PDFDocument.load(pdfBytes);
 
@@ -93,29 +84,6 @@ Deno.serve(async (req) => {
     const stampImage = await embedImage(stampBytes, stampRes.headers.get("content-type"));
 
     const pages = pdfDoc.getPages();
-
-    // Burn the polytechnic logo watermark in the top-left of every page (once per document).
-    if (isFirstStamp && watermarkBytes && watermarkRes) {
-      try {
-        const wmImage = await embedImage(
-          watermarkBytes,
-          watermarkRes.headers.get("content-type"),
-        );
-        const wmDims = wmImage.scaleToFit(WATERMARK_SIZE, WATERMARK_SIZE);
-        for (const page of pages) {
-          const { height } = page.getSize();
-          page.drawImage(wmImage, {
-            x: WATERMARK_MARGIN,
-            y: height - WATERMARK_MARGIN - wmDims.height,
-            width: wmDims.width,
-            height: wmDims.height,
-            opacity: 0.85,
-          });
-        }
-      } catch (wmErr) {
-        console.warn("Watermark embed failed (continuing without):", wmErr);
-      }
-    }
 
     // Resolve placement → either custom or default last-page bottom (offset per stage)
     const useCustom =
