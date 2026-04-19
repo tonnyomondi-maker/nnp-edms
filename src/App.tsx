@@ -16,6 +16,7 @@ import ApprovalQueue from "./pages/dp/ApprovalQueue";
 import ArchiveScreen from "./pages/iqa/ArchiveScreen";
 import ManageUsers from "./pages/admin/ManageUsers";
 import ManageAssignments from "./pages/admin/ManageAssignments";
+import SessionExports from "./pages/admin/SessionExports";
 import Reports from "./pages/Reports";
 import ProfileSettings from "./pages/ProfileSettings";
 import Notifications from "./pages/Notifications";
@@ -52,6 +53,7 @@ function ProtectedRoutes() {
         <Route path="/iqa/archive" element={<ArchiveScreen />} />
         <Route path="/admin/users" element={<ManageUsers />} />
         <Route path="/admin/assignments" element={<ManageAssignments />} />
+        <Route path="/admin/exports" element={<SessionExports />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/profile" element={<ProfileSettings />} />
         <Route path="/notifications" element={<Notifications />} />
