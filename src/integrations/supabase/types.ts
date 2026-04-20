@@ -52,7 +52,8 @@ export type Database = {
       documents: {
         Row: {
           archived_at: string | null
-          assignment_id: string
+          assignment_id: string | null
+          class_code: string | null
           created_at: string
           department: string
           document_type: Database["public"]["Enums"]["document_type"]
@@ -92,17 +93,24 @@ export type Database = {
           iqa_stamp_x: number | null
           iqa_stamp_y: number | null
           rejection_reason: string | null
+          session_index: number | null
+          session_term: string | null
+          session_year: number | null
+          sessions_per_week: number | null
           signed_file_url: string | null
           status: Database["public"]["Enums"]["document_status"]
           submission_type: Database["public"]["Enums"]["submission_type"]
           submitted_at: string
           trainer_id: string
+          unit_code: string | null
+          unit_name: string | null
           updated_at: string
           week_number: number | null
         }
         Insert: {
           archived_at?: string | null
-          assignment_id: string
+          assignment_id?: string | null
+          class_code?: string | null
           created_at?: string
           department: string
           document_type: Database["public"]["Enums"]["document_type"]
@@ -142,17 +150,24 @@ export type Database = {
           iqa_stamp_x?: number | null
           iqa_stamp_y?: number | null
           rejection_reason?: string | null
+          session_index?: number | null
+          session_term?: string | null
+          session_year?: number | null
+          sessions_per_week?: number | null
           signed_file_url?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           submission_type: Database["public"]["Enums"]["submission_type"]
           submitted_at?: string
           trainer_id: string
+          unit_code?: string | null
+          unit_name?: string | null
           updated_at?: string
           week_number?: number | null
         }
         Update: {
           archived_at?: string | null
-          assignment_id?: string
+          assignment_id?: string | null
+          class_code?: string | null
           created_at?: string
           department?: string
           document_type?: Database["public"]["Enums"]["document_type"]
@@ -192,11 +207,17 @@ export type Database = {
           iqa_stamp_x?: number | null
           iqa_stamp_y?: number | null
           rejection_reason?: string | null
+          session_index?: number | null
+          session_term?: string | null
+          session_year?: number | null
+          sessions_per_week?: number | null
           signed_file_url?: string | null
           status?: Database["public"]["Enums"]["document_status"]
           submission_type?: Database["public"]["Enums"]["submission_type"]
           submitted_at?: string
           trainer_id?: string
+          unit_code?: string | null
+          unit_name?: string | null
           updated_at?: string
           week_number?: number | null
         }
@@ -284,6 +305,48 @@ export type Database = {
           trainer_id?: string
           unit_code?: string
           unit_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      unit_session_config: {
+        Row: {
+          class_code: string | null
+          created_at: string
+          department: string
+          id: string
+          session_term: string
+          session_year: number
+          sessions_per_week: number
+          trainer_id: string
+          unit_code: string
+          unit_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          class_code?: string | null
+          created_at?: string
+          department: string
+          id?: string
+          session_term: string
+          session_year: number
+          sessions_per_week?: number
+          trainer_id: string
+          unit_code: string
+          unit_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          class_code?: string | null
+          created_at?: string
+          department?: string
+          id?: string
+          session_term?: string
+          session_year?: number
+          sessions_per_week?: number
+          trainer_id?: string
+          unit_code?: string
+          unit_name?: string | null
           updated_at?: string
         }
         Relationships: []
