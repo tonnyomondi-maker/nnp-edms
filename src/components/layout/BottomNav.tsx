@@ -1,13 +1,13 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useLocation, Link } from 'react-router-dom';
-import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive } from 'lucide-react';
+import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const trainerItems = [
   { to: '/', icon: Home, label: 'Home' },
-  { to: '/teaching', icon: BookOpen, label: 'Teaching' },
+  { to: '/teaching', icon: BookOpen, label: 'Units' },
+  { to: '/upload', icon: Upload, label: 'Upload' },
   { to: '/submissions', icon: FileText, label: 'Submissions' },
-  { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 
 const hodItems = [

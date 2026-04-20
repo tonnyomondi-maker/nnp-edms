@@ -233,16 +233,31 @@ export function useSubmitDocument() {
       documentType,
       submissionType,
       weekNumber,
+      sessionIndex,
+      sessionsPerWeek,
       department,
+      unitCode,
+      unitName,
+      classCode,
+      sessionYear,
+      sessionTerm,
     }: {
       file: File;
-      assignmentId: string;
+      assignmentId?: string | null;
       documentType: DocumentType;
       submissionType: SubmissionType;
       weekNumber?: number;
+      sessionIndex?: number;
+      sessionsPerWeek?: number;
       department: string;
+      unitCode: string;
+      unitName?: string;
+      classCode?: string;
+      sessionYear: number;
+      sessionTerm: 'JAN_APR' | 'MAY_AUG' | 'SEP_DEC';
     }) => {
-      const filePath = `${user!.id}/${assignmentId}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}_${Date.now()}.pdf`;
+      const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const filePath = `${user!.id}/${sessionYear}_${sessionTerm}/${safeUnit}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}${sessionIndex ? `_S${sessionIndex}` : ''}_${Date.now()}.pdf`;
       const { error: uploadError } = await supabase.storage
         .from('documents')
         .upload(filePath, file);
@@ -252,18 +267,27 @@ export function useSubmitDocument() {
         .from('documents')
         .getPublicUrl(filePath);
 
+      const insertPayload: Record<string, unknown> = {
+        assignment_id: assignmentId || null,
+        trainer_id: user!.id,
+        document_type: documentType,
+        submission_type: submissionType,
+        week_number: weekNumber || null,
+        department,
+        file_name: file.name,
+        file_url: urlData.publicUrl,
+        unit_code: unitCode,
+        unit_name: unitName || null,
+        class_code: classCode || null,
+        session_year: sessionYear,
+        session_term: sessionTerm,
+        sessions_per_week: sessionsPerWeek || null,
+        session_index: sessionIndex || null,
+      };
+
       const { data, error } = await supabase
         .from('documents')
-        .insert({
-          assignment_id: assignmentId,
-          trainer_id: user!.id,
-          document_type: documentType,
-          submission_type: submissionType,
-          week_number: weekNumber || null,
-          department,
-          file_name: file.name,
-          file_url: urlData.publicUrl,
-        })
+        .insert(insertPayload as never)
         .select()
         .single();
       if (error) throw error;
@@ -272,5 +296,24 @@ export function useSubmitDocument() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
     },
+  });
+}
+
+export function useMyDocumentsBySession(year: number, term: 'JAN_APR' | 'MAY_AUG' | 'SEP_DEC') {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ['documents', 'mine-session', user?.id, year, term],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('trainer_id', user!.id)
+        .eq('session_year' as never, year as never)
+        .eq('session_term' as never, term as never)
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
   });
 }

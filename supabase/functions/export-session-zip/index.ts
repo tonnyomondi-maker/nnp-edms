@@ -111,14 +111,16 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Query by session_year + session_term (new) — falls back to archived_at window for legacy rows
     const { start, end } = sessionWindow(Number(year), session);
 
     const { data: docs, error: docErr } = await admin
       .from("documents")
       .select("*, teaching_assignments(*)")
       .eq("status", "ARCHIVED")
-      .gte("archived_at", start.toISOString())
-      .lt("archived_at", end.toISOString())
+      .or(
+        `and(session_year.eq.${year},session_term.eq.${session}),and(session_year.is.null,archived_at.gte.${start.toISOString()},archived_at.lt.${end.toISOString()})`,
+      )
       .order("department", { ascending: true });
 
     if (docErr) throw docErr;
@@ -157,6 +159,7 @@ Deno.serve(async (req) => {
         "class_code",
         "document_type",
         "week_number",
+        "session_index",
         "submitted_at",
         "hod_approved_at",
         "hod_approver",
@@ -194,12 +197,17 @@ Deno.serve(async (req) => {
 
       const trainerName = nameMap.get(doc.trainer_id) || "Unknown_Trainer";
       const ta = doc.teaching_assignments || {};
+      // Prefer denormalized fields on the doc itself, fall back to assignment
+      const unitCode = doc.unit_code || ta.unit_code || "UNIT";
+      const unitName = doc.unit_name || ta.unit_name || "";
+      const classCode = doc.class_code || ta.class_code || "";
       const dept = safe(doc.department || "Unknown_Dept");
       const trainer = safe(trainerName);
-      const unit = safe(ta.unit_code || "UNIT");
+      const unit = safe(unitCode);
       const dtype = safe(doc.document_type || "DOC");
       const wk = doc.week_number ? `_w${doc.week_number}` : "";
-      const fileInZip = `${dept}/${trainer}/${unit}_${dtype}${wk}_${doc.id.slice(0, 8)}.pdf`;
+      const sIdx = doc.session_index ? `_s${doc.session_index}` : "";
+      const fileInZip = `${dept}/${trainer}/${unit}_${dtype}${wk}${sIdx}_${doc.id.slice(0, 8)}.pdf`;
 
       const buf = new Uint8Array(await fileData.arrayBuffer());
       await zipWriter.add(fileInZip, new Uint8ArrayReader(buf));
@@ -223,11 +231,12 @@ Deno.serve(async (req) => {
           doc.id,
           doc.department,
           trainerName,
-          ta.unit_code,
-          ta.unit_name,
-          ta.class_code,
+          unitCode,
+          unitName,
+          classCode,
           doc.document_type,
           doc.week_number ?? "",
+          doc.session_index ?? "",
           doc.submitted_at,
           doc.hod_approved_at,
           nameMap.get(doc.hod_approved_by) || "",

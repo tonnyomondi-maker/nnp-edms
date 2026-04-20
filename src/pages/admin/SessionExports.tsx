@@ -53,20 +53,19 @@ export default function SessionExports() {
         SEP_DEC: { archived: 0, exported: 0 },
       };
       for (const s of SESSIONS) {
-        const { start, end } = sessionRange(year, s.key);
         const [{ count: aCount }, { count: eCount }] = await Promise.all([
           supabase
             .from('documents')
             .select('id', { count: 'exact', head: true })
             .eq('status', 'ARCHIVED')
-            .gte('archived_at', start.toISOString())
-            .lt('archived_at', end.toISOString()),
+            .eq('session_year' as never, year as never)
+            .eq('session_term' as never, s.key as never),
           supabase
             .from('documents')
             .select('id', { count: 'exact', head: true })
             .eq('status', 'EXPORTED')
-            .gte('archived_at', start.toISOString())
-            .lt('archived_at', end.toISOString()),
+            .eq('session_year' as never, year as never)
+            .eq('session_term' as never, s.key as never),
         ]);
         result[s.key] = { archived: aCount ?? 0, exported: eCount ?? 0 };
       }

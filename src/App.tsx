@@ -9,7 +9,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import MyTeaching from "./pages/trainer/MyTeaching";
-import SubmitDocument from "./pages/trainer/SubmitDocument";
+import UploadDocuments from "./pages/trainer/UploadDocuments";
 import MySubmissions from "./pages/trainer/MySubmissions";
 import DepartmentQueue from "./pages/hod/DepartmentQueue";
 import ApprovalQueue from "./pages/dp/ApprovalQueue";
@@ -46,7 +46,8 @@ function ProtectedRoutes() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/teaching" element={<MyTeaching />} />
-        <Route path="/teaching/:assignmentId" element={<SubmitDocument />} />
+        <Route path="/upload" element={<UploadDocuments />} />
+        <Route path="/teaching/:assignmentId" element={<UploadDocuments />} />
         <Route path="/submissions" element={<MySubmissions />} />
         <Route path="/hod/queue" element={<DepartmentQueue />} />
         <Route path="/dp/queue" element={<ApprovalQueue />} />
