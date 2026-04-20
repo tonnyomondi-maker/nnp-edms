@@ -14,6 +14,10 @@ type DocumentRow = Tables<'documents'> & {
   iqa_signature_url?: string | null;
   iqa_stamp_url?: string | null;
   signed_file_url?: string | null;
+  unit_code?: string | null;
+  unit_name?: string | null;
+  class_code?: string | null;
+  session_index?: number | null;
 };
 
 interface DocumentCardProps {
@@ -56,8 +60,9 @@ function ApprovalThumb({ label, sig, stamp }: { label: string; sig?: string | nu
 }
 
 export function DocumentCard({ doc, showTrainer = false, actions, selectable, selected, onSelectChange }: DocumentCardProps) {
-  const unitCode = doc.teaching_assignments?.unit_code || '';
-  const className = doc.teaching_assignments?.class_code || '';
+  // Prefer denormalized fields on the document itself; fall back to legacy assignment join
+  const unitCode = doc.unit_code || doc.teaching_assignments?.unit_code || '';
+  const className = doc.class_code || doc.teaching_assignments?.class_code || '';
   const fileLink = doc.signed_file_url || doc.file_url;
 
   return (
@@ -78,11 +83,17 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-sm truncate">{doc.document_type}</p>
-              <p className="text-xs text-muted-foreground truncate">{unitCode} • {className}</p>
-              {doc.week_number && (
+              <p className="text-xs text-muted-foreground truncate">
+                {unitCode}{className ? ` • ${className}` : ''}
+                {doc.unit_name ? ` — ${doc.unit_name}` : ''}
+              </p>
+              {(doc.week_number || doc.session_index) && (
                 <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                   <Calendar className="w-3 h-3" />
-                  <span>Week {doc.week_number}</span>
+                  <span>
+                    {doc.week_number ? `Week ${doc.week_number}` : ''}
+                    {doc.session_index ? ` · Session ${doc.session_index}` : ''}
+                  </span>
                 </div>
               )}
               <div className="flex flex-wrap items-center gap-1 mt-1.5">
