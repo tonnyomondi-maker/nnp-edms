@@ -303,7 +303,7 @@ export default function UploadDocuments() {
                   className="mt-1.5"
                 />
                 {matchingConfig && matchingConfig.sessions_per_week !== sessionsPerWeek && (
-                  <p className="text-xs text-warning mt-1">Will update saved config (was {matchingConfig.sessions_per_week})</p>
+                  <p className="text-xs text-muted-foreground mt-1">Will update saved config (was {matchingConfig.sessions_per_week})</p>
                 )}
               </div>
             )}
