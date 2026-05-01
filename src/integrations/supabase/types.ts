@@ -101,6 +101,7 @@ export type Database = {
           status: Database["public"]["Enums"]["document_status"]
           submission_type: Database["public"]["Enums"]["submission_type"]
           submitted_at: string
+          term_number: number | null
           trainer_id: string
           unit_code: string | null
           unit_name: string | null
@@ -158,6 +159,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["document_status"]
           submission_type: Database["public"]["Enums"]["submission_type"]
           submitted_at?: string
+          term_number?: number | null
           trainer_id: string
           unit_code?: string | null
           unit_name?: string | null
@@ -215,6 +217,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["document_status"]
           submission_type?: Database["public"]["Enums"]["submission_type"]
           submitted_at?: string
+          term_number?: number | null
           trainer_id?: string
           unit_code?: string | null
           unit_name?: string | null
@@ -318,6 +321,7 @@ export type Database = {
           session_term: string
           session_year: number
           sessions_per_week: number
+          term_number: number | null
           trainer_id: string
           unit_code: string
           unit_name: string | null
@@ -331,6 +335,7 @@ export type Database = {
           session_term: string
           session_year: number
           sessions_per_week?: number
+          term_number?: number | null
           trainer_id: string
           unit_code: string
           unit_name?: string | null
@@ -344,6 +349,7 @@ export type Database = {
           session_term?: string
           session_year?: number
           sessions_per_week?: number
+          term_number?: number | null
           trainer_id?: string
           unit_code?: string
           unit_name?: string | null
