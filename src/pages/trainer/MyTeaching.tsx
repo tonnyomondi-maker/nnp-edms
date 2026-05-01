@@ -66,6 +66,7 @@ export default function MyTeaching() {
         unit_name: (d.unit_name as string) || '',
         class_code: (d.class_code as string) || '',
         sessionsPerWeek: (d.sessions_per_week as number) || 1,
+        termNumber: (d.term_number as number) ?? null,
         docs: [],
       });
     }
