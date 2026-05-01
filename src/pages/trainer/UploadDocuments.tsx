@@ -156,6 +156,7 @@ export default function UploadDocuments() {
         session_year: sessionYear,
         session_term: sessionTerm,
         sessions_per_week: sessionsPerWeek,
+        term_number: termNumber,
       });
 
       // Submit each file sequentially for clearer error reporting
