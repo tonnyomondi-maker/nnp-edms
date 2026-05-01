@@ -285,6 +285,7 @@ export function useSubmitDocument() {
         session_term: sessionTerm,
         sessions_per_week: sessionsPerWeek || null,
         session_index: sessionIndex || null,
+        term_number: termNumber ?? null,
       };
 
       const { data, error } = await supabase
