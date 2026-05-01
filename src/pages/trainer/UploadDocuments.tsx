@@ -66,6 +66,7 @@ export default function UploadDocuments() {
       setClassCode(cfg.class_code || '');
       setSessionsPerWeek(cfg.sessions_per_week);
       setDepartment(cfg.department);
+      if (cfg.term_number) setTermNumber(cfg.term_number);
     }
   }
 
