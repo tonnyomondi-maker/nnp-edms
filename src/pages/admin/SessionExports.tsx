@@ -23,9 +23,9 @@ import { Navigate } from 'react-router-dom';
 type SessionKey = 'JAN_APR' | 'MAY_AUG' | 'SEP_DEC';
 
 const SESSIONS: { key: SessionKey; label: string; months: string }[] = [
-  { key: 'JAN_APR', label: 'Term 1', months: 'January – April' },
-  { key: 'MAY_AUG', label: 'Term 2', months: 'May – August' },
-  { key: 'SEP_DEC', label: 'Term 3', months: 'September – December' },
+  { key: 'JAN_APR', label: 'January – April', months: 'January – April' },
+  { key: 'MAY_AUG', label: 'May – August', months: 'May – August' },
+  { key: 'SEP_DEC', label: 'September – December', months: 'September – December' },
 ];
 
 function sessionRange(year: number, session: SessionKey) {

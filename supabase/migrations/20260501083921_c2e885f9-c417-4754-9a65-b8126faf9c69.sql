@@ -1,0 +1,2 @@
+ALTER TABLE public.unit_session_config ADD COLUMN IF NOT EXISTS term_number INTEGER CHECK (term_number BETWEEN 1 AND 3);
+ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS term_number INTEGER CHECK (term_number BETWEEN 1 AND 3);

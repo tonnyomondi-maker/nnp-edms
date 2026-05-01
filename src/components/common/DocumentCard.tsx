@@ -18,6 +18,7 @@ type DocumentRow = Tables<'documents'> & {
   unit_name?: string | null;
   class_code?: string | null;
   session_index?: number | null;
+  term_number?: number | null;
 };
 
 interface DocumentCardProps {
@@ -86,6 +87,7 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
               <p className="text-xs text-muted-foreground truncate">
                 {unitCode}{className ? ` • ${className}` : ''}
                 {doc.unit_name ? ` — ${doc.unit_name}` : ''}
+                {doc.term_number ? ` • Term ${doc.term_number}` : ''}
               </p>
               {(doc.week_number || doc.session_index) && (
                 <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">

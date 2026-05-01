@@ -22,9 +22,9 @@ interface ExportRequest {
 }
 
 const SESSION_LABEL: Record<Session, string> = {
-  JAN_APR: "Jan-Apr (Term 1)",
-  MAY_AUG: "May-Aug (Term 2)",
-  SEP_DEC: "Sep-Dec (Term 3)",
+  JAN_APR: "January – April",
+  MAY_AUG: "May – August",
+  SEP_DEC: "September – December",
 };
 
 function sessionWindow(year: number, session: Session) {
@@ -157,6 +157,7 @@ Deno.serve(async (req) => {
         "unit_code",
         "unit_name",
         "class_code",
+        "term_number",
         "document_type",
         "week_number",
         "session_index",
@@ -234,6 +235,7 @@ Deno.serve(async (req) => {
           unitCode,
           unitName,
           classCode,
+          doc.term_number ?? "",
           doc.document_type,
           doc.week_number ?? "",
           doc.session_index ?? "",

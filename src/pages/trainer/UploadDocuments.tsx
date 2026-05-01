@@ -48,6 +48,7 @@ export default function UploadDocuments() {
   const [unitName, setUnitName] = useState('');
   const [classCode, setClassCode] = useState('');
   const [sessionsPerWeek, setSessionsPerWeek] = useState<number>(1);
+  const [termNumber, setTermNumber] = useState<number>(1);
   const [files, setFiles] = useState<FileEntry[]>([]);
 
   const { data: existingDocs = [] } = useMyDocumentsBySession(sessionYear, sessionTerm);
@@ -65,6 +66,7 @@ export default function UploadDocuments() {
       setClassCode(cfg.class_code || '');
       setSessionsPerWeek(cfg.sessions_per_week);
       setDepartment(cfg.department);
+      if (cfg.term_number) setTermNumber(cfg.term_number);
     }
   }
 
@@ -154,6 +156,7 @@ export default function UploadDocuments() {
         session_year: sessionYear,
         session_term: sessionTerm,
         sessions_per_week: sessionsPerWeek,
+        term_number: termNumber,
       });
 
       // Submit each file sequentially for clearer error reporting
@@ -175,6 +178,7 @@ export default function UploadDocuments() {
             classCode,
             sessionYear,
             sessionTerm,
+            termNumber,
           });
           success++;
         } catch (e) {
@@ -289,6 +293,19 @@ export default function UploadDocuments() {
                 placeholder="e.g. DICT 2A"
                 className="mt-1.5"
               />
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium">Term (intake stage)</Label>
+              <Select value={String(termNumber)} onValueChange={(v) => setTermNumber(Number(v))}>
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Term 1</SelectItem>
+                  <SelectItem value="2">Term 2</SelectItem>
+                  <SelectItem value="3">Term 3</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">Which term this class intake is currently in</p>
             </div>
 
             {hasWeeklyType && (

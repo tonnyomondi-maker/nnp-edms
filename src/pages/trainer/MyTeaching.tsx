@@ -41,6 +41,7 @@ export default function MyTeaching() {
     unit_name: string;
     class_code: string;
     sessionsPerWeek: number;
+    termNumber: number | null;
     docs: typeof allDocs;
   }>();
 
@@ -51,6 +52,7 @@ export default function MyTeaching() {
       unit_name: c.unit_name || '',
       class_code: c.class_code || '',
       sessionsPerWeek: c.sessions_per_week,
+      termNumber: c.term_number,
       docs: [],
     });
   });
@@ -64,6 +66,7 @@ export default function MyTeaching() {
         unit_name: (d.unit_name as string) || '',
         class_code: (d.class_code as string) || '',
         sessionsPerWeek: (d.sessions_per_week as number) || 1,
+        termNumber: (d.term_number as number) ?? null,
         docs: [],
       });
     }
@@ -128,6 +131,7 @@ export default function MyTeaching() {
                         <p className="font-semibold text-sm truncate">{u.unit_code}{u.unit_name ? ` — ${u.unit_name}` : ''}</p>
                         <p className="text-xs text-muted-foreground truncate">
                           {u.class_code || '—'} • {u.sessionsPerWeek} session(s)/week
+                          {u.termNumber ? ` • Term ${u.termNumber}` : ''}
                         </p>
                       </div>
                     </div>
