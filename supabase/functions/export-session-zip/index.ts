@@ -22,9 +22,9 @@ interface ExportRequest {
 }
 
 const SESSION_LABEL: Record<Session, string> = {
-  JAN_APR: "Jan-Apr (Term 1)",
-  MAY_AUG: "May-Aug (Term 2)",
-  SEP_DEC: "Sep-Dec (Term 3)",
+  JAN_APR: "January – April",
+  MAY_AUG: "May – August",
+  SEP_DEC: "September – December",
 };
 
 function sessionWindow(year: number, session: Session) {
