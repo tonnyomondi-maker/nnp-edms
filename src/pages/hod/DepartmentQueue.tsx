@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDocumentsByDepartmentAndStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
+import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,11 +18,24 @@ export default function DepartmentQueue() {
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
+  const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
+  const [termInitialized, setTermInitialized] = useState(false);
 
-  const filteredQueue = useMemo(
+  const baseQueue = useMemo(
     () => (queue || []).filter(d => d.trainer_id !== currentUser?.id),
     [queue, currentUser?.id]
   );
+
+  // Default to most-common term once data loads
+  useEffect(() => {
+    if (!termInitialized && baseQueue.length > 0) {
+      setTermFilter(pickDefaultTerm(baseQueue));
+      setTermInitialized(true);
+    }
+  }, [baseQueue, termInitialized]);
+
+  const counts = useMemo(() => termCounts(baseQueue), [baseQueue]);
+  const filteredQueue = useMemo(() => filterByTerm(baseQueue, termFilter), [baseQueue, termFilter]);
 
   const toggleOne = (id: string, checked: boolean) => {
     setSelected(prev => {
