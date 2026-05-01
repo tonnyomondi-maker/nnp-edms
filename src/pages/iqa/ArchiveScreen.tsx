@@ -94,7 +94,10 @@ export default function ArchiveScreen() {
 
   return (
     <div>
-      <PageHeader title="IQA Archive" subtitle="Final document repository" />
+      <PageHeader title="IQA Archive" subtitle={`Final document repository${termFilter !== 'ALL' ? ` • Term ${termFilter}` : ''}`} />
+      <div className="mb-3 flex justify-end">
+        <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
+      </div>
       <Tabs defaultValue="pending">
         <TabsList className="w-full mb-4">
           <TabsTrigger value="pending" className="flex-1">To Archive ({pending.length})</TabsTrigger>
