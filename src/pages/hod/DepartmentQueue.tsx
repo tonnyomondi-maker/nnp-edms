@@ -97,7 +97,10 @@ export default function DepartmentQueue() {
 
   return (
     <div>
-      <PageHeader title="Department Queue" subtitle={`${currentUser?.department || ''} • ${filteredQueue.length} pending`} />
+      <PageHeader title="Department Queue" subtitle={`${currentUser?.department || ''} • ${filteredQueue.length} pending${termFilter !== 'ALL' ? ` (Term ${termFilter})` : ''}`} />
+      <div className="mb-3 flex justify-end">
+        <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
+      </div>
       <BulkActionBar
         selectedCount={selected.size}
         totalCount={filteredQueue.length}
