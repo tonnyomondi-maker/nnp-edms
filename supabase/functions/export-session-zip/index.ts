@@ -235,6 +235,7 @@ Deno.serve(async (req) => {
           unitCode,
           unitName,
           classCode,
+          doc.term_number ?? "",
           doc.document_type,
           doc.week_number ?? "",
           doc.session_index ?? "",
