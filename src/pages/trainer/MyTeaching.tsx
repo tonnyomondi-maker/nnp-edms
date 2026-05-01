@@ -131,6 +131,7 @@ export default function MyTeaching() {
                         <p className="font-semibold text-sm truncate">{u.unit_code}{u.unit_name ? ` — ${u.unit_name}` : ''}</p>
                         <p className="text-xs text-muted-foreground truncate">
                           {u.class_code || '—'} • {u.sessionsPerWeek} session(s)/week
+                          {u.termNumber ? ` • Term ${u.termNumber}` : ''}
                         </p>
                       </div>
                     </div>
