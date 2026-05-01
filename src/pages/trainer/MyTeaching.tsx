@@ -41,6 +41,7 @@ export default function MyTeaching() {
     unit_name: string;
     class_code: string;
     sessionsPerWeek: number;
+    termNumber: number | null;
     docs: typeof allDocs;
   }>();
 
@@ -51,6 +52,7 @@ export default function MyTeaching() {
       unit_name: c.unit_name || '',
       class_code: c.class_code || '',
       sessionsPerWeek: c.sessions_per_week,
+      termNumber: c.term_number,
       docs: [],
     });
   });
