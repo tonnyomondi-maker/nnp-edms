@@ -295,6 +295,19 @@ export default function UploadDocuments() {
               />
             </div>
 
+            <div>
+              <Label className="text-sm font-medium">Term (intake stage)</Label>
+              <Select value={String(termNumber)} onValueChange={(v) => setTermNumber(Number(v))}>
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Term 1</SelectItem>
+                  <SelectItem value="2">Term 2</SelectItem>
+                  <SelectItem value="3">Term 3</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">Which term this class intake is currently in</p>
+            </div>
+
             {hasWeeklyType && (
               <div>
                 <Label className="text-sm font-medium">Sessions per Week</Label>
