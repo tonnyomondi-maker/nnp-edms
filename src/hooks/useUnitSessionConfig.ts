@@ -49,6 +49,7 @@ export function useUpsertUnitConfig() {
       session_year: number;
       session_term: SessionTerm;
       sessions_per_week: number;
+      term_number?: number | null;
     }) => {
       if (!user) throw new Error('Not authenticated');
       const payload = { ...input, trainer_id: user.id };
