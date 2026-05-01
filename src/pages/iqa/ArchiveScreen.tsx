@@ -51,8 +51,25 @@ export default function ArchiveScreen() {
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
 
-  const pending = pendingDocs || [];
-  const archived = archivedDocs || [];
+  const allPending = pendingDocs || [];
+  const allArchived = archivedDocs || [];
+
+  const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
+  const [termInitialized, setTermInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!termInitialized && allPending.length > 0) {
+      setTermFilter(pickDefaultTerm(allPending));
+      setTermInitialized(true);
+    }
+  }, [allPending, termInitialized]);
+
+  const counts = useMemo(
+    () => termCounts([...allPending, ...allArchived]),
+    [allPending, allArchived],
+  );
+  const pending = useMemo(() => filterByTerm(allPending, termFilter), [allPending, termFilter]);
+  const archived = useMemo(() => filterByTerm(allArchived, termFilter), [allArchived, termFilter]);
 
   const toggleOne = (id: string, checked: boolean) => {
     setSelected(prev => {
