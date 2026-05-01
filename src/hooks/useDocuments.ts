@@ -241,6 +241,7 @@ export function useSubmitDocument() {
       classCode,
       sessionYear,
       sessionTerm,
+      termNumber,
     }: {
       file: File;
       assignmentId?: string | null;
@@ -255,6 +256,7 @@ export function useSubmitDocument() {
       classCode?: string;
       sessionYear: number;
       sessionTerm: 'JAN_APR' | 'MAY_AUG' | 'SEP_DEC';
+      termNumber?: number | null;
     }) => {
       const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
       const filePath = `${user!.id}/${sessionYear}_${sessionTerm}/${safeUnit}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}${sessionIndex ? `_S${sessionIndex}` : ''}_${Date.now()}.pdf`;
