@@ -90,7 +90,10 @@ export default function ApprovalQueue() {
 
   return (
     <div>
-      <PageHeader title="DP Approval Queue" subtitle={`${docs.length} awaiting approval`} />
+      <PageHeader title="DP Approval Queue" subtitle={`${docs.length} awaiting approval${termFilter !== 'ALL' ? ` (Term ${termFilter})` : ''}`} />
+      <div className="mb-3 flex justify-end">
+        <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
+      </div>
       <BulkActionBar
         selectedCount={selected.size}
         totalCount={docs.length}
