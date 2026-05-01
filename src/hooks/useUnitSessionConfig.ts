@@ -13,6 +13,7 @@ export interface UnitSessionConfigRow {
   session_year: number;
   session_term: SessionTerm;
   sessions_per_week: number;
+  term_number: number | null;
   created_at: string;
   updated_at: string;
 }
