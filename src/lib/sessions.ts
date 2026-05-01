@@ -1,9 +1,9 @@
 export type SessionTerm = 'JAN_APR' | 'MAY_AUG' | 'SEP_DEC';
 
 export const SESSION_TERMS: { key: SessionTerm; label: string; months: string }[] = [
-  { key: 'JAN_APR', label: 'Term 1', months: 'January – April' },
-  { key: 'MAY_AUG', label: 'Term 2', months: 'May – August' },
-  { key: 'SEP_DEC', label: 'Term 3', months: 'September – December' },
+  { key: 'JAN_APR', label: 'January – April', months: 'January – April' },
+  { key: 'MAY_AUG', label: 'May – August', months: 'May – August' },
+  { key: 'SEP_DEC', label: 'September – December', months: 'September – December' },
 ];
 
 export function getCurrentSession(date = new Date()): { year: number; term: SessionTerm } {
@@ -14,7 +14,7 @@ export function getCurrentSession(date = new Date()): { year: number; term: Sess
 
 export function sessionLabel(year: number, term: SessionTerm): string {
   const s = SESSION_TERMS.find((t) => t.key === term);
-  return s ? `${s.label} — ${s.months} ${year}` : `${term} ${year}`;
+  return s ? `${s.label} ${year}` : `${term} ${year}`;
 }
 
 export function getSessionOptions(date = new Date()) {
