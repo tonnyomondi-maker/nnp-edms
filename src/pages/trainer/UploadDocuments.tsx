@@ -178,6 +178,7 @@ export default function UploadDocuments() {
             classCode,
             sessionYear,
             sessionTerm,
+            termNumber,
           });
           success++;
         } catch (e) {
