@@ -48,6 +48,7 @@ export default function UploadDocuments() {
   const [unitName, setUnitName] = useState('');
   const [classCode, setClassCode] = useState('');
   const [sessionsPerWeek, setSessionsPerWeek] = useState<number>(1);
+  const [termNumber, setTermNumber] = useState<number>(1);
   const [files, setFiles] = useState<FileEntry[]>([]);
 
   const { data: existingDocs = [] } = useMyDocumentsBySession(sessionYear, sessionTerm);
