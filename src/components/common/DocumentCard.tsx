@@ -18,6 +18,7 @@ type DocumentRow = Tables<'documents'> & {
   unit_name?: string | null;
   class_code?: string | null;
   session_index?: number | null;
+  term_number?: number | null;
 };
 
 interface DocumentCardProps {
