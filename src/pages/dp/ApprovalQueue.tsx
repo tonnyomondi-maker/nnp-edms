@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDocumentsByStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
+import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,8 +18,18 @@ export default function ApprovalQueue() {
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
+  const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
+  const [termInitialized, setTermInitialized] = useState(false);
 
-  const docs = queue || [];
+  const baseDocs = useMemo(() => queue || [], [queue]);
+  useEffect(() => {
+    if (!termInitialized && baseDocs.length > 0) {
+      setTermFilter(pickDefaultTerm(baseDocs));
+      setTermInitialized(true);
+    }
+  }, [baseDocs, termInitialized]);
+  const counts = useMemo(() => termCounts(baseDocs), [baseDocs]);
+  const docs = useMemo(() => filterByTerm(baseDocs, termFilter), [baseDocs, termFilter]);
 
   const toggleOne = (id: string, checked: boolean) => {
     setSelected(prev => {
@@ -79,7 +90,10 @@ export default function ApprovalQueue() {
 
   return (
     <div>
-      <PageHeader title="DP Approval Queue" subtitle={`${docs.length} awaiting approval`} />
+      <PageHeader title="DP Approval Queue" subtitle={`${docs.length} awaiting approval${termFilter !== 'ALL' ? ` (Term ${termFilter})` : ''}`} />
+      <div className="mb-3 flex justify-end">
+        <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
+      </div>
       <BulkActionBar
         selectedCount={selected.size}
         totalCount={docs.length}
