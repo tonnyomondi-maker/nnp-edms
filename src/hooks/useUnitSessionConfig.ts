@@ -56,7 +56,13 @@ export function useUpsertUnitConfig() {
       module_number?: number | null;
     }) => {
       if (!user) throw new Error('Not authenticated');
-      const payload = { ...input, trainer_id: user.id };
+      const normalized = {
+        ...input,
+        course_type: input.course_type ?? 'CYCLE',
+        module_number: input.course_type === 'MODULAR' ? (input.module_number ?? null) : null,
+        term_number: input.course_type === 'MODULAR' ? null : (input.term_number ?? null),
+      };
+      const payload = { ...normalized, trainer_id: user.id };
       const { data, error } = await supabase
         .from('unit_session_config' as never)
         .upsert(payload as never, {
