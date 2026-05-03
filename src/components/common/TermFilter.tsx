@@ -1,7 +1,10 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 
-export type TermFilterValue = 'ALL' | '1' | '2' | '3';
+// 'ALL' | 'T1'..'T3' | 'M1'..'M8'
+export type TermFilterValue = 'ALL' | 'T1' | 'T2' | 'T3' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7' | 'M8';
+
+type DocLike = { term_number?: number | null; course_type?: string | null; module_number?: number | null };
 
 interface TermFilterProps {
   value: TermFilterValue;
@@ -10,59 +13,74 @@ interface TermFilterProps {
   className?: string;
 }
 
+const TERM_KEYS: TermFilterValue[] = ['T1', 'T2', 'T3'];
+const MODULE_KEYS: TermFilterValue[] = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8'];
+
+function label(v: TermFilterValue): string {
+  if (v === 'ALL') return 'All stages';
+  if (v.startsWith('T')) return `Term ${v.slice(1)}`;
+  return `Module ${v.slice(1)}`;
+}
+
 export function TermFilter({ value, onChange, counts, className }: TermFilterProps) {
+  const fmt = (k: TermFilterValue) => `${label(k)}${counts ? ` (${counts[k] ?? 0})` : ''}`;
   return (
     <div className={`flex items-center gap-2 ${className || ''}`}>
-      <Label className="text-xs text-muted-foreground whitespace-nowrap">Filter by term</Label>
+      <Label className="text-xs text-muted-foreground whitespace-nowrap">Filter by stage</Label>
       <Select value={value} onValueChange={(v) => onChange(v as TermFilterValue)}>
-        <SelectTrigger className="h-8 w-[140px] text-xs">
+        <SelectTrigger className="h-8 w-[160px] text-xs">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="ALL">All terms{counts ? ` (${counts.ALL})` : ''}</SelectItem>
-          <SelectItem value="1">Term 1{counts ? ` (${counts['1']})` : ''}</SelectItem>
-          <SelectItem value="2">Term 2{counts ? ` (${counts['2']})` : ''}</SelectItem>
-          <SelectItem value="3">Term 3{counts ? ` (${counts['3']})` : ''}</SelectItem>
+          <SelectItem value="ALL">{fmt('ALL')}</SelectItem>
+          <SelectGroup>
+            <SelectLabel className="text-[10px] uppercase">Cycle Terms</SelectLabel>
+            {TERM_KEYS.map((k) => <SelectItem key={k} value={k}>{fmt(k)}</SelectItem>)}
+          </SelectGroup>
+          <SelectGroup>
+            <SelectLabel className="text-[10px] uppercase">Modules</SelectLabel>
+            {MODULE_KEYS.map((k) => <SelectItem key={k} value={k}>{fmt(k)}</SelectItem>)}
+          </SelectGroup>
         </SelectContent>
       </Select>
     </div>
   );
 }
 
-/**
- * Pick a smart default term: the most-frequent term among the docs.
- * Falls back to 'ALL' when no docs have a term_number.
- */
-export function pickDefaultTerm(docs: Array<{ term_number?: number | null }>): TermFilterValue {
-  const counts: Record<string, number> = { '1': 0, '2': 0, '3': 0 };
-  docs.forEach((d) => {
-    const t = d.term_number;
-    if (t === 1 || t === 2 || t === 3) counts[String(t)]++;
-  });
-  const top = (['1', '2', '3'] as const).reduce<{ k: TermFilterValue; n: number }>(
-    (acc, k) => (counts[k] > acc.n ? { k, n: counts[k] } : acc),
-    { k: 'ALL', n: 0 },
-  );
-  return top.k;
+/** Pick the most-frequent stage; fall back to 'ALL'. */
+export function pickDefaultTerm(docs: DocLike[]): TermFilterValue {
+  const counts = termCounts(docs);
+  const keys: TermFilterValue[] = [...TERM_KEYS, ...MODULE_KEYS];
+  let best: TermFilterValue = 'ALL';
+  let bestN = 0;
+  keys.forEach((k) => { if (counts[k] > bestN) { best = k; bestN = counts[k]; } });
+  return best;
 }
 
-export function filterByTerm<T extends { term_number?: number | null }>(
-  docs: T[],
-  value: TermFilterValue,
-): T[] {
+export function filterByTerm<T extends DocLike>(docs: T[], value: TermFilterValue): T[] {
   if (value === 'ALL') return docs;
-  const n = Number(value);
-  return docs.filter((d) => d.term_number === n);
+  if (value.startsWith('T')) {
+    const n = Number(value.slice(1));
+    return docs.filter((d) => d.course_type !== 'MODULAR' && d.term_number === n);
+  }
+  const n = Number(value.slice(1));
+  return docs.filter((d) => d.course_type === 'MODULAR' && d.module_number === n);
 }
 
-export function termCounts<T extends { term_number?: number | null }>(
-  docs: T[],
-): Record<TermFilterValue, number> {
-  const c: Record<TermFilterValue, number> = { ALL: docs.length, '1': 0, '2': 0, '3': 0 };
+export function termCounts<T extends DocLike>(docs: T[]): Record<TermFilterValue, number> {
+  const c: Record<TermFilterValue, number> = {
+    ALL: docs.length,
+    T1: 0, T2: 0, T3: 0,
+    M1: 0, M2: 0, M3: 0, M4: 0, M5: 0, M6: 0, M7: 0, M8: 0,
+  };
   docs.forEach((d) => {
-    if (d.term_number === 1) c['1']++;
-    else if (d.term_number === 2) c['2']++;
-    else if (d.term_number === 3) c['3']++;
+    if (d.course_type === 'MODULAR' && d.module_number) {
+      const k = `M${d.module_number}` as TermFilterValue;
+      if (k in c) c[k]++;
+    } else if (d.term_number) {
+      const k = `T${d.term_number}` as TermFilterValue;
+      if (k in c) c[k]++;
+    }
   });
   return c;
 }
