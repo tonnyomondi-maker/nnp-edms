@@ -285,6 +285,7 @@ export default function UploadDocuments() {
               <datalist id="unit-codes">
                 {previousUnits.map((u) => <option key={u.code} value={u.code}>{u.name || ''}</option>)}
               </datalist>
+              <p className="text-xs text-muted-foreground mt-1">Type any unit you teach — no pre-assignment needed.</p>
             </div>
 
             <div>
@@ -308,17 +309,45 @@ export default function UploadDocuments() {
             </div>
 
             <div>
-              <Label className="text-sm font-medium">Term (intake stage)</Label>
-              <Select value={String(termNumber)} onValueChange={(v) => setTermNumber(Number(v))}>
+              <Label className="text-sm font-medium">Course Type</Label>
+              <Select value={courseType} onValueChange={(v) => setCourseType(v as CourseType)}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">Term 1</SelectItem>
-                  <SelectItem value="2">Term 2</SelectItem>
-                  <SelectItem value="3">Term 3</SelectItem>
+                  {COURSE_TYPES.map((c) => (
+                    <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">Which term this class intake is currently in</p>
+              <p className="text-xs text-muted-foreground mt-1">Cycle 1 / Cycle 2 use Terms; Modular uses Modules 1–8.</p>
             </div>
+
+            {courseType === 'MODULAR' ? (
+              <div>
+                <Label className="text-sm font-medium">Module</Label>
+                <Select value={String(moduleNumber)} onValueChange={(v) => setModuleNumber(Number(v))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MODULE_NUMBERS.map((n) => (
+                      <SelectItem key={n} value={String(n)}>Module {n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Which module this class is currently doing</p>
+              </div>
+            ) : (
+              <div>
+                <Label className="text-sm font-medium">Term (intake stage)</Label>
+                <Select value={String(termNumber)} onValueChange={(v) => setTermNumber(Number(v))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Term 1</SelectItem>
+                    <SelectItem value="2">Term 2</SelectItem>
+                    <SelectItem value="3">Term 3</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Which term this class intake is currently in</p>
+              </div>
+            )}
 
             {hasWeeklyType && (
               <div>
