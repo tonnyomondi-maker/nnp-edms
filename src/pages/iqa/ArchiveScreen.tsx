@@ -94,7 +94,7 @@ export default function ArchiveScreen() {
 
   return (
     <div>
-      <PageHeader title="IQA Archive" subtitle={`Final document repository${termFilter !== 'ALL' ? ` • Term ${termFilter}` : ''}`} />
+      <PageHeader title="IQA Archive" subtitle={`Final document repository${termFilter !== 'ALL' ? ` • ${termFilter.startsWith('M') ? 'Module ' + termFilter.slice(1) : 'Term ' + termFilter.slice(1)}` : ''}`} />
       <div className="mb-3 flex justify-end">
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
