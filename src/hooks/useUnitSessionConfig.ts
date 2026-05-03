@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import type { SessionTerm } from '@/lib/sessions';
+import type { SessionTerm, CourseType } from '@/lib/sessions';
 
 export interface UnitSessionConfigRow {
   id: string;
@@ -14,6 +14,8 @@ export interface UnitSessionConfigRow {
   session_term: SessionTerm;
   sessions_per_week: number;
   term_number: number | null;
+  course_type: CourseType | null;
+  module_number: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +52,8 @@ export function useUpsertUnitConfig() {
       session_term: SessionTerm;
       sessions_per_week: number;
       term_number?: number | null;
+      course_type?: CourseType;
+      module_number?: number | null;
     }) => {
       if (!user) throw new Error('Not authenticated');
       const payload = { ...input, trainer_id: user.id };
