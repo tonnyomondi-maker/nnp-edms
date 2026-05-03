@@ -16,10 +16,13 @@ import {
   ONE_TIME_DOC_TYPES,
   WEEKLY_DOC_TYPES,
   SESSION_TERMS,
+  COURSE_TYPES,
+  MODULE_NUMBERS,
   getCurrentSession,
   getSessionOptions,
   sessionLabel,
   type SessionTerm,
+  type CourseType,
 } from '@/lib/sessions';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -48,7 +51,9 @@ export default function UploadDocuments() {
   const [unitName, setUnitName] = useState('');
   const [classCode, setClassCode] = useState('');
   const [sessionsPerWeek, setSessionsPerWeek] = useState<number>(1);
+  const [courseType, setCourseType] = useState<CourseType>('CYCLE');
   const [termNumber, setTermNumber] = useState<number>(1);
+  const [moduleNumber, setModuleNumber] = useState<number>(1);
   const [files, setFiles] = useState<FileEntry[]>([]);
 
   const { data: existingDocs = [] } = useMyDocumentsBySession(sessionYear, sessionTerm);
@@ -66,7 +71,10 @@ export default function UploadDocuments() {
       setClassCode(cfg.class_code || '');
       setSessionsPerWeek(cfg.sessions_per_week);
       setDepartment(cfg.department);
-      if (cfg.term_number) setTermNumber(cfg.term_number);
+      const ct = (cfg.course_type as CourseType) || 'CYCLE';
+      setCourseType(ct);
+      if (ct === 'MODULAR' && cfg.module_number) setModuleNumber(cfg.module_number);
+      if (ct !== 'MODULAR' && cfg.term_number) setTermNumber(cfg.term_number);
     }
   }
 
@@ -156,7 +164,9 @@ export default function UploadDocuments() {
         session_year: sessionYear,
         session_term: sessionTerm,
         sessions_per_week: sessionsPerWeek,
-        term_number: termNumber,
+        term_number: courseType === 'MODULAR' ? null : termNumber,
+        course_type: courseType,
+        module_number: courseType === 'MODULAR' ? moduleNumber : null,
       });
 
       // Submit each file sequentially for clearer error reporting
@@ -178,7 +188,9 @@ export default function UploadDocuments() {
             classCode,
             sessionYear,
             sessionTerm,
-            termNumber,
+            termNumber: courseType === 'MODULAR' ? null : termNumber,
+            courseType,
+            moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
           });
           success++;
         } catch (e) {
