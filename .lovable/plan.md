@@ -1,51 +1,108 @@
+## Plan: Course Type, Module/Term, Course Outline, HOD Fix
 
+### 1. Updated Department List
 
-The user is clarifying terminology:
-- **Session** = the calendar window (Jan–Apr, May–Aug, Sep–Dec) — this stays as-is.
-- **Term** (Term 1 / 2 / 3) is NOT the same as session. Term depends on the **trainee intake** (when a cohort started) and is set per unit/course, not per calendar.
+Replace `DEPARTMENTS` in `src/lib/sessions.ts` with the official 8:
 
-So the current code that labels sessions as "Term 1 — January–April" is wrong. Term should be decoupled from session and entered by the trainer when configuring a unit.
+- Computing & Informatics
+- Building & Civil Engineering
+- Mechanical Engineering
+- Electrical & Electronic Engineering
+- Agriculture & Environment
+- Fashion & Cosmetology
+- Business & Entrepreneurship
+- Hospitality & Tourism
 
-## Plan: Decouple Term from Session
+(Removes "Liberal Studies", "Applied Sciences", renames "Electronics" → "Electronic", "Hospitality & Institutional Management" → "Hospitality & Tourism", "Agriculture" → "Agriculture & Environment", "Business Studies" → "Business & Entrepreneurship".)
 
-### Concept
-- **Session** stays the calendar bucket: `JAN_APR`, `MAY_AUG`, `SEP_DEC`. Label it by months only, e.g. "January – April 2026". No "Term 1/2/3" attached.
-- **Term** becomes a per-unit attribute (1, 2, or 3) that the trainer sets when they first configure the unit for a session — it reflects which term that intake is in.
+Also fix HOD test account — update `hod@test.com` profile department from "Computer Science" to **"Computing & Informatics"** so it matches uploaded documents (this is why approvals don't show).
 
-### Database
-Migration on `unit_session_config`: add `term_number INT` (1–3, nullable for legacy rows).
-Migration on `documents`: add `term_number INT` (denormalized, copied from config at submit time so HOD/DP/IQA queues and exports can filter by term).
+### 2. Course Type: Modular vs Cycle
 
-### Code changes
+Add a **Course Type** selector during unit setup (on `UploadDocuments.tsx`):
 
-**`src/lib/sessions.ts`**
-- Remove `Term 1/2/3` from `SESSION_TERMS` labels. Change to just months: "January – April", "May – August", "September – December".
-- `sessionLabel(year, term)` returns e.g. "January – April 2026" (no "Term 1 —" prefix).
+- **Cycle 1 / Cycle 2** (existing flow) → keeps **Term 1/2/3** dropdown
+- **Modular** → swaps Term dropdown for **Module 1 … Module 8** dropdown
 
-**`src/pages/trainer/UploadDocuments.tsx`**
-- Add a "Term" selector (1 / 2 / 3) in the unit-config section, alongside `sessions_per_week`. Persist to `unit_session_config.term_number`.
-- Include `term_number` in each document insert.
+DB changes (new migration on `unit_session_config` and `documents`):
 
-**`src/hooks/useUnitSessionConfig.ts`**
-- Add `term_number` to upsert payload + row type.
+```sql
+ALTER TABLE unit_session_config
+  ADD COLUMN course_type text,           -- 'CYCLE' | 'MODULAR'
+  ADD COLUMN module_number integer;      -- 1..8 when MODULAR
 
-**`src/hooks/useDocuments.ts`**
-- `useSubmitDocument` accepts and writes `term_number`.
+ALTER TABLE documents
+  ADD COLUMN course_type text,
+  ADD COLUMN module_number integer;
+```
 
-**`src/pages/trainer/MyTeaching.tsx`**
-- Show "Term {n}" badge on each unit card (from config).
-- Session dropdown uses new month-only labels.
+`term_number` stays for cycle courses; `module_number` populated for modular. Validation trigger (not CHECK) ensures exactly one of `term_number` / `module_number` is set per course_type.
 
-**`src/components/common/DocumentCard.tsx`**
-- Show "Term {n}" next to unit info when present.
+### 3. Course Outline as One-Time Document
 
-**`src/pages/admin/SessionExports.tsx`**
-- Card titles use month-only labels. Optional secondary filter "Filter by term" (1/2/3) on each session card.
+Add `'Course Outline'` to `ONE_TIME_DOC_TYPES` in `src/lib/sessions.ts`. The `document_type` column on `documents` is a USER-DEFINED enum — needs migration:
 
-**`supabase/functions/export-session-zip/index.ts`**
-- README.txt header uses month-only label. Manifest gets a `term_number` column. ZIP folder structure stays department/trainer based (no change).
+```sql
+ALTER TYPE document_type ADD VALUE IF NOT EXISTS 'Course Outline';
+```
 
-### Files
-- **Modify**: `src/lib/sessions.ts`, `src/pages/trainer/UploadDocuments.tsx`, `src/hooks/useUnitSessionConfig.ts`, `src/hooks/useDocuments.ts`, `src/pages/trainer/MyTeaching.tsx`, `src/components/common/DocumentCard.tsx`, `src/pages/admin/SessionExports.tsx`, `supabase/functions/export-session-zip/index.ts`
-- **Migration**: add `term_number` to `unit_session_config` and `documents`
+### 4. Fix HOD "Cannot Approve" — Department Scoping
 
+Two issues:
+
+a) **Data mismatch** (above) — fix HOD profile department.
+
+b) **RLS too broad** — current policies let HOD see all docs, not just their dept. Tighten:
+
+```sql
+DROP POLICY "HOD can view department documents" ON documents;
+CREATE POLICY "HOD can view own department documents"
+  ON documents FOR SELECT TO authenticated
+  USING (
+    has_role(auth.uid(), 'HOD')
+    AND department = (SELECT department FROM profiles WHERE user_id = auth.uid())
+  );
+
+DROP POLICY "HOD can update document status" ON documents;
+CREATE POLICY "HOD can update own department documents"
+  ON documents FOR UPDATE TO authenticated
+  USING (
+    has_role(auth.uid(), 'HOD')
+    AND department = (SELECT department FROM profiles WHERE user_id = auth.uid())
+  );
+```
+
+(DP & IQA policies remain global — they are cross-department roles.)
+
+### 5. Trainer Self-Assigns on Upload (already true — confirm)
+
+Current upload flow already lets trainers freely type unit code, name, class, department without an existing assignment. No change needed beyond confirming `assignment_id` stays nullable. Document this in UI helper text under unit code: *"Type any unit you teach — no pre-assignment needed."*
+
+### 6. UI Updates
+
+**`UploadDocuments.tsx`**:
+- Add Course Type select (Cycle 1 / Cycle 2 / Modular)
+- Conditional: Modular → Module dropdown (1–8); Cycle 1/2 → Term dropdown (existing)
+- Pass `course_type`, `module_number` through `useUpsertUnitConfig` & `useSubmitDocument`
+
+**`useDocuments.ts` / `useUnitSessionConfig.ts`**: extend payload types with `course_type` and `module_number`.
+
+**`DocumentCard.tsx`**: show "Module N" badge when modular, else "Term N".
+
+**`TermFilter.tsx`** → rename to `StageFilter.tsx` (or keep + add ModuleFilter):
+- For modular docs, filter by Module 1–8
+- Show two filters when mixed; or auto-detect dominant course type
+
+**HOD/DP/IQA queues**: include both filters; default to dominant stage.
+
+### 7. Files Modified
+
+- `src/lib/sessions.ts` — departments, ONE_TIME_DOC_TYPES (+Course Outline), course type constants
+- `src/pages/trainer/UploadDocuments.tsx` — course type + module/term UI
+- `src/hooks/useUnitSessionConfig.ts` — new fields
+- `src/hooks/useDocuments.ts` — new fields
+- `src/components/common/DocumentCard.tsx` — module badge
+- `src/components/common/TermFilter.tsx` → extend with module filter
+- `src/pages/hod/DepartmentQueue.tsx`, `src/pages/dp/ApprovalQueue.tsx`, `src/pages/iqa/ArchiveScreen.tsx` — wire module filter
+- `src/integrations/supabase/types.ts` — auto-regen
+- New migration: enum value, columns, RLS rewrite, HOD profile dept fix

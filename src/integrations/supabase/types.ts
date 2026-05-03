@@ -54,6 +54,7 @@ export type Database = {
           archived_at: string | null
           assignment_id: string | null
           class_code: string | null
+          course_type: string | null
           created_at: string
           department: string
           document_type: Database["public"]["Enums"]["document_type"]
@@ -92,6 +93,7 @@ export type Database = {
           iqa_stamp_url: string | null
           iqa_stamp_x: number | null
           iqa_stamp_y: number | null
+          module_number: number | null
           rejection_reason: string | null
           session_index: number | null
           session_term: string | null
@@ -112,6 +114,7 @@ export type Database = {
           archived_at?: string | null
           assignment_id?: string | null
           class_code?: string | null
+          course_type?: string | null
           created_at?: string
           department: string
           document_type: Database["public"]["Enums"]["document_type"]
@@ -150,6 +153,7 @@ export type Database = {
           iqa_stamp_url?: string | null
           iqa_stamp_x?: number | null
           iqa_stamp_y?: number | null
+          module_number?: number | null
           rejection_reason?: string | null
           session_index?: number | null
           session_term?: string | null
@@ -170,6 +174,7 @@ export type Database = {
           archived_at?: string | null
           assignment_id?: string | null
           class_code?: string | null
+          course_type?: string | null
           created_at?: string
           department?: string
           document_type?: Database["public"]["Enums"]["document_type"]
@@ -208,6 +213,7 @@ export type Database = {
           iqa_stamp_url?: string | null
           iqa_stamp_x?: number | null
           iqa_stamp_y?: number | null
+          module_number?: number | null
           rejection_reason?: string | null
           session_index?: number | null
           session_term?: string | null
@@ -315,9 +321,11 @@ export type Database = {
       unit_session_config: {
         Row: {
           class_code: string | null
+          course_type: string
           created_at: string
           department: string
           id: string
+          module_number: number | null
           session_term: string
           session_year: number
           sessions_per_week: number
@@ -329,9 +337,11 @@ export type Database = {
         }
         Insert: {
           class_code?: string | null
+          course_type?: string
           created_at?: string
           department: string
           id?: string
+          module_number?: number | null
           session_term: string
           session_year: number
           sessions_per_week?: number
@@ -343,9 +353,11 @@ export type Database = {
         }
         Update: {
           class_code?: string | null
+          course_type?: string
           created_at?: string
           department?: string
           id?: string
+          module_number?: number | null
           session_term?: string
           session_year?: number
           sessions_per_week?: number
@@ -404,6 +416,7 @@ export type Database = {
         | "Scheme of Work"
         | "Session Plan"
         | "Class Attendance"
+        | "Course Outline"
       submission_type: "ONE_TIME" | "WEEKLY"
     }
     CompositeTypes: {
@@ -548,6 +561,7 @@ export const Constants = {
         "Scheme of Work",
         "Session Plan",
         "Class Attendance",
+        "Course Outline",
       ],
       submission_type: ["ONE_TIME", "WEEKLY"],
     },
