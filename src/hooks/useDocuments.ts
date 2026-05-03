@@ -242,6 +242,8 @@ export function useSubmitDocument() {
       sessionYear,
       sessionTerm,
       termNumber,
+      courseType,
+      moduleNumber,
     }: {
       file: File;
       assignmentId?: string | null;
@@ -257,6 +259,8 @@ export function useSubmitDocument() {
       sessionYear: number;
       sessionTerm: 'JAN_APR' | 'MAY_AUG' | 'SEP_DEC';
       termNumber?: number | null;
+      courseType?: 'CYCLE' | 'MODULAR';
+      moduleNumber?: number | null;
     }) => {
       const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
       const filePath = `${user!.id}/${sessionYear}_${sessionTerm}/${safeUnit}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}${sessionIndex ? `_S${sessionIndex}` : ''}_${Date.now()}.pdf`;
@@ -285,7 +289,9 @@ export function useSubmitDocument() {
         session_term: sessionTerm,
         sessions_per_week: sessionsPerWeek || null,
         session_index: sessionIndex || null,
-        term_number: termNumber ?? null,
+        term_number: courseType === 'MODULAR' ? null : (termNumber ?? null),
+        course_type: courseType ?? 'CYCLE',
+        module_number: courseType === 'MODULAR' ? (moduleNumber ?? null) : null,
       };
 
       const { data, error } = await supabase

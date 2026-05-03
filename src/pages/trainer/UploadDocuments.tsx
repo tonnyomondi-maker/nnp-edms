@@ -16,10 +16,13 @@ import {
   ONE_TIME_DOC_TYPES,
   WEEKLY_DOC_TYPES,
   SESSION_TERMS,
+  COURSE_TYPES,
+  MODULE_NUMBERS,
   getCurrentSession,
   getSessionOptions,
   sessionLabel,
   type SessionTerm,
+  type CourseType,
 } from '@/lib/sessions';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -48,7 +51,9 @@ export default function UploadDocuments() {
   const [unitName, setUnitName] = useState('');
   const [classCode, setClassCode] = useState('');
   const [sessionsPerWeek, setSessionsPerWeek] = useState<number>(1);
+  const [courseType, setCourseType] = useState<CourseType>('CYCLE');
   const [termNumber, setTermNumber] = useState<number>(1);
+  const [moduleNumber, setModuleNumber] = useState<number>(1);
   const [files, setFiles] = useState<FileEntry[]>([]);
 
   const { data: existingDocs = [] } = useMyDocumentsBySession(sessionYear, sessionTerm);
@@ -66,7 +71,10 @@ export default function UploadDocuments() {
       setClassCode(cfg.class_code || '');
       setSessionsPerWeek(cfg.sessions_per_week);
       setDepartment(cfg.department);
-      if (cfg.term_number) setTermNumber(cfg.term_number);
+      const ct = (cfg.course_type as CourseType) || 'CYCLE';
+      setCourseType(ct);
+      if (ct === 'MODULAR' && cfg.module_number) setModuleNumber(cfg.module_number);
+      if (ct !== 'MODULAR' && cfg.term_number) setTermNumber(cfg.term_number);
     }
   }
 
@@ -156,7 +164,9 @@ export default function UploadDocuments() {
         session_year: sessionYear,
         session_term: sessionTerm,
         sessions_per_week: sessionsPerWeek,
-        term_number: termNumber,
+        term_number: courseType === 'MODULAR' ? null : termNumber,
+        course_type: courseType,
+        module_number: courseType === 'MODULAR' ? moduleNumber : null,
       });
 
       // Submit each file sequentially for clearer error reporting
@@ -178,7 +188,9 @@ export default function UploadDocuments() {
             classCode,
             sessionYear,
             sessionTerm,
-            termNumber,
+            termNumber: courseType === 'MODULAR' ? null : termNumber,
+            courseType,
+            moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
           });
           success++;
         } catch (e) {
@@ -273,6 +285,7 @@ export default function UploadDocuments() {
               <datalist id="unit-codes">
                 {previousUnits.map((u) => <option key={u.code} value={u.code}>{u.name || ''}</option>)}
               </datalist>
+              <p className="text-xs text-muted-foreground mt-1">Type any unit you teach — no pre-assignment needed.</p>
             </div>
 
             <div>
@@ -296,17 +309,45 @@ export default function UploadDocuments() {
             </div>
 
             <div>
-              <Label className="text-sm font-medium">Term (intake stage)</Label>
-              <Select value={String(termNumber)} onValueChange={(v) => setTermNumber(Number(v))}>
+              <Label className="text-sm font-medium">Course Type</Label>
+              <Select value={courseType} onValueChange={(v) => setCourseType(v as CourseType)}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">Term 1</SelectItem>
-                  <SelectItem value="2">Term 2</SelectItem>
-                  <SelectItem value="3">Term 3</SelectItem>
+                  {COURSE_TYPES.map((c) => (
+                    <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">Which term this class intake is currently in</p>
+              <p className="text-xs text-muted-foreground mt-1">Cycle 1 / Cycle 2 use Terms; Modular uses Modules 1–8.</p>
             </div>
+
+            {courseType === 'MODULAR' ? (
+              <div>
+                <Label className="text-sm font-medium">Module</Label>
+                <Select value={String(moduleNumber)} onValueChange={(v) => setModuleNumber(Number(v))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MODULE_NUMBERS.map((n) => (
+                      <SelectItem key={n} value={String(n)}>Module {n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Which module this class is currently doing</p>
+              </div>
+            ) : (
+              <div>
+                <Label className="text-sm font-medium">Term (intake stage)</Label>
+                <Select value={String(termNumber)} onValueChange={(v) => setTermNumber(Number(v))}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Term 1</SelectItem>
+                    <SelectItem value="2">Term 2</SelectItem>
+                    <SelectItem value="3">Term 3</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Which term this class intake is currently in</p>
+              </div>
+            )}
 
             {hasWeeklyType && (
               <div>

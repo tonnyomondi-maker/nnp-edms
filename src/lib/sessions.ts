@@ -18,7 +18,6 @@ export function sessionLabel(year: number, term: SessionTerm): string {
 }
 
 export function getSessionOptions(date = new Date()) {
-  // Current + previous 2 sessions for backfill
   const options: { year: number; term: SessionTerm; label: string }[] = [];
   const { year, term } = getCurrentSession(date);
   const order: SessionTerm[] = ['JAN_APR', 'MAY_AUG', 'SEP_DEC'];
@@ -37,15 +36,14 @@ export function getSessionOptions(date = new Date()) {
 }
 
 export const DEPARTMENTS = [
+  'Computing & Informatics',
   'Building & Civil Engineering',
   'Mechanical Engineering',
-  'Electrical & Electronics Engineering',
-  'Computing & Informatics',
-  'Business Studies',
-  'Hospitality & Institutional Management',
-  'Liberal Studies',
-  'Agriculture',
-  'Applied Sciences',
+  'Electrical & Electronic Engineering',
+  'Agriculture & Environment',
+  'Fashion & Cosmetology',
+  'Business & Entrepreneurship',
+  'Hospitality & Tourism',
 ];
 
 export const ONE_TIME_DOC_TYPES = [
@@ -53,6 +51,16 @@ export const ONE_TIME_DOC_TYPES = [
   'Personal Timetable',
   'Workload Allocation',
   'Scheme of Work',
+  'Course Outline',
 ] as const;
 
 export const WEEKLY_DOC_TYPES = ['Session Plan', 'Class Attendance'] as const;
+
+export type CourseType = 'CYCLE' | 'MODULAR';
+
+export const COURSE_TYPES: { key: CourseType; label: string }[] = [
+  { key: 'CYCLE', label: 'Cycle (Term 1–3)' },
+  { key: 'MODULAR', label: 'Modular (Module 1–8)' },
+];
+
+export const MODULE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8] as const;

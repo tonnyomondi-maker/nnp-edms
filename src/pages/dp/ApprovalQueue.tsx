@@ -90,7 +90,7 @@ export default function ApprovalQueue() {
 
   return (
     <div>
-      <PageHeader title="DP Approval Queue" subtitle={`${docs.length} awaiting approval${termFilter !== 'ALL' ? ` (Term ${termFilter})` : ''}`} />
+      <PageHeader title="DP Approval Queue" subtitle={`${docs.length} awaiting approval${termFilter !== 'ALL' ? ` (${termFilter.startsWith('M') ? 'Module ' + termFilter.slice(1) : 'Term ' + termFilter.slice(1)})` : ''}`} />
       <div className="mb-3 flex justify-end">
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
