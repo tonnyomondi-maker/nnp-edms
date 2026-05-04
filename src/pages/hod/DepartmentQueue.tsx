@@ -9,6 +9,7 @@ import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefault
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { parseStorageRef } from '@/hooks/useSignedDocUrl';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 export default function DepartmentQueue() {
