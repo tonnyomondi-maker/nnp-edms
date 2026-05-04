@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { Tables } from '@/integrations/supabase/types';
 import { StatusBadge } from './StatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileText, Calendar, ExternalLink, ShieldCheck } from 'lucide-react';
+import { FileText, Calendar, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Link } from 'react-router-dom';
+import { DocPreviewLink } from './DocPreviewLink';
+import { DocStatusTimeline } from './DocStatusTimeline';
 
 type DocumentRow = Tables<'documents'> & {
   hod_signature_url?: string | null;
@@ -63,10 +66,12 @@ function ApprovalThumb({ label, sig, stamp }: { label: string; sig?: string | nu
 }
 
 export function DocumentCard({ doc, showTrainer = false, actions, selectable, selected, onSelectChange }: DocumentCardProps) {
+  const [showTimeline, setShowTimeline] = useState(false);
   // Prefer denormalized fields on the document itself; fall back to legacy assignment join
   const unitCode = doc.unit_code || doc.teaching_assignments?.unit_code || '';
   const className = doc.class_code || doc.teaching_assignments?.class_code || '';
-  const fileLink = doc.signed_file_url || doc.file_url;
+  // Always prefer the latest stamped version when available
+  const fileRef = doc.signed_file_url || doc.file_url;
 
   return (
     <Card className="animate-slide-up">
@@ -104,27 +109,31 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                 <ApprovalThumb label="HOD" sig={doc.hod_signature_url} stamp={doc.hod_stamp_url} />
                 <ApprovalThumb label="DP" sig={doc.dp_signature_url} stamp={doc.dp_stamp_url} />
                 <ApprovalThumb label="IQA" sig={doc.iqa_signature_url} stamp={doc.iqa_stamp_url} />
-                {fileLink && (
-                  <a
-                    href={fileLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted hover:bg-muted/70 transition-colors text-[10px] font-medium"
-                  >
-                    View PDF <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                )}
+                <DocPreviewLink fileRef={fileRef} />
                 <Link
                   to={`/verify/${doc.id}`}
                   className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted hover:bg-muted/70 transition-colors text-[10px] font-medium"
                 >
                   <ShieldCheck className="w-2.5 h-2.5" /> Verify
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowTimeline((v) => !v)}
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted hover:bg-muted/70 transition-colors text-[10px] font-medium"
+                  aria-expanded={showTimeline}
+                >
+                  Timeline {showTimeline ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+                </button>
               </div>
             </div>
           </div>
           <StatusBadge status={doc.status} />
         </div>
+        {showTimeline && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <DocStatusTimeline doc={doc} compact />
+          </div>
+        )}
         {actions && <div className="mt-3 flex gap-2">{actions}</div>}
       </CardContent>
     </Card>
