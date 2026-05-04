@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Loader2, Download, ExternalLink, CheckCircle2, Clock } from 'lucide-react';
+import { DocPreviewLink } from '@/components/common/DocPreviewLink';
 import { toast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -142,13 +143,7 @@ export default function VerifyDocument() {
             <StatusBadge status={doc.status} />
           </div>
           <div className="flex flex-wrap gap-2 pt-2">
-            {fileLink && (
-              <Button asChild variant="outline" size="sm" className="gap-1">
-                <a href={fileLink} target="_blank" rel="noreferrer">
-                  <ExternalLink className="w-3.5 h-3.5" /> Open signed PDF
-                </a>
-              </Button>
-            )}
+            {fileRef && <DocPreviewLink fileRef={fileRef} variant="button" label="Open signed PDF" />}
             <Button size="sm" onClick={handleDownloadAudit} disabled={downloading} className="gap-1">
               {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
               Download audit trail PDF
