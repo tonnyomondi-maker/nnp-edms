@@ -120,7 +120,7 @@ export default function VerifyDocument() {
   }
 
   const trainer = profiles.get(doc.trainer_id);
-  const fileLink = doc.signed_file_url || doc.file_url;
+  const fileRef = doc.signed_file_url || doc.file_url;
 
   return (
     <div className="space-y-4">
