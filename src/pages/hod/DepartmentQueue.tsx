@@ -9,6 +9,7 @@ import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefault
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { parseStorageRef } from '@/hooks/useSignedDocUrl';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 export default function DepartmentQueue() {
@@ -67,9 +68,20 @@ export default function DepartmentQueue() {
       toast({ title: 'Setup required', description: 'Upload your signature & stamp in Profile Settings first.', variant: 'destructive' });
       return;
     }
+    const ref = parseStorageRef(doc.signed_file_url || doc.file_url || '');
+    if (!ref) {
+      toast({ title: 'Cannot open document', description: 'Storage reference is invalid.', variant: 'destructive' });
+      return;
+    }
+    const { data: signed, error: signErr } = await supabase.storage
+      .from(ref.bucket).createSignedUrl(ref.path, 3600);
+    if (signErr || !signed?.signedUrl) {
+      toast({ title: 'Cannot open document', description: signErr?.message || 'Could not load PDF', variant: 'destructive' });
+      return;
+    }
     setPlacementDoc({
       id: docId,
-      pdfUrl: doc.signed_file_url || doc.file_url || '',
+      pdfUrl: signed.signedUrl,
       sigUrl: profile.signature_url,
       stampUrl: profile.stamp_url,
     });
