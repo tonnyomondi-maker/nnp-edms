@@ -132,14 +132,6 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                   <span className="font-semibold">Rejected: </span>{doc.rejection_reason}
                 </p>
               )}
-                  type="button"
-                  onClick={() => setShowTimeline((v) => !v)}
-                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted hover:bg-muted/70 transition-colors text-[10px] font-medium"
-                  aria-expanded={showTimeline}
-                >
-                  Timeline {showTimeline ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
-                </button>
-              </div>
             </div>
           </div>
           <StatusBadge status={doc.status} />
