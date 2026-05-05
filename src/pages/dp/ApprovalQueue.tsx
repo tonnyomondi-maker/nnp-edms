@@ -1,26 +1,28 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useDocumentsByStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
+import { useAllDocuments, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
+import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { parseStorageRef } from '@/hooks/useSignedDocUrl';
+import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 
 export default function ApprovalQueue() {
   const { currentUser } = useAuth();
-  const { data: queue, isLoading } = useDocumentsByStatus('HOD_APPROVED');
+  const { data: queue, isLoading } = useAllDocuments();
   const updateStatus = useUpdateDocumentStatus();
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
+  const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'HOD_APPROVED' });
 
   const baseDocs = useMemo(() => queue || [], [queue]);
   useEffect(() => {
@@ -30,7 +32,9 @@ export default function ApprovalQueue() {
     }
   }, [baseDocs, termInitialized]);
   const counts = useMemo(() => termCounts(baseDocs), [baseDocs]);
-  const docs = useMemo(() => filterByTerm(baseDocs, termFilter), [baseDocs, termFilter]);
+  const termFiltered = useMemo(() => filterByTerm(baseDocs, termFilter), [baseDocs, termFilter]);
+  const docs = useMemo(() => applyQueueFilter(termFiltered, filter), [termFiltered, filter]);
+  const canActOn = (status: string) => status === 'HOD_APPROVED';
 
   const toggleOne = (id: string, checked: boolean) => {
     setSelected(prev => {
@@ -39,8 +43,9 @@ export default function ApprovalQueue() {
       return next;
     });
   };
-  const allSelected = docs.length > 0 && selected.size === docs.length;
-  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(docs.map(d => d.id)));
+  const actionable = docs.filter(d => canActOn(d.status));
+  const allSelected = actionable.length > 0 && selected.size === actionable.length;
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(actionable.map(d => d.id)));
 
   const handleBulk = async (status: 'DP_APPROVED' | 'REJECTED', reason?: string) => {
     const ids = Array.from(selected);
@@ -62,23 +67,12 @@ export default function ApprovalQueue() {
       toast({ title: 'Setup required', description: 'Upload your signature & stamp in Profile Settings first.', variant: 'destructive' });
       return;
     }
-    const ref = parseStorageRef(doc.signed_file_url || doc.file_url || '');
-    if (!ref) {
-      toast({ title: 'Cannot open document', description: 'Storage reference is invalid.', variant: 'destructive' });
-      return;
+    try {
+      const pdfUrl = await getCachedSignedUrl(doc.signed_file_url || doc.file_url || '');
+      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profile.signature_url, stampUrl: profile.stamp_url });
+    } catch (e) {
+      toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
     }
-    const { data: signed, error: signErr } = await supabase.storage
-      .from(ref.bucket).createSignedUrl(ref.path, 3600);
-    if (signErr || !signed?.signedUrl) {
-      toast({ title: 'Cannot open document', description: signErr?.message || 'Could not load PDF', variant: 'destructive' });
-      return;
-    }
-    setPlacementDoc({
-      id: docId,
-      pdfUrl: signed.signedUrl,
-      sigUrl: profile.signature_url,
-      stampUrl: profile.stamp_url,
-    });
   };
 
   const performApproveWithPlacement = (placement: ApprovalPlacement | null) => {
@@ -102,13 +96,14 @@ export default function ApprovalQueue() {
 
   return (
     <div>
-      <PageHeader title="DP Approval Queue" subtitle={`${docs.length} awaiting approval${termFilter !== 'ALL' ? ` (${termFilter.startsWith('M') ? 'Module ' + termFilter.slice(1) : 'Term ' + termFilter.slice(1)})` : ''}`} />
+      <PageHeader title="DP Approval Queue" subtitle={`${docs.length} document(s)`} />
       <div className="mb-3 flex justify-end">
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
+      <QueueFilterBar value={filter} onChange={setFilter} docs={baseDocs} />
       <BulkActionBar
         selectedCount={selected.size}
-        totalCount={docs.length}
+        totalCount={actionable.length}
         isAllSelected={allSelected}
         onToggleAll={toggleAll}
         onClear={() => setSelected(new Set())}
@@ -119,28 +114,31 @@ export default function ApprovalQueue() {
       />
       <div className="space-y-3 mt-3">
         {docs.length > 0 ? (
-          docs.map(doc => (
-            <DocumentCard
-              key={doc.id}
-              doc={doc}
-              showTrainer
-              selectable
-              selected={selected.has(doc.id)}
-              onSelectChange={(c) => toggleOne(doc.id, c)}
-              actions={
-                <>
-                  <Button size="sm" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
-                    <CheckCircle2 className="w-4 h-4" /> Approve
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
-                    <XCircle className="w-4 h-4" /> Reject
-                  </Button>
-                </>
-              }
-            />
-          ))
+          docs.map(doc => {
+            const showActions = canActOn(doc.status);
+            return (
+              <DocumentCard
+                key={doc.id}
+                doc={doc}
+                showTrainer
+                selectable={showActions}
+                selected={selected.has(doc.id)}
+                onSelectChange={(c) => toggleOne(doc.id, c)}
+                actions={showActions ? (
+                  <>
+                    <Button size="sm" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                      <CheckCircle2 className="w-4 h-4" /> Approve
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                      <XCircle className="w-4 h-4" /> Reject
+                    </Button>
+                  </>
+                ) : undefined}
+              />
+            );
+          })
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-8">No documents awaiting approval</p>
+          <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
         )}
       </div>
       {placementDoc && (

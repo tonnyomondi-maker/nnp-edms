@@ -34,6 +34,20 @@ interface SignedUrlState {
   reload: () => void;
 }
 
+// Module-level cache so multiple components viewing the same document don't
+// re-sign the URL repeatedly. Cached entries expire 60s before the signed URL
+// itself does, so we never hand out a stale URL.
+interface CacheEntry { url: string; expiresAt: number }
+const signedUrlCache = new Map<string, CacheEntry>();
+const SAFETY_MARGIN_MS = 60_000;
+
+export function clearSignedUrlCache(fileRef?: string) {
+  if (!fileRef) { signedUrlCache.clear(); return; }
+  const ref = parseStorageRef(fileRef);
+  if (!ref) return;
+  signedUrlCache.delete(`${ref.bucket}:${ref.path}`);
+}
+
 /**
  * Returns a fresh signed URL for a private storage object. Re-signs every
  * `expiresIn` seconds (default 1 hour) so previews stay valid.
@@ -64,6 +78,16 @@ export function useSignedDocUrl(
       return;
     }
 
+    const cacheKey = `${ref.bucket}:${ref.path}`;
+    const cached = signedUrlCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) {
+      setUrl(cached.url);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -76,6 +100,10 @@ export function useSignedDocUrl(
           setError(signErr?.message || 'Could not load preview');
           setUrl(null);
         } else {
+          signedUrlCache.set(cacheKey, {
+            url: data.signedUrl,
+            expiresAt: Date.now() + expiresIn * 1000 - SAFETY_MARGIN_MS,
+          });
           setUrl(data.signedUrl);
         }
       })
@@ -92,4 +120,23 @@ export function useSignedDocUrl(
   }, [fileRef, expiresIn, enabled, nonce]);
 
   return { url, loading, error, reload };
+}
+
+/** Get (or fetch) a cached signed URL imperatively — used by approval flows. */
+export async function getCachedSignedUrl(
+  fileRef: string | null | undefined,
+  expiresIn = 3600,
+): Promise<string> {
+  const ref = parseStorageRef(fileRef);
+  if (!ref) throw new Error('Storage reference is invalid');
+  const cacheKey = `${ref.bucket}:${ref.path}`;
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+  const { data, error } = await supabase.storage.from(ref.bucket).createSignedUrl(ref.path, expiresIn);
+  if (error || !data?.signedUrl) throw new Error(error?.message || 'Could not sign URL');
+  signedUrlCache.set(cacheKey, {
+    url: data.signedUrl,
+    expiresAt: Date.now() + expiresIn * 1000 - SAFETY_MARGIN_MS,
+  });
+  return data.signedUrl;
 }

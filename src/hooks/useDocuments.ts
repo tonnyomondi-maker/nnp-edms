@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { clearSignedUrlCache } from '@/hooks/useSignedDocUrl';
 import type { Tables, TablesUpdate } from '@/integrations/supabase/types';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -59,6 +60,35 @@ export function useDocumentsByDepartmentAndStatus(department: string, status: Do
   });
 }
 
+export function useAllDocuments() {
+  return useQuery({
+    queryKey: ['documents', 'all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*, teaching_assignments(*)')
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useDocumentsByDepartment(department: string) {
+  return useQuery({
+    queryKey: ['documents', 'dept-all', department],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*, teaching_assignments(*)')
+        .eq('department', department)
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!department,
+  });
+}
 export function useDocumentsByAssignment(assignmentId: string) {
   return useQuery({
     queryKey: ['documents', 'assignment', assignmentId],
@@ -139,7 +169,12 @@ async function performApproval(
   });
   if (stampErr) throw new Error(stampErr.message || 'Failed to stamp document');
   const signedFileUrl = (stampResp as { signedFileUrl?: string })?.signedFileUrl;
-  if (signedFileUrl) updates.signed_file_url = signedFileUrl;
+  if (signedFileUrl) {
+    updates.signed_file_url = signedFileUrl;
+    // Drop the previous signed URL from the preview cache so viewers fetch
+    // the freshly stamped version.
+    clearSignedUrlCache(signedFileUrl);
+  }
 
   if (status === 'HOD_APPROVED') {
     updates.hod_approved_at = new Date().toISOString();

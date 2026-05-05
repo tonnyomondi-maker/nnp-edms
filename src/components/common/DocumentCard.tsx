@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Link } from 'react-router-dom';
 import { DocPreviewLink } from './DocPreviewLink';
 import { DocStatusTimeline } from './DocStatusTimeline';
+import { AuditTrailButton } from './AuditTrailButton';
 
 type DocumentRow = Tables<'documents'> & {
   hod_signature_url?: string | null;
@@ -116,6 +117,7 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                 >
                   <ShieldCheck className="w-2.5 h-2.5" /> Verify
                 </Link>
+                <AuditTrailButton documentId={doc.id} fileNameHint={unitCode || doc.file_name} />
                 <button
                   type="button"
                   onClick={() => setShowTimeline((v) => !v)}
@@ -125,6 +127,11 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                   Timeline {showTimeline ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
                 </button>
               </div>
+              {doc.status === 'REJECTED' && doc.rejection_reason && (
+                <p className="mt-2 text-[11px] px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/20">
+                  <span className="font-semibold">Rejected: </span>{doc.rejection_reason}
+                </p>
+              )}
             </div>
           </div>
           <StatusBadge status={doc.status} />
