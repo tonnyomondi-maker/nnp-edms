@@ -34,6 +34,20 @@ interface SignedUrlState {
   reload: () => void;
 }
 
+// Module-level cache so multiple components viewing the same document don't
+// re-sign the URL repeatedly. Cached entries expire 60s before the signed URL
+// itself does, so we never hand out a stale URL.
+interface CacheEntry { url: string; expiresAt: number }
+const signedUrlCache = new Map<string, CacheEntry>();
+const SAFETY_MARGIN_MS = 60_000;
+
+export function clearSignedUrlCache(fileRef?: string) {
+  if (!fileRef) { signedUrlCache.clear(); return; }
+  const ref = parseStorageRef(fileRef);
+  if (!ref) return;
+  signedUrlCache.delete(`${ref.bucket}:${ref.path}`);
+}
+
 /**
  * Returns a fresh signed URL for a private storage object. Re-signs every
  * `expiresIn` seconds (default 1 hour) so previews stay valid.
