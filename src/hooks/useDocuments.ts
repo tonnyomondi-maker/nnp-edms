@@ -60,7 +60,37 @@ export function useDocumentsByDepartmentAndStatus(department: string, status: Do
   });
 }
 
-export function useDocumentsByAssignment(assignmentId: string) {
+export function useAllDocuments() {
+  return useQuery({
+    queryKey: ['documents', 'all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*, teaching_assignments(*)')
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useDocumentsByDepartment(department: string) {
+  return useQuery({
+    queryKey: ['documents', 'dept-all', department],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*, teaching_assignments(*)')
+        .eq('department', department)
+        .order('submitted_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!department,
+  });
+}
+
+
   return useQuery({
     queryKey: ['documents', 'assignment', assignmentId],
     queryFn: async () => {
