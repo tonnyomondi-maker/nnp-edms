@@ -140,7 +140,12 @@ async function performApproval(
   });
   if (stampErr) throw new Error(stampErr.message || 'Failed to stamp document');
   const signedFileUrl = (stampResp as { signedFileUrl?: string })?.signedFileUrl;
-  if (signedFileUrl) updates.signed_file_url = signedFileUrl;
+  if (signedFileUrl) {
+    updates.signed_file_url = signedFileUrl;
+    // Drop the previous signed URL from the preview cache so viewers fetch
+    // the freshly stamped version.
+    clearSignedUrlCache(signedFileUrl);
+  }
 
   if (status === 'HOD_APPROVED') {
     updates.hod_approved_at = new Date().toISOString();
