@@ -31,23 +31,12 @@ export default function ArchiveScreen() {
       toast({ title: 'Setup required', description: 'Upload your signature & stamp in Profile Settings first.', variant: 'destructive' });
       return;
     }
-    const ref = parseStorageRef(doc.signed_file_url || doc.file_url || '');
-    if (!ref) {
-      toast({ title: 'Cannot open document', description: 'Storage reference is invalid.', variant: 'destructive' });
-      return;
+    try {
+      const pdfUrl = await getCachedSignedUrl(doc.signed_file_url || doc.file_url || '');
+      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profile.signature_url, stampUrl: profile.stamp_url });
+    } catch (e) {
+      toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
     }
-    const { data: signed, error: signErr } = await supabase.storage
-      .from(ref.bucket).createSignedUrl(ref.path, 3600);
-    if (signErr || !signed?.signedUrl) {
-      toast({ title: 'Cannot open document', description: signErr?.message || 'Could not load PDF', variant: 'destructive' });
-      return;
-    }
-    setPlacementDoc({
-      id: docId,
-      pdfUrl: signed.signedUrl,
-      sigUrl: profile.signature_url,
-      stampUrl: profile.stamp_url,
-    });
   };
 
   const performArchiveWithPlacement = (placement: ApprovalPlacement | null) => {
