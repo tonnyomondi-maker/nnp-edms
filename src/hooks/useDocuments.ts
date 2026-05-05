@@ -89,8 +89,7 @@ export function useDocumentsByDepartment(department: string) {
     enabled: !!department,
   });
 }
-
-
+export function useDocumentsByAssignment(assignmentId: string) {
   return useQuery({
     queryKey: ['documents', 'assignment', assignmentId],
     queryFn: async () => {
