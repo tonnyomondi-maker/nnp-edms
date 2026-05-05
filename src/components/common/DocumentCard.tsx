@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Link } from 'react-router-dom';
 import { DocPreviewLink } from './DocPreviewLink';
 import { DocStatusTimeline } from './DocStatusTimeline';
+import { AuditTrailButton } from './AuditTrailButton';
 
 type DocumentRow = Tables<'documents'> & {
   hod_signature_url?: string | null;
