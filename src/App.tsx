@@ -12,6 +12,7 @@ import MyTeaching from "./pages/trainer/MyTeaching";
 import UploadDocuments from "./pages/trainer/UploadDocuments";
 import MySubmissions from "./pages/trainer/MySubmissions";
 import DepartmentQueue from "./pages/hod/DepartmentQueue";
+import HodDashboard from "./pages/hod/Dashboard";
 import ApprovalQueue from "./pages/dp/ApprovalQueue";
 import ArchiveScreen from "./pages/iqa/ArchiveScreen";
 import ManageUsers from "./pages/admin/ManageUsers";
