@@ -63,4 +63,4 @@ export const COURSE_TYPES: { key: CourseType; label: string }[] = [
   { key: 'MODULAR', label: 'Modular (Module 1–8)' },
 ];
 
-export const MODULE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+export const MODULE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
