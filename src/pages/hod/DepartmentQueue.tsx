@@ -7,6 +7,7 @@ import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +30,11 @@ export default function DepartmentQueue() {
     [queue, currentUser?.id]
   );
 
+  const myActioned = useMemo(
+    () => (queue || []).filter((d) => d.hod_approved_by === currentUser?.id),
+    [queue, currentUser?.id],
+  );
+
   useEffect(() => {
     if (!termInitialized && baseQueue.length > 0) {
       setTermFilter(pickDefaultTerm(baseQueue));
@@ -39,6 +45,8 @@ export default function DepartmentQueue() {
   const counts = useMemo(() => termCounts(baseQueue), [baseQueue]);
   const termFiltered = useMemo(() => filterByTerm(baseQueue, termFilter), [baseQueue, termFilter]);
   const filteredQueue = useMemo(() => applyQueueFilter(termFiltered, filter), [termFiltered, filter]);
+  const myFiltered = useMemo(() => applyQueueFilter(filterByTerm(myActioned, termFilter), { ...filter, status: 'ALL' }), [myActioned, termFilter, filter]);
+
   const canActOn = (status: string) => status === 'SUBMITTED';
 
   const toggleOne = (id: string, checked: boolean) => {
@@ -106,47 +114,65 @@ export default function DepartmentQueue() {
       <div className="mb-3 flex justify-end">
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
-      <QueueFilterBar value={filter} onChange={setFilter} docs={baseQueue} />
-      <BulkActionBar
-        selectedCount={selected.size}
-        totalCount={actionable.length}
-        isAllSelected={allSelected}
-        onToggleAll={toggleAll}
-        onClear={() => setSelected(new Set())}
-        approveStatus="HOD_APPROVED"
-        approveLabel="Approve all"
-        onBulkAction={(s, r) => handleBulk(s as 'HOD_APPROVED' | 'REJECTED', r)}
-        isPending={bulkUpdate.isPending}
-      />
-      <div className="space-y-3 mt-3">
-        {filteredQueue.length > 0 ? (
-          filteredQueue.map(doc => {
-            const showActions = canActOn(doc.status);
-            return (
-              <DocumentCard
-                key={doc.id}
-                doc={doc}
-                showTrainer
-                selectable={showActions}
-                selected={selected.has(doc.id)}
-                onSelectChange={(c) => toggleOne(doc.id, c)}
-                actions={showActions ? (
-                  <>
-                    <Button size="sm" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> Approve
-                    </Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
-                      <XCircle className="w-4 h-4" /> Reject
-                    </Button>
-                  </>
-                ) : undefined}
-              />
-            );
-          })
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
-        )}
-      </div>
+      <Tabs defaultValue="queue">
+        <TabsList className="w-full mb-3">
+          <TabsTrigger value="queue" className="flex-1">Queue ({filteredQueue.length})</TabsTrigger>
+          <TabsTrigger value="mine" className="flex-1">Approved by me ({myFiltered.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="queue">
+          <QueueFilterBar value={filter} onChange={setFilter} docs={baseQueue} />
+          <BulkActionBar
+            selectedCount={selected.size}
+            totalCount={actionable.length}
+            isAllSelected={allSelected}
+            onToggleAll={toggleAll}
+            onClear={() => setSelected(new Set())}
+            approveStatus="HOD_APPROVED"
+            approveLabel="Approve all"
+            onBulkAction={(s, r) => handleBulk(s as 'HOD_APPROVED' | 'REJECTED', r)}
+            isPending={bulkUpdate.isPending}
+          />
+          <div className="space-y-3 mt-3">
+            {filteredQueue.length > 0 ? (
+              filteredQueue.map(doc => {
+                const showActions = canActOn(doc.status);
+                return (
+                  <DocumentCard
+                    key={doc.id}
+                    doc={doc}
+                    showTrainer
+                    selectable={showActions}
+                    selected={selected.has(doc.id)}
+                    onSelectChange={(c) => toggleOne(doc.id, c)}
+                    actions={showActions ? (
+                      <>
+                        <Button size="sm" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                          <CheckCircle2 className="w-4 h-4" /> Approve
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                          <XCircle className="w-4 h-4" /> Reject
+                        </Button>
+                      </>
+                    ) : undefined}
+                  />
+                );
+              })
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="mine">
+          <QueueFilterBar value={filter} onChange={setFilter} docs={myActioned} showStatus={false} />
+          <div className="space-y-3 mt-3">
+            {myFiltered.length > 0
+              ? myFiltered.map((doc) => <DocumentCard key={doc.id} doc={doc} showTrainer />)
+              : <p className="text-sm text-muted-foreground text-center py-8">You have not approved any documents yet</p>}
+          </div>
+        </TabsContent>
+      </Tabs>
       {placementDoc && (
         <PlacementModal
           open={!!placementDoc}
