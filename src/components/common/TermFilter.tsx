@@ -71,7 +71,7 @@ export function termCounts<T extends DocLike>(docs: T[]): Record<TermFilterValue
   const c: Record<TermFilterValue, number> = {
     ALL: docs.length,
     T1: 0, T2: 0, T3: 0,
-    M1: 0, M2: 0, M3: 0, M4: 0, M5: 0, M6: 0, M7: 0, M8: 0,
+    M1: 0, M2: 0, M3: 0, M4: 0, M5: 0, M6: 0, M7: 0, M8: 0, M9: 0, M10: 0,
   };
   docs.forEach((d) => {
     if (d.course_type === 'MODULAR' && d.module_number) {
