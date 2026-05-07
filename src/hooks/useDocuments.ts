@@ -113,10 +113,15 @@ export interface ApprovalPlacement {
   sigY?: number | null;
   sigW?: number | null;
   sigH?: number | null;
+  sigRot?: number | null;
+  sigOpacity?: number | null;
   stampX?: number | null;
   stampY?: number | null;
   stampW?: number | null;
   stampH?: number | null;
+  stampRot?: number | null;
+  stampOpacity?: number | null;
+  autofill?: boolean | null;
 }
 
 async function performApproval(
