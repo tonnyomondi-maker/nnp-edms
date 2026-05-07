@@ -74,6 +74,12 @@ export default function ManageUsers() {
     }
   };
 
+  const updateDepartment = async (userId: string, department: string) => {
+    const { error } = await supabase.from('profiles').update({ department }).eq('user_id', userId);
+    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    else { toast({ title: 'Department updated' }); fetchUsers(); }
+  };
+
   const filtered = users.filter(u =>
     u.fullName.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase()) ||
