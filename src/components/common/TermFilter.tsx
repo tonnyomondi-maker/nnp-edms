@@ -2,7 +2,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGr
 import { Label } from '@/components/ui/label';
 
 // 'ALL' | 'T1'..'T3' | 'M1'..'M8'
-export type TermFilterValue = 'ALL' | 'T1' | 'T2' | 'T3' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7' | 'M8';
+export type TermFilterValue = 'ALL' | 'T1' | 'T2' | 'T3' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7' | 'M8' | 'M9' | 'M10';
 
 type DocLike = { term_number?: number | null; course_type?: string | null; module_number?: number | null };
 
@@ -14,7 +14,7 @@ interface TermFilterProps {
 }
 
 const TERM_KEYS: TermFilterValue[] = ['T1', 'T2', 'T3'];
-const MODULE_KEYS: TermFilterValue[] = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8'];
+const MODULE_KEYS: TermFilterValue[] = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10'];
 
 function label(v: TermFilterValue): string {
   if (v === 'ALL') return 'All stages';
