@@ -89,6 +89,10 @@ export default function ArchiveScreen() {
     });
   };
 
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  }
+
   return (
     <div>
       <PageHeader title="IQA Archive" subtitle={`Final document repository${termFilter !== 'ALL' ? ` • ${termFilter.startsWith('M') ? 'Module ' + termFilter.slice(1) : 'Term ' + termFilter.slice(1)}` : ''}`} />
