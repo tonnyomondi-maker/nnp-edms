@@ -130,6 +130,9 @@ Deno.serve(async (req) => {
 
     const pages = pdfDoc.getPages();
     const useCustom = placement && (placement.sigX != null || placement.stampX != null);
+    const autofill = placement?.autofill ?? true;
+    const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const helvBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     if (useCustom) {
       const pageIdx = Math.max(0, Math.min(pages.length - 1, (placement!.page ?? pages.length) - 1));
@@ -143,18 +146,48 @@ Deno.serve(async (req) => {
 
       const sigDims = sigImage.scaleToFit(sigBoxW, sigBoxH);
       const stampDims = stampImage.scaleToFit(stampBoxW, stampBoxH);
+      const sigOpacity = placement!.sigOpacity ?? 1;
+      const stampOpacity = placement!.stampOpacity ?? 1;
+      const sigRot = placement!.sigRot ?? 0;
+      const stampRot = placement!.stampRot ?? 0;
 
       if (placement!.sigX != null && placement!.sigY != null) {
         const x = placement!.sigX * width;
         const y = height - placement!.sigY * height - sigDims.height;
-        page.drawImage(sigImage, { x, y, width: sigDims.width, height: sigDims.height });
-        page.drawText(`${stage} — ${approverName}`, { x, y: y - 12, size: 8 });
-        page.drawText(new Date().toLocaleString(), { x, y: y - 22, size: 7 });
+        if (autofill) {
+          page.drawImage(sigImage, {
+            x, y, width: sigDims.width, height: sigDims.height,
+            rotate: degrees(sigRot), opacity: sigOpacity,
+          });
+          page.drawText(`${STAGE_LABEL[stage]} — ${approverName}`, { x, y: y - 12, size: 8, font: helv });
+          page.drawText(new Date().toLocaleString(), { x, y: y - 22, size: 7, font: helv });
+        } else {
+          // Draw labelled blank lines
+          page.drawText(`${STAGE_LABEL[stage]}`, { x, y: y + sigDims.height + 6, size: 8, font: helvBold });
+          page.drawText('Name:', { x, y: y + sigDims.height - 6, size: 8, font: helv });
+          page.drawLine({ start: { x: x + 30, y: y + sigDims.height - 6 }, end: { x: x + sigDims.width, y: y + sigDims.height - 6 }, thickness: 0.5 });
+          page.drawText('Sign:', { x, y: y + sigDims.height / 2, size: 8, font: helv });
+          page.drawLine({ start: { x: x + 30, y: y + sigDims.height / 2 }, end: { x: x + sigDims.width, y: y + sigDims.height / 2 }, thickness: 0.5 });
+          page.drawText('Date:', { x, y: y + 4, size: 8, font: helv });
+          page.drawLine({ start: { x: x + 30, y: y + 4 }, end: { x: x + sigDims.width, y: y + 4 }, thickness: 0.5 });
+        }
       }
       if (placement!.stampX != null && placement!.stampY != null) {
         const x = placement!.stampX * width;
         const y = height - placement!.stampY * height - stampDims.height;
-        page.drawImage(stampImage, { x, y, width: stampDims.width, height: stampDims.height });
+        if (autofill) {
+          page.drawImage(stampImage, {
+            x, y, width: stampDims.width, height: stampDims.height,
+            rotate: degrees(stampRot), opacity: stampOpacity,
+          });
+        } else {
+          // Draw an empty stamp placeholder
+          const cx = x + stampDims.width / 2;
+          const cy = y + stampDims.height / 2;
+          const r = Math.min(stampDims.width, stampDims.height) / 2;
+          page.drawCircle({ x: cx, y: cy, size: r, borderWidth: 1, borderColor: rgb(0.3, 0.3, 0.3) });
+          page.drawText('STAMP', { x: cx - 14, y: cy - 3, size: 8, font: helvBold, color: rgb(0.4, 0.4, 0.4) });
+        }
       }
     } else {
       const lastPage = pages[pages.length - 1];
@@ -163,10 +196,19 @@ Deno.serve(async (req) => {
       const sigDims = sigImage.scaleToFit(SIG_W, SIG_H);
       const stampDims = stampImage.scaleToFit(STAMP_W, STAMP_H);
       const baseY = 60 + offsetY;
-      lastPage.drawText(`${stage} APPROVAL — ${approverName}`, { x: 40, y: baseY + 95, size: 9 });
-      lastPage.drawImage(sigImage, { x: 40, y: baseY + 40, width: sigDims.width, height: sigDims.height });
-      lastPage.drawImage(stampImage, { x: 200, y: baseY + 10, width: stampDims.width, height: stampDims.height });
-      lastPage.drawText(new Date().toLocaleString(), { x: 40, y: baseY + 25, size: 8 });
+      lastPage.drawText(`${STAGE_LABEL[stage]} APPROVAL${autofill ? ` — ${approverName}` : ''}`, { x: 40, y: baseY + 95, size: 9, font: helvBold });
+      if (autofill) {
+        lastPage.drawImage(sigImage, { x: 40, y: baseY + 40, width: sigDims.width, height: sigDims.height });
+        lastPage.drawImage(stampImage, { x: 200, y: baseY + 10, width: stampDims.width, height: stampDims.height });
+        lastPage.drawText(new Date().toLocaleString(), { x: 40, y: baseY + 25, size: 8, font: helv });
+      } else {
+        lastPage.drawText('Name: __________________________', { x: 40, y: baseY + 75, size: 9, font: helv });
+        lastPage.drawText('Sign: __________________________', { x: 40, y: baseY + 55, size: 9, font: helv });
+        lastPage.drawText('Date: __________________________', { x: 40, y: baseY + 35, size: 9, font: helv });
+        const cx = 240, cy = baseY + 50;
+        lastPage.drawCircle({ x: cx, y: cy, size: 35, borderWidth: 1, borderColor: rgb(0.3, 0.3, 0.3) });
+        lastPage.drawText('STAMP', { x: cx - 14, y: cy - 3, size: 8, font: helvBold, color: rgb(0.4, 0.4, 0.4) });
+      }
     }
 
     const stampedBytes = await pdfDoc.save();
