@@ -51,6 +51,7 @@ function ProtectedRoutes() {
         <Route path="/teaching/:assignmentId" element={<UploadDocuments />} />
         <Route path="/submissions" element={<MySubmissions />} />
         <Route path="/hod/queue" element={<DepartmentQueue />} />
+        <Route path="/hod/dashboard" element={<HodDashboard />} />
         <Route path="/dp/queue" element={<ApprovalQueue />} />
         <Route path="/iqa/archive" element={<ArchiveScreen />} />
         <Route path="/admin/users" element={<ManageUsers />} />
