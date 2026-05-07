@@ -137,7 +137,14 @@ export default function ManageUsers() {
                         <div className="text-xs text-muted-foreground">{user.email}</div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">{user.department || '—'}</TableCell>
+                    <TableCell className="text-sm">
+                      <Select value={user.department || ''} onValueChange={(v) => updateDepartment(user.userId, v)}>
+                        <SelectTrigger className="w-[200px] h-8 text-xs"><SelectValue placeholder="Set department" /></SelectTrigger>
+                        <SelectContent>
+                          {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {user.roles.length === 0 && <span className="text-xs text-muted-foreground">No roles</span>}
