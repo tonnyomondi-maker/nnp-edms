@@ -4,7 +4,7 @@ import { useMyAssignments } from '@/hooks/useAssignments';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
-import { FileText, Clock, CheckCircle2, XCircle, Archive, Users, BookOpen, Loader2 } from 'lucide-react';
+import { FileText, Clock, CheckCircle2, XCircle, Archive, Users, BookOpen, Loader2, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const roleInfo: Record<UserRole, { label: string; desc: string; icon: React.ReactNode }> = {
@@ -12,6 +12,7 @@ const roleInfo: Record<UserRole, { label: string; desc: string; icon: React.Reac
   HOD: { label: 'Head of Dept', desc: 'Review department submissions', icon: <Users className="w-6 h-6 text-primary" /> },
   DP_ACADEMICS: { label: 'DP Academics', desc: 'Approve across departments', icon: <CheckCircle2 className="w-6 h-6 text-primary" /> },
   IQA: { label: 'IQA Officer', desc: 'Archive final documents', icon: <Archive className="w-6 h-6 text-primary" /> },
+  SUPER_ADMIN: { label: 'Super Admin', desc: 'System setup & roles', icon: <Shield className="w-6 h-6 text-primary" /> },
 };
 
 export default function Dashboard() {
