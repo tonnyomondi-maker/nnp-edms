@@ -9,6 +9,7 @@ const roleLabels: Record<UserRole, string> = {
   HOD: 'Head of Dept',
   DP_ACADEMICS: 'DP Academics',
   IQA: 'IQA Officer',
+  SUPER_ADMIN: 'Super Admin',
 };
 
 export function TopBar() {
