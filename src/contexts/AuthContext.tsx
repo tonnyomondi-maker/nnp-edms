@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import type { Tables } from '@/integrations/supabase/types';
 
-export type UserRole = 'TRAINER' | 'HOD' | 'DP_ACADEMICS' | 'IQA';
+export type UserRole = 'TRAINER' | 'HOD' | 'DP_ACADEMICS' | 'IQA' | 'SUPER_ADMIN';
 
 export interface AppUser {
   id: string; // auth user id

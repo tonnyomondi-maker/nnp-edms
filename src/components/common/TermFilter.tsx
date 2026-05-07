@@ -2,7 +2,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGr
 import { Label } from '@/components/ui/label';
 
 // 'ALL' | 'T1'..'T3' | 'M1'..'M8'
-export type TermFilterValue = 'ALL' | 'T1' | 'T2' | 'T3' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7' | 'M8';
+export type TermFilterValue = 'ALL' | 'T1' | 'T2' | 'T3' | 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'M6' | 'M7' | 'M8' | 'M9' | 'M10';
 
 type DocLike = { term_number?: number | null; course_type?: string | null; module_number?: number | null };
 
@@ -14,7 +14,7 @@ interface TermFilterProps {
 }
 
 const TERM_KEYS: TermFilterValue[] = ['T1', 'T2', 'T3'];
-const MODULE_KEYS: TermFilterValue[] = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8'];
+const MODULE_KEYS: TermFilterValue[] = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10'];
 
 function label(v: TermFilterValue): string {
   if (v === 'ALL') return 'All stages';
@@ -71,7 +71,7 @@ export function termCounts<T extends DocLike>(docs: T[]): Record<TermFilterValue
   const c: Record<TermFilterValue, number> = {
     ALL: docs.length,
     T1: 0, T2: 0, T3: 0,
-    M1: 0, M2: 0, M3: 0, M4: 0, M5: 0, M6: 0, M7: 0, M8: 0,
+    M1: 0, M2: 0, M3: 0, M4: 0, M5: 0, M6: 0, M7: 0, M8: 0, M9: 0, M10: 0,
   };
   docs.forEach((d) => {
     if (d.course_type === 'MODULAR' && d.module_number) {

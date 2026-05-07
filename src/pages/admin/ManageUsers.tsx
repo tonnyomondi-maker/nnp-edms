@@ -8,11 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
-import { Search, Plus, X, Loader2 } from 'lucide-react';
+import { Search, X, Loader2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Link } from 'react-router-dom';
+import { DEPARTMENTS } from '@/lib/sessions';
 
-const ALL_ROLES: UserRole[] = ['TRAINER', 'HOD', 'DP_ACADEMICS', 'IQA'];
+const ALL_ROLES: UserRole[] = ['TRAINER', 'HOD', 'DP_ACADEMICS', 'IQA', 'SUPER_ADMIN'];
 
 interface UserWithRoles {
   userId: string;
@@ -73,6 +74,12 @@ export default function ManageUsers() {
     }
   };
 
+  const updateDepartment = async (userId: string, department: string) => {
+    const { error } = await supabase.from('profiles').update({ department }).eq('user_id', userId);
+    if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    else { toast({ title: 'Department updated' }); fetchUsers(); }
+  };
+
   const filtered = users.filter(u =>
     u.fullName.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -130,7 +137,14 @@ export default function ManageUsers() {
                         <div className="text-xs text-muted-foreground">{user.email}</div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">{user.department || '—'}</TableCell>
+                    <TableCell className="text-sm">
+                      <Select value={user.department || ''} onValueChange={(v) => updateDepartment(user.userId, v)}>
+                        <SelectTrigger className="w-[200px] h-8 text-xs"><SelectValue placeholder="Set department" /></SelectTrigger>
+                        <SelectContent>
+                          {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {user.roles.length === 0 && <span className="text-xs text-muted-foreground">No roles</span>}

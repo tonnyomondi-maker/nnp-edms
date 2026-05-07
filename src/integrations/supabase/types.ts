@@ -60,12 +60,21 @@ export type Database = {
           document_type: Database["public"]["Enums"]["document_type"]
           dp_approved_at: string | null
           dp_approved_by: string | null
+          dp_autofill: boolean | null
+          dp_sig_h: number | null
+          dp_sig_opacity: number | null
           dp_sig_page: number | null
+          dp_sig_rot: number | null
+          dp_sig_w: number | null
           dp_sig_x: number | null
           dp_sig_y: number | null
           dp_signature_url: string | null
+          dp_stamp_h: number | null
+          dp_stamp_opacity: number | null
           dp_stamp_page: number | null
+          dp_stamp_rot: number | null
           dp_stamp_url: string | null
+          dp_stamp_w: number | null
           dp_stamp_x: number | null
           dp_stamp_y: number | null
           exported_at: string | null
@@ -75,22 +84,40 @@ export type Database = {
           file_url: string | null
           hod_approved_at: string | null
           hod_approved_by: string | null
+          hod_autofill: boolean | null
+          hod_sig_h: number | null
+          hod_sig_opacity: number | null
           hod_sig_page: number | null
+          hod_sig_rot: number | null
+          hod_sig_w: number | null
           hod_sig_x: number | null
           hod_sig_y: number | null
           hod_signature_url: string | null
+          hod_stamp_h: number | null
+          hod_stamp_opacity: number | null
           hod_stamp_page: number | null
+          hod_stamp_rot: number | null
           hod_stamp_url: string | null
+          hod_stamp_w: number | null
           hod_stamp_x: number | null
           hod_stamp_y: number | null
           id: string
           iqa_archived_by: string | null
+          iqa_autofill: boolean | null
+          iqa_sig_h: number | null
+          iqa_sig_opacity: number | null
           iqa_sig_page: number | null
+          iqa_sig_rot: number | null
+          iqa_sig_w: number | null
           iqa_sig_x: number | null
           iqa_sig_y: number | null
           iqa_signature_url: string | null
+          iqa_stamp_h: number | null
+          iqa_stamp_opacity: number | null
           iqa_stamp_page: number | null
+          iqa_stamp_rot: number | null
           iqa_stamp_url: string | null
+          iqa_stamp_w: number | null
           iqa_stamp_x: number | null
           iqa_stamp_y: number | null
           module_number: number | null
@@ -120,12 +147,21 @@ export type Database = {
           document_type: Database["public"]["Enums"]["document_type"]
           dp_approved_at?: string | null
           dp_approved_by?: string | null
+          dp_autofill?: boolean | null
+          dp_sig_h?: number | null
+          dp_sig_opacity?: number | null
           dp_sig_page?: number | null
+          dp_sig_rot?: number | null
+          dp_sig_w?: number | null
           dp_sig_x?: number | null
           dp_sig_y?: number | null
           dp_signature_url?: string | null
+          dp_stamp_h?: number | null
+          dp_stamp_opacity?: number | null
           dp_stamp_page?: number | null
+          dp_stamp_rot?: number | null
           dp_stamp_url?: string | null
+          dp_stamp_w?: number | null
           dp_stamp_x?: number | null
           dp_stamp_y?: number | null
           exported_at?: string | null
@@ -135,22 +171,40 @@ export type Database = {
           file_url?: string | null
           hod_approved_at?: string | null
           hod_approved_by?: string | null
+          hod_autofill?: boolean | null
+          hod_sig_h?: number | null
+          hod_sig_opacity?: number | null
           hod_sig_page?: number | null
+          hod_sig_rot?: number | null
+          hod_sig_w?: number | null
           hod_sig_x?: number | null
           hod_sig_y?: number | null
           hod_signature_url?: string | null
+          hod_stamp_h?: number | null
+          hod_stamp_opacity?: number | null
           hod_stamp_page?: number | null
+          hod_stamp_rot?: number | null
           hod_stamp_url?: string | null
+          hod_stamp_w?: number | null
           hod_stamp_x?: number | null
           hod_stamp_y?: number | null
           id?: string
           iqa_archived_by?: string | null
+          iqa_autofill?: boolean | null
+          iqa_sig_h?: number | null
+          iqa_sig_opacity?: number | null
           iqa_sig_page?: number | null
+          iqa_sig_rot?: number | null
+          iqa_sig_w?: number | null
           iqa_sig_x?: number | null
           iqa_sig_y?: number | null
           iqa_signature_url?: string | null
+          iqa_stamp_h?: number | null
+          iqa_stamp_opacity?: number | null
           iqa_stamp_page?: number | null
+          iqa_stamp_rot?: number | null
           iqa_stamp_url?: string | null
+          iqa_stamp_w?: number | null
           iqa_stamp_x?: number | null
           iqa_stamp_y?: number | null
           module_number?: number | null
@@ -180,12 +234,21 @@ export type Database = {
           document_type?: Database["public"]["Enums"]["document_type"]
           dp_approved_at?: string | null
           dp_approved_by?: string | null
+          dp_autofill?: boolean | null
+          dp_sig_h?: number | null
+          dp_sig_opacity?: number | null
           dp_sig_page?: number | null
+          dp_sig_rot?: number | null
+          dp_sig_w?: number | null
           dp_sig_x?: number | null
           dp_sig_y?: number | null
           dp_signature_url?: string | null
+          dp_stamp_h?: number | null
+          dp_stamp_opacity?: number | null
           dp_stamp_page?: number | null
+          dp_stamp_rot?: number | null
           dp_stamp_url?: string | null
+          dp_stamp_w?: number | null
           dp_stamp_x?: number | null
           dp_stamp_y?: number | null
           exported_at?: string | null
@@ -195,22 +258,40 @@ export type Database = {
           file_url?: string | null
           hod_approved_at?: string | null
           hod_approved_by?: string | null
+          hod_autofill?: boolean | null
+          hod_sig_h?: number | null
+          hod_sig_opacity?: number | null
           hod_sig_page?: number | null
+          hod_sig_rot?: number | null
+          hod_sig_w?: number | null
           hod_sig_x?: number | null
           hod_sig_y?: number | null
           hod_signature_url?: string | null
+          hod_stamp_h?: number | null
+          hod_stamp_opacity?: number | null
           hod_stamp_page?: number | null
+          hod_stamp_rot?: number | null
           hod_stamp_url?: string | null
+          hod_stamp_w?: number | null
           hod_stamp_x?: number | null
           hod_stamp_y?: number | null
           id?: string
           iqa_archived_by?: string | null
+          iqa_autofill?: boolean | null
+          iqa_sig_h?: number | null
+          iqa_sig_opacity?: number | null
           iqa_sig_page?: number | null
+          iqa_sig_rot?: number | null
+          iqa_sig_w?: number | null
           iqa_sig_x?: number | null
           iqa_sig_y?: number | null
           iqa_signature_url?: string | null
+          iqa_stamp_h?: number | null
+          iqa_stamp_opacity?: number | null
           iqa_stamp_page?: number | null
+          iqa_stamp_rot?: number | null
           iqa_stamp_url?: string | null
+          iqa_stamp_w?: number | null
           iqa_stamp_x?: number | null
           iqa_stamp_y?: number | null
           module_number?: number | null
@@ -401,7 +482,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "TRAINER" | "HOD" | "DP_ACADEMICS" | "IQA"
+      app_role: "TRAINER" | "HOD" | "DP_ACADEMICS" | "IQA" | "SUPER_ADMIN"
       document_status:
         | "SUBMITTED"
         | "HOD_APPROVED"
@@ -545,7 +626,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["TRAINER", "HOD", "DP_ACADEMICS", "IQA"],
+      app_role: ["TRAINER", "HOD", "DP_ACADEMICS", "IQA", "SUPER_ADMIN"],
       document_status: [
         "SUBMITTED",
         "HOD_APPROVED",

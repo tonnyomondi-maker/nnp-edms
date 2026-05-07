@@ -1,6 +1,6 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useLocation, Link } from 'react-router-dom';
-import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload } from 'lucide-react';
+import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const trainerItems = [
@@ -12,7 +12,9 @@ const trainerItems = [
 
 const hodItems = [
   { to: '/', icon: Home, label: 'Home' },
+  { to: '/hod/dashboard', icon: LayoutDashboard, label: 'Trainers' },
   { to: '/hod/queue', icon: Users, label: 'Queue' },
+  { to: '/upload', icon: Upload, label: 'Upload' },
   { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 
@@ -20,7 +22,7 @@ const dpItems = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/dp/queue', icon: Shield, label: 'Approvals' },
   { to: '/admin/exports', icon: FileArchive, label: 'Exports' },
-  { to: '/admin/users', icon: Settings, label: 'Admin' },
+  { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 
 const iqaItems = [
@@ -30,11 +32,20 @@ const iqaItems = [
   { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 
+const superAdminItems = [
+  { to: '/', icon: Home, label: 'Home' },
+  { to: '/admin/users', icon: Settings, label: 'Users' },
+  { to: '/admin/assignments', icon: BookOpen, label: 'Assignments' },
+  { to: '/admin/exports', icon: FileArchive, label: 'Exports' },
+  { to: '/reports', icon: BarChart3, label: 'Reports' },
+];
+
 const navMap: Record<UserRole, typeof trainerItems> = {
   TRAINER: trainerItems,
   HOD: hodItems,
   DP_ACADEMICS: dpItems,
   IQA: iqaItems,
+  SUPER_ADMIN: superAdminItems,
 };
 
 export function BottomNav() {

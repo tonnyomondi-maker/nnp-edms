@@ -21,9 +21,28 @@ export default function ArchiveScreen() {
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
+  const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
+  const [termInitialized, setTermInitialized] = useState(false);
+
+  const allPending = useMemo(() => pendingDocs || [], [pendingDocs]);
+  const allArchived = useMemo(() => archivedDocs || [], [archivedDocs]);
+
+  useEffect(() => {
+    if (!termInitialized && allPending.length > 0) {
+      setTermFilter(pickDefaultTerm(allPending));
+      setTermInitialized(true);
+    }
+  }, [allPending, termInitialized]);
+
+  const counts = useMemo(
+    () => termCounts([...allPending, ...allArchived]),
+    [allPending, allArchived],
+  );
+  const pending = useMemo(() => filterByTerm(allPending, termFilter), [allPending, termFilter]);
+  const archived = useMemo(() => filterByTerm(allArchived, termFilter), [allArchived, termFilter]);
 
   const handleArchive = async (docId: string) => {
-    const doc = (pendingDocs || []).find(d => d.id === docId);
+    const doc = allPending.find(d => d.id === docId);
     if (!doc) return;
     const { data: profile } = await supabase
       .from('profiles').select('signature_url, stamp_url').eq('user_id', currentUser!.id).single();
@@ -48,29 +67,6 @@ export default function ArchiveScreen() {
   };
 
   const isLoading = loadingPending || loadingArchived;
-  if (isLoading) {
-    return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
-  }
-
-  const allPending = pendingDocs || [];
-  const allArchived = archivedDocs || [];
-
-  const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
-  const [termInitialized, setTermInitialized] = useState(false);
-
-  useEffect(() => {
-    if (!termInitialized && allPending.length > 0) {
-      setTermFilter(pickDefaultTerm(allPending));
-      setTermInitialized(true);
-    }
-  }, [allPending, termInitialized]);
-
-  const counts = useMemo(
-    () => termCounts([...allPending, ...allArchived]),
-    [allPending, allArchived],
-  );
-  const pending = useMemo(() => filterByTerm(allPending, termFilter), [allPending, termFilter]);
-  const archived = useMemo(() => filterByTerm(allArchived, termFilter), [allArchived, termFilter]);
 
   const toggleOne = (id: string, checked: boolean) => {
     setSelected(prev => {
@@ -92,6 +88,10 @@ export default function ArchiveScreen() {
       variant: res.failed > 0 ? 'destructive' : 'default',
     });
   };
+
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+  }
 
   return (
     <div>

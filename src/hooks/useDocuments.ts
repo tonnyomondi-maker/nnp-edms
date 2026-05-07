@@ -113,10 +113,15 @@ export interface ApprovalPlacement {
   sigY?: number | null;
   sigW?: number | null;
   sigH?: number | null;
+  sigRot?: number | null;
+  sigOpacity?: number | null;
   stampX?: number | null;
   stampY?: number | null;
   stampW?: number | null;
   stampH?: number | null;
+  stampRot?: number | null;
+  stampOpacity?: number | null;
+  autofill?: boolean | null;
 }
 
 async function performApproval(
@@ -182,12 +187,23 @@ async function performApproval(
     updates.hod_stamp_url = profile.stamp_url;
     updates.hod_approved_by = userId;
     if (placement) {
-      updates.hod_sig_page = placement.page ?? null;
-      updates.hod_sig_x = placement.sigX ?? null;
-      updates.hod_sig_y = placement.sigY ?? null;
-      updates.hod_stamp_page = placement.page ?? null;
-      updates.hod_stamp_x = placement.stampX ?? null;
-      updates.hod_stamp_y = placement.stampY ?? null;
+      Object.assign(updates, {
+        hod_sig_page: placement.page ?? null,
+        hod_sig_x: placement.sigX ?? null,
+        hod_sig_y: placement.sigY ?? null,
+        hod_sig_w: placement.sigW ?? null,
+        hod_sig_h: placement.sigH ?? null,
+        hod_sig_rot: placement.sigRot ?? null,
+        hod_sig_opacity: placement.sigOpacity ?? null,
+        hod_stamp_page: placement.page ?? null,
+        hod_stamp_x: placement.stampX ?? null,
+        hod_stamp_y: placement.stampY ?? null,
+        hod_stamp_w: placement.stampW ?? null,
+        hod_stamp_h: placement.stampH ?? null,
+        hod_stamp_rot: placement.stampRot ?? null,
+        hod_stamp_opacity: placement.stampOpacity ?? null,
+        hod_autofill: placement.autofill ?? true,
+      });
     }
   } else if (status === 'DP_APPROVED') {
     updates.dp_approved_at = new Date().toISOString();
@@ -195,12 +211,23 @@ async function performApproval(
     updates.dp_stamp_url = profile.stamp_url;
     updates.dp_approved_by = userId;
     if (placement) {
-      updates.dp_sig_page = placement.page ?? null;
-      updates.dp_sig_x = placement.sigX ?? null;
-      updates.dp_sig_y = placement.sigY ?? null;
-      updates.dp_stamp_page = placement.page ?? null;
-      updates.dp_stamp_x = placement.stampX ?? null;
-      updates.dp_stamp_y = placement.stampY ?? null;
+      Object.assign(updates, {
+        dp_sig_page: placement.page ?? null,
+        dp_sig_x: placement.sigX ?? null,
+        dp_sig_y: placement.sigY ?? null,
+        dp_sig_w: placement.sigW ?? null,
+        dp_sig_h: placement.sigH ?? null,
+        dp_sig_rot: placement.sigRot ?? null,
+        dp_sig_opacity: placement.sigOpacity ?? null,
+        dp_stamp_page: placement.page ?? null,
+        dp_stamp_x: placement.stampX ?? null,
+        dp_stamp_y: placement.stampY ?? null,
+        dp_stamp_w: placement.stampW ?? null,
+        dp_stamp_h: placement.stampH ?? null,
+        dp_stamp_rot: placement.stampRot ?? null,
+        dp_stamp_opacity: placement.stampOpacity ?? null,
+        dp_autofill: placement.autofill ?? true,
+      });
     }
   } else if (status === 'ARCHIVED') {
     updates.archived_at = new Date().toISOString();
@@ -208,12 +235,23 @@ async function performApproval(
     updates.iqa_stamp_url = profile.stamp_url;
     updates.iqa_archived_by = userId;
     if (placement) {
-      updates.iqa_sig_page = placement.page ?? null;
-      updates.iqa_sig_x = placement.sigX ?? null;
-      updates.iqa_sig_y = placement.sigY ?? null;
-      updates.iqa_stamp_page = placement.page ?? null;
-      updates.iqa_stamp_x = placement.stampX ?? null;
-      updates.iqa_stamp_y = placement.stampY ?? null;
+      Object.assign(updates, {
+        iqa_sig_page: placement.page ?? null,
+        iqa_sig_x: placement.sigX ?? null,
+        iqa_sig_y: placement.sigY ?? null,
+        iqa_sig_w: placement.sigW ?? null,
+        iqa_sig_h: placement.sigH ?? null,
+        iqa_sig_rot: placement.sigRot ?? null,
+        iqa_sig_opacity: placement.sigOpacity ?? null,
+        iqa_stamp_page: placement.page ?? null,
+        iqa_stamp_x: placement.stampX ?? null,
+        iqa_stamp_y: placement.stampY ?? null,
+        iqa_stamp_w: placement.stampW ?? null,
+        iqa_stamp_h: placement.stampH ?? null,
+        iqa_stamp_rot: placement.stampRot ?? null,
+        iqa_stamp_opacity: placement.stampOpacity ?? null,
+        iqa_autofill: placement.autofill ?? true,
+      });
     }
   }
 

@@ -1,108 +1,67 @@
-## Plan: Course Type, Module/Term, Course Outline, HOD Fix
+## Plan
 
-### 1. Updated Department List
+### 1. Fix IQA Archive crash (blank/not responding)
+`src/pages/iqa/ArchiveScreen.tsx` calls `useState`/`useEffect`/`useMemo` *after* an early `return` (loading guard). This breaks the Rules of Hooks and crashes the page on every render where loading flips. Move all hooks above the `if (isLoading)` return.
 
-Replace `DEPARTMENTS` in `src/lib/sessions.ts` with the official 8:
+### 2. Expand Modular course to Module 1–10
+- `src/lib/sessions.ts`: change `MODULE_NUMBERS` to `1..10`.
+- DB: update `validate_course_stage()` trigger function to accept `module_number` 1–10 (currently capped at 8). Migration only — no data changes.
+- Audit all selectors (`UploadDocuments.tsx`, `useUnitSessionConfig.ts`, `TermFilter.tsx`) so Module 9/10 render and filter correctly.
 
-- Computing & Informatics
-- Building & Civil Engineering
-- Mechanical Engineering
-- Electrical & Electronic Engineering
-- Agriculture & Environment
-- Fashion & Cosmetology
-- Business & Entrepreneurship
-- Hospitality & Tourism
+### 3. Signature & stamp placement — formatting + auto-fill controls
+In `PlacementModal`:
+- Add per-image controls: width slider, opacity, rotation (0/90/180/270), and an aspect-lock toggle.
+- Add a toggle group: "Auto-fill details" vs "Leave blanks for manual fill".
+  - Auto-fill (default): system stamps name, position/role, signature image, date, and stamp image.
+  - Blanks: only the stamp outline + labelled lines ("Name: ____", "Signature: ____", "Date: ____") are drawn so the approver can hand-write.
+- Persist new fields on the `documents` row: `*_sig_w`, `*_sig_h`, `*_sig_rot`, `*_sig_opacity`, `*_stamp_w/h/rot/opacity`, plus `*_autofill boolean`.
+- `stamp-document` edge function: respect width/height/rotation/opacity and the autofill flag. When `autofill=false`, draw only labelled blank lines and the empty stamp ring.
 
-(Removes "Liberal Studies", "Applied Sciences", renames "Electronics" → "Electronic", "Hospitality & Institutional Management" → "Hospitality & Tourism", "Agriculture" → "Agriculture & Environment", "Business Studies" → "Business & Entrepreneurship".)
+Migration adds the new nullable columns to `documents`.
 
-Also fix HOD test account — update `hod@test.com` profile department from "Computer Science" to **"Computing & Informatics"** so it matches uploaded documents (this is why approvals don't show).
+### 4. HOD enhancements
+- New tab in `DepartmentQueue.tsx`: **"Approved by me"** — lists docs where `hod_approved_by = auth.uid()` (statuses HOD_APPROVED, DP_APPROVED, ARCHIVED, plus REJECTED-by-me). Reuses the existing filter bar.
+- Confirm department scoping: existing RLS already restricts HODs to their department — verified in policies. No change needed beyond ensuring the test HOD profile has `department` set (will surface in the new HOD dashboard if missing).
+- New **HOD Dashboard** (`src/pages/hod/Dashboard.tsx`) showing:
+  - Trainers in their department and submission counts (submitted / approved / rejected / missing).
+  - Per-trainer missing one-time docs vs expected.
+  - Quick link to their own "Upload" flow (HODs can still submit their own teaching docs).
 
-### 2. Course Type: Modular vs Cycle
+### 5. Remove Assignments from DP Academics
+- Remove the "Manage Assignments" nav entry and route gating for DP Academics in `src/components/layout/BottomNav.tsx` / `AppShell.tsx` and `App.tsx` routing. Trainers self-assign via Upload (already implemented), so DP no longer needs assignment management.
+- Keep the page reachable only by Super Admin (see §6).
 
-Add a **Course Type** selector during unit setup (on `UploadDocuments.tsx`):
+### 6. Super Admin role
+- New enum value `SUPER_ADMIN` on `app_role` (migration: `ALTER TYPE app_role ADD VALUE 'SUPER_ADMIN'`).
+- New page `src/pages/admin/SystemSetup.tsx` for: assigning/removing roles, setting departments on profiles, managing assignments (moved from DP), viewing all users.
+- Update RLS on `user_roles` to allow `SUPER_ADMIN` (in addition to `DP_ACADEMICS`) to insert/update/delete roles. Long-term, DP role-management policies can be removed; for now keep both to avoid lockout.
+- Seed: provide a SQL snippet the user runs (or we expose a one-time button) to grant SUPER_ADMIN to a chosen user. We'll prompt for the email after the plan is approved.
+- Nav: SUPER_ADMIN sees "System Setup" entry; DP no longer sees "Manage Assignments".
 
-- **Cycle 1 / Cycle 2** (existing flow) → keeps **Term 1/2/3** dropdown
-- **Modular** → swaps Term dropdown for **Module 1 … Module 8** dropdown
+### 7. Reports — real data, real metrics
+Rewrite `src/pages/Reports.tsx` (and add role-scoped variants):
+- Pull live from `documents`, `teaching_assignments`, `unit_session_config`, `profiles`.
+- Tabs:
+  1. **Per Trainer** — submissions count by status, % completeness against expected one-time docs (Learning Plan, Personal Timetable, Workload Allocation, Scheme of Work, Course Outline) per assigned unit.
+  2. **Missing Documentation** — for each (trainer × unit), list missing one-time docs and missing weekly docs (Session Plan / Class Attendance) for the active session/term/module based on `unit_session_config`.
+  3. **Department Compliance** — % per real department (the 8 listed earlier), drill-down by trainer.
+  4. **Approval Throughput** — counts/avg time SUBMITTED→HOD→DP→ARCHIVED using `submitted_at`, `hod_approved_at`, `dp_approved_at`, `archived_at`.
+- Scoping: HOD sees only their department; Trainer sees only themselves; DP/IQA/SUPER_ADMIN see all.
+- Replace hard-coded `DEPARTMENTS` and `ONE_TIME_DOCS` arrays with imports from `src/lib/sessions.ts` (already includes Course Outline and the 8 departments).
 
-DB changes (new migration on `unit_session_config` and `documents`):
+### Database migrations summary
+1. `validate_course_stage`: allow module_number 1–10.
+2. `documents`: add `hod_sig_w/h/rot/opacity`, `hod_stamp_w/h/rot/opacity`, same for `dp_*` and `iqa_*`, plus `hod_autofill/dp_autofill/iqa_autofill boolean default true`.
+3. `app_role`: add `SUPER_ADMIN`.
+4. `user_roles` RLS: add SUPER_ADMIN policies for INSERT/UPDATE/DELETE/SELECT-all.
 
-```sql
-ALTER TABLE unit_session_config
-  ADD COLUMN course_type text,           -- 'CYCLE' | 'MODULAR'
-  ADD COLUMN module_number integer;      -- 1..8 when MODULAR
+### Files to create
+- `src/pages/hod/Dashboard.tsx`
+- `src/pages/admin/SystemSetup.tsx`
+- `src/components/common/ImageAdjustControls.tsx` (size/rotation/opacity sliders shared between sig & stamp)
 
-ALTER TABLE documents
-  ADD COLUMN course_type text,
-  ADD COLUMN module_number integer;
-```
+### Files to modify
+- `src/lib/sessions.ts`, `src/pages/iqa/ArchiveScreen.tsx`, `src/components/common/PlacementModal.tsx`, `supabase/functions/stamp-document/index.ts`, `src/hooks/useDocuments.ts` (persist new placement fields), `src/pages/hod/DepartmentQueue.tsx`, `src/pages/Reports.tsx`, `src/components/layout/BottomNav.tsx`, `src/components/layout/AppShell.tsx`, `src/App.tsx`, `src/contexts/AuthContext.tsx` (recognise SUPER_ADMIN).
 
-`term_number` stays for cycle courses; `module_number` populated for modular. Validation trigger (not CHECK) ensures exactly one of `term_number` / `module_number` is set per course_type.
-
-### 3. Course Outline as One-Time Document
-
-Add `'Course Outline'` to `ONE_TIME_DOC_TYPES` in `src/lib/sessions.ts`. The `document_type` column on `documents` is a USER-DEFINED enum — needs migration:
-
-```sql
-ALTER TYPE document_type ADD VALUE IF NOT EXISTS 'Course Outline';
-```
-
-### 4. Fix HOD "Cannot Approve" — Department Scoping
-
-Two issues:
-
-a) **Data mismatch** (above) — fix HOD profile department.
-
-b) **RLS too broad** — current policies let HOD see all docs, not just their dept. Tighten:
-
-```sql
-DROP POLICY "HOD can view department documents" ON documents;
-CREATE POLICY "HOD can view own department documents"
-  ON documents FOR SELECT TO authenticated
-  USING (
-    has_role(auth.uid(), 'HOD')
-    AND department = (SELECT department FROM profiles WHERE user_id = auth.uid())
-  );
-
-DROP POLICY "HOD can update document status" ON documents;
-CREATE POLICY "HOD can update own department documents"
-  ON documents FOR UPDATE TO authenticated
-  USING (
-    has_role(auth.uid(), 'HOD')
-    AND department = (SELECT department FROM profiles WHERE user_id = auth.uid())
-  );
-```
-
-(DP & IQA policies remain global — they are cross-department roles.)
-
-### 5. Trainer Self-Assigns on Upload (already true — confirm)
-
-Current upload flow already lets trainers freely type unit code, name, class, department without an existing assignment. No change needed beyond confirming `assignment_id` stays nullable. Document this in UI helper text under unit code: *"Type any unit you teach — no pre-assignment needed."*
-
-### 6. UI Updates
-
-**`UploadDocuments.tsx`**:
-- Add Course Type select (Cycle 1 / Cycle 2 / Modular)
-- Conditional: Modular → Module dropdown (1–8); Cycle 1/2 → Term dropdown (existing)
-- Pass `course_type`, `module_number` through `useUpsertUnitConfig` & `useSubmitDocument`
-
-**`useDocuments.ts` / `useUnitSessionConfig.ts`**: extend payload types with `course_type` and `module_number`.
-
-**`DocumentCard.tsx`**: show "Module N" badge when modular, else "Term N".
-
-**`TermFilter.tsx`** → rename to `StageFilter.tsx` (or keep + add ModuleFilter):
-- For modular docs, filter by Module 1–8
-- Show two filters when mixed; or auto-detect dominant course type
-
-**HOD/DP/IQA queues**: include both filters; default to dominant stage.
-
-### 7. Files Modified
-
-- `src/lib/sessions.ts` — departments, ONE_TIME_DOC_TYPES (+Course Outline), course type constants
-- `src/pages/trainer/UploadDocuments.tsx` — course type + module/term UI
-- `src/hooks/useUnitSessionConfig.ts` — new fields
-- `src/hooks/useDocuments.ts` — new fields
-- `src/components/common/DocumentCard.tsx` — module badge
-- `src/components/common/TermFilter.tsx` → extend with module filter
-- `src/pages/hod/DepartmentQueue.tsx`, `src/pages/dp/ApprovalQueue.tsx`, `src/pages/iqa/ArchiveScreen.tsx` — wire module filter
-- `src/integrations/supabase/types.ts` — auto-regen
-- New migration: enum value, columns, RLS rewrite, HOD profile dept fix
+### Open question before I implement
+Which user email should receive the initial **SUPER_ADMIN** role? I'll seed it via an insert once you confirm.
