@@ -1,6 +1,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2.95.0/cors";
 import { createClient } from "npm:@supabase/supabase-js@2.95.0";
-import { PDFDocument } from "npm:pdf-lib@1.17.1";
+import { PDFDocument, degrees, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
 
 interface Placement {
   page?: number | null;
@@ -8,10 +8,15 @@ interface Placement {
   sigY?: number | null;
   sigW?: number | null;
   sigH?: number | null;
+  sigRot?: number | null;
+  sigOpacity?: number | null;
   stampX?: number | null;
   stampY?: number | null;
   stampW?: number | null;
   stampH?: number | null;
+  stampRot?: number | null;
+  stampOpacity?: number | null;
+  autofill?: boolean | null;
 }
 interface StampRequest {
   documentId: string;
@@ -23,6 +28,8 @@ interface StampRequest {
 }
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
+const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", DP: "DP Academics", IQA: "IQA" };
+
 
 function parseStorageRef(value: string, defaultBucket = "documents"): { bucket: string; path: string } | null {
   if (!value) return null;
