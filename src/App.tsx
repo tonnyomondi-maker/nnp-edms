@@ -18,6 +18,7 @@ import ArchiveScreen from "./pages/iqa/ArchiveScreen";
 import ManageUsers from "./pages/admin/ManageUsers";
 import ManageAssignments from "./pages/admin/ManageAssignments";
 import SessionExports from "./pages/admin/SessionExports";
+import SystemSetup from "./pages/admin/SystemSetup";
 import Reports from "./pages/Reports";
 import ProfileSettings from "./pages/ProfileSettings";
 import Notifications from "./pages/Notifications";
