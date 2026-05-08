@@ -162,6 +162,19 @@ Deno.serve(async (req) => {
       drawLine("(no log entries)", { size: 9, color: [0.6, 0.6, 0.6] });
     }
 
+    // Department change audit for trainer
+    if (roleAudit && roleAudit.length > 0) {
+      sep();
+      drawLine("Department Change History (Trainer)", { size: 12, bold: true });
+      for (const ra of roleAudit) {
+        const fromDept = ra.old_value || "(none)";
+        const toDept = ra.new_value || "(none)";
+        const when = new Date(ra.created_at).toLocaleString();
+        const by = ra.changed_by_email || "system";
+        drawLine(`• ${when} — ${fromDept} → ${toDept} (updated by ${by})`, { size: 9 });
+      }
+    }
+
     const bytes = await pdfDoc.save();
     return new Response(bytes, {
       status: 200,
