@@ -360,6 +360,45 @@ export type Database = {
         }
         Relationships: []
       }
+      role_change_audit: {
+        Row: {
+          action: string
+          changed_by: string | null
+          changed_by_email: string | null
+          created_at: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          target_email: string | null
+          target_name: string | null
+          target_user_id: string
+        }
+        Insert: {
+          action: string
+          changed_by?: string | null
+          changed_by_email?: string | null
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          target_email?: string | null
+          target_name?: string | null
+          target_user_id: string
+        }
+        Update: {
+          action?: string
+          changed_by?: string | null
+          changed_by_email?: string | null
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          target_email?: string | null
+          target_name?: string | null
+          target_user_id?: string
+        }
+        Relationships: []
+      }
       teaching_assignments: {
         Row: {
           academic_year: string
@@ -473,6 +512,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bootstrap_super_admin: { Args: { target_email: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
