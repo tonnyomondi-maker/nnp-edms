@@ -58,6 +58,7 @@ function ProtectedRoutes() {
         <Route path="/admin/users" element={<ManageUsers />} />
         <Route path="/admin/assignments" element={<ManageAssignments />} />
         <Route path="/admin/exports" element={<SessionExports />} />
+        <Route path="/admin/setup" element={<SystemSetup />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/profile" element={<ProfileSettings />} />
         <Route path="/notifications" element={<Notifications />} />
