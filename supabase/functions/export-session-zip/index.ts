@@ -46,17 +46,23 @@ function csvEscape(v: unknown) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-// Parse a Supabase storage URL into { bucket, path }
-function parseStorageUrl(url: string): { bucket: string; path: string } | null {
-  try {
-    const u = new URL(url);
-    // /storage/v1/object/public/<bucket>/<path...> or /storage/v1/object/<bucket>/<path...>
-    const m = u.pathname.match(/\/storage\/v1\/object\/(?:public\/)?([^/]+)\/(.+)$/);
-    if (!m) return null;
-    return { bucket: decodeURIComponent(m[1]), path: decodeURIComponent(m[2]) };
-  } catch {
-    return null;
+// Parse a Supabase storage URL OR a bare storage path into { bucket, path }.
+// Bare paths (e.g. "<userId>/.../file.pdf") are assumed to live in the
+// private "documents" bucket, which is where stamped & uploaded PDFs go.
+function parseStorageRef(ref: string): { bucket: string; path: string } | null {
+  if (!ref) return null;
+  if (/^https?:\/\//i.test(ref)) {
+    try {
+      const u = new URL(ref);
+      const m = u.pathname.match(/\/storage\/v1\/object\/(?:public\/|sign\/)?([^/]+)\/(.+?)(?:\?.*)?$/);
+      if (!m) return null;
+      return { bucket: decodeURIComponent(m[1]), path: decodeURIComponent(m[2].split("?")[0]) };
+    } catch {
+      return null;
+    }
   }
+  // Bare path
+  return { bucket: "documents", path: ref.replace(/^\/+/, "") };
 }
 
 Deno.serve(async (req) => {
