@@ -58,6 +58,15 @@ Deno.serve(async (req) => {
       .eq("document_id", documentId)
       .order("created_at", { ascending: true });
 
+    // Pull role/department audit for the trainer
+    const { data: roleAudit } = await supabase
+      .from("role_change_audit")
+      .select("*")
+      .eq("target_user_id", doc.trainer_id)
+      .eq("action", "DEPARTMENT_CHANGED")
+      .order("created_at", { ascending: true })
+      .limit(50);
+
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -151,6 +160,19 @@ Deno.serve(async (req) => {
       }
     } else {
       drawLine("(no log entries)", { size: 9, color: [0.6, 0.6, 0.6] });
+    }
+
+    // Department change audit for trainer
+    if (roleAudit && roleAudit.length > 0) {
+      sep();
+      drawLine("Department Change History (Trainer)", { size: 12, bold: true });
+      for (const ra of roleAudit) {
+        const fromDept = ra.old_value || "(none)";
+        const toDept = ra.new_value || "(none)";
+        const when = new Date(ra.created_at).toLocaleString();
+        const by = ra.changed_by_email || "system";
+        drawLine(`• ${when} — ${fromDept} → ${toDept} (updated by ${by})`, { size: 9 });
+      }
     }
 
     const bytes = await pdfDoc.save();
