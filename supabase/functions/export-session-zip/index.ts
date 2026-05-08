@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
         skipped++;
         continue;
       }
-      const parsed = parseStorageUrl(url);
+      const parsed = parseStorageRef(url);
       if (!parsed) {
         skipped++;
         continue;
@@ -224,11 +224,11 @@ Deno.serve(async (req) => {
       // Track originals to delete
       if (deleteAfter) {
         if (doc.signed_file_url) {
-          const p = parseStorageUrl(doc.signed_file_url);
+          const p = parseStorageRef(doc.signed_file_url);
           if (p) deletePaths.push(p);
         }
         if (doc.file_url) {
-          const p = parseStorageUrl(doc.file_url);
+          const p = parseStorageRef(doc.file_url);
           if (p) deletePaths.push(p);
         }
       }
