@@ -159,8 +159,12 @@ Deno.serve(async (req) => {
             x, y, width: sigDims.width, height: sigDims.height,
             rotate: degrees(sigRot), opacity: sigOpacity,
           });
-          page.drawText(`${STAGE_LABEL[stage]} — ${approverName}`, { x, y: y - 12, size: 8, font: helv });
-          page.drawText(new Date().toLocaleString(), { x, y: y - 22, size: 7, font: helv });
+          const now = new Date();
+          page.drawLine({ start: { x, y: y - 2 }, end: { x: x + sigDims.width, y: y - 2 }, thickness: 0.5 });
+          page.drawText(`${STAGE_LABEL[stage]}`, { x, y: y - 12, size: 8, font: helvBold });
+          page.drawText(`Name: ${approverName}`, { x, y: y - 22, size: 8, font: helv });
+          page.drawText(`Date: ${now.toLocaleDateString()}`, { x, y: y - 32, size: 7, font: helv });
+          page.drawText(`Signed: ${now.toLocaleString()}`, { x, y: y - 42, size: 7, font: helv });
         } else {
           // Draw labelled blank lines
           page.drawText(`${STAGE_LABEL[stage]}`, { x, y: y + sigDims.height + 6, size: 8, font: helvBold });
@@ -200,7 +204,11 @@ Deno.serve(async (req) => {
       if (autofill) {
         lastPage.drawImage(sigImage, { x: 40, y: baseY + 40, width: sigDims.width, height: sigDims.height });
         lastPage.drawImage(stampImage, { x: 200, y: baseY + 10, width: stampDims.width, height: stampDims.height });
-        lastPage.drawText(new Date().toLocaleString(), { x: 40, y: baseY + 25, size: 8, font: helv });
+        const now = new Date();
+        lastPage.drawLine({ start: { x: 40, y: baseY + 38 }, end: { x: 40 + sigDims.width, y: baseY + 38 }, thickness: 0.5 });
+        lastPage.drawText(`Name: ${approverName}`, { x: 40, y: baseY + 28, size: 8, font: helv });
+        lastPage.drawText(`Date: ${now.toLocaleDateString()}`, { x: 40, y: baseY + 18, size: 8, font: helv });
+        lastPage.drawText(`Signed: ${now.toLocaleString()}`, { x: 40, y: baseY + 8, size: 7, font: helv });
       } else {
         lastPage.drawText('Name: __________________________', { x: 40, y: baseY + 75, size: 9, font: helv });
         lastPage.drawText('Sign: __________________________', { x: 40, y: baseY + 55, size: 9, font: helv });

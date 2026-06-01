@@ -84,15 +84,15 @@ Deno.serve(async (req) => {
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: authErr } = await userClient.auth.getClaims(token);
-    if (authErr || !claims?.claims?.sub) {
+    const { data: userData, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !userData?.user?.id) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userId = claims.claims.sub as string;
+    const userId = userData.user.id;
+    const actorEmail = userData.user.email || "unknown";
 
     const admin = createClient(supabaseUrl, serviceKey);
 
@@ -259,16 +259,44 @@ Deno.serve(async (req) => {
       );
     }
 
+    const exportedAt = new Date().toISOString();
     const readme =
       `Nyamira National Polytechnic — EDMS Session Export\n` +
       `Session: ${SESSION_LABEL[session]} ${year}\n` +
-      `Exported at: ${new Date().toISOString()}\n` +
+      `Exported at: ${exportedAt}\n` +
+      `Exported by: ${actorEmail} (user id: ${userId})\n` +
       `Documents included: ${included}\n` +
       `Documents skipped (missing files): ${skipped}\n` +
-      `Originals deleted from cloud: ${deleteAfter ? "Yes" : "No"}\n`;
+      `Originals deleted from cloud: ${deleteAfter ? "Yes" : "No"}\n` +
+      `\n` +
+      `============================================================\n` +
+      `DATA PROTECTION NOTICE — Kenya Data Protection Act, 2019\n` +
+      `============================================================\n` +
+      `This archive contains personal data of trainers and approving\n` +
+      `officers (names, PF numbers, signatures, stamps and approval\n` +
+      `timestamps) processed lawfully for the purpose of academic\n` +
+      `quality assurance and statutory record keeping.\n\n` +
+      `Lawful basis: Performance of a task carried out in the public\n` +
+      `interest and compliance with a legal obligation (DPA 2019,\n` +
+      `s.30(1)(b) & (e)).\n\n` +
+      `Recipient obligations:\n` +
+      ` 1. Store this archive on encrypted institutional storage with\n` +
+      `    access restricted to authorised officers only.\n` +
+      ` 2. Do not transfer outside Kenya without confirming adequate\n` +
+      `    safeguards (DPA 2019, Part VI).\n` +
+      ` 3. Retain only for the statutory retention period and securely\n` +
+      `    destroy thereafter; log the destruction.\n` +
+      ` 4. Report any personal-data breach to the Office of the Data\n` +
+      `    Protection Commissioner within 72 hours (DPA 2019, s.43).\n` +
+      ` 5. Data-subject access, rectification or erasure requests must\n` +
+      `    be honoured per DPA 2019, ss.26 & 40.\n\n` +
+      `Data controller: Nyamira National Polytechnic.\n` +
+      `An immutable audit record of this export has been retained in\n` +
+      `the EDMS audit log.\n`;
 
     await zipWriter.add("manifest.csv", new TextReader(csvRows.join("\n")));
     await zipWriter.add("README.txt", new TextReader(readme));
+    await zipWriter.add("DATA_PROTECTION_NOTICE.txt", new TextReader(readme));
     await zipWriter.close();
     const zipBlob = await zipBlobWriter.getData();
 
@@ -287,12 +315,35 @@ Deno.serve(async (req) => {
         .from("documents")
         .update({
           status: "EXPORTED",
-          exported_at: new Date().toISOString(),
+          exported_at: exportedAt,
           exported_by: userId,
           file_url: null,
           signed_file_url: null,
         })
         .in("id", exportedIds);
+    }
+
+    // DPA 2019 audit trail — immutable record of who exported what and when
+    try {
+      const auditAction = deleteAfter ? "SESSION_EXPORT_AND_ERASE" : "SESSION_EXPORT";
+      const auditRows = exportedIds.map((docId) => ({
+        document_id: docId,
+        action: auditAction,
+        performed_by: userId,
+        details: {
+          session_year: year,
+          session_term: session,
+          exported_at: exportedAt,
+          exported_by_email: actorEmail,
+          originals_deleted: !!deleteAfter,
+          dpa_basis: "Kenya DPA 2019 s.30(1)(b)&(e) — public interest / legal obligation",
+        },
+      }));
+      if (auditRows.length > 0) {
+        await admin.from("audit_logs").insert(auditRows);
+      }
+    } catch (auditErr) {
+      console.error("audit log insert failed", auditErr);
     }
 
     const filename = `EDMS_${year}_${session}_${included}docs.zip`;
