@@ -130,6 +130,7 @@ async function performApproval(
   rejectionReason: string | undefined,
   userId: string,
   placement?: ApprovalPlacement | null,
+  mode: 'IMAGE' | 'TEXT_ONLY' = 'IMAGE',
 ) {
   const updates: TablesUpdate<'documents'> = { status };
 
