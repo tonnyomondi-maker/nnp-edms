@@ -21,10 +21,14 @@ export default function ArchiveScreen() {
   const { currentUser } = useAuth();
   const { data: pendingDocs, isLoading: loadingPending } = useDocumentsByStatus('DP_APPROVED');
   const { data: archivedDocs, isLoading: loadingArchived } = useDocumentsByStatus('ARCHIVED');
+  const { data: allDocs } = useAllDocuments();
   const updateStatus = useUpdateDocumentStatus();
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
+  const [earlyDoc, setEarlyDoc] = useState<{ id: string; fileUrl: string; fileName: string; status: string; documentType: string } | null>(null);
+  const [earlyReason, setEarlyReason] = useState('');
+  const [earlyBusy, setEarlyBusy] = useState(false);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
 
