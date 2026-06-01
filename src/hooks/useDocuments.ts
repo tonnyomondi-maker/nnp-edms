@@ -265,9 +265,9 @@ export function useUpdateDocumentStatus() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ docId, status, rejectionReason, placement }: { docId: string; status: DocumentStatus; rejectionReason?: string; placement?: ApprovalPlacement | null }) => {
+    mutationFn: async ({ docId, status, rejectionReason, placement, mode }: { docId: string; status: DocumentStatus; rejectionReason?: string; placement?: ApprovalPlacement | null; mode?: 'IMAGE' | 'TEXT_ONLY' }) => {
       if (!user) throw new Error('Not authenticated');
-      return performApproval(docId, status, rejectionReason, user.id, placement);
+      return performApproval(docId, status, rejectionReason, user.id, placement, mode);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
