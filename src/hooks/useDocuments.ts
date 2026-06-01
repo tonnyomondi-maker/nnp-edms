@@ -279,10 +279,12 @@ export function useBulkUpdateDocumentStatus() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ docIds, status, rejectionReason }: { docIds: string[]; status: DocumentStatus; rejectionReason?: string }) => {
+    mutationFn: async ({ docIds, status, rejectionReason, mode }: { docIds: string[]; status: DocumentStatus; rejectionReason?: string; mode?: 'IMAGE' | 'TEXT_ONLY' }) => {
       if (!user) throw new Error('Not authenticated');
+      // Bulk approvals default to TEXT_ONLY since there is no placement UI in bulk.
+      const resolvedMode: 'IMAGE' | 'TEXT_ONLY' = mode ?? (status === 'REJECTED' ? 'IMAGE' : 'TEXT_ONLY');
       const results = await Promise.allSettled(
-        docIds.map(id => performApproval(id, status, rejectionReason, user.id))
+        docIds.map(id => performApproval(id, status, rejectionReason, user.id, null, resolvedMode))
       );
       const succeeded = results.filter(r => r.status === 'fulfilled').length;
       const failed = results.length - succeeded;
