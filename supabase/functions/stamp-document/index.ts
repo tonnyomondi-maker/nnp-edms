@@ -173,8 +173,6 @@ Deno.serve(async (req) => {
     const pages = pdfDoc.getPages();
     const useCustom = placement && (placement.sigX != null || placement.stampX != null);
     const autofill = placement?.autofill ?? true;
-    const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const helvBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     if (useCustom) {
       const pageIdx = Math.max(0, Math.min(pages.length - 1, (placement!.page ?? pages.length) - 1));
