@@ -21,10 +21,11 @@ interface Placement {
 interface StampRequest {
   documentId: string;
   stage: "HOD" | "DP" | "IQA";
-  signatureUrl: string;
-  stampUrl: string;
+  signatureUrl?: string;
+  stampUrl?: string;
   approverName: string;
   placement?: Placement | null;
+  mode?: "IMAGE" | "TEXT_ONLY";
 }
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
@@ -89,9 +90,14 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json()) as StampRequest;
-    const { documentId, stage, signatureUrl, stampUrl, approverName, placement } = body;
-    if (!documentId || !stage || !signatureUrl || !stampUrl) {
+    const { documentId, stage, signatureUrl, stampUrl, approverName, placement, mode = "IMAGE" } = body;
+    if (!documentId || !stage) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (mode === "IMAGE" && (!signatureUrl || !stampUrl)) {
+      return new Response(JSON.stringify({ error: "Signature and stamp required for image mode" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -113,13 +119,49 @@ Deno.serve(async (req) => {
       throw new Error(`Source file is not a valid PDF (got header "${headerStr}"). Path: ${sourceRef.path}`);
     }
 
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const helvBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    // Text-only quick approval: draw a labelled text block, skip signature/stamp images
+    if (mode === "TEXT_ONLY") {
+      const pages = pdfDoc.getPages();
+      const lastPage = pages[pages.length - 1];
+      const { width } = lastPage.getSize();
+      const stageLabel = stage === "HOD"
+        ? "VERIFIED BY HOD"
+        : stage === "DP"
+          ? "APPROVED BY DP ACADEMICS"
+          : "ARCHIVED BY IQA";
+      const now = new Date();
+      const stageOffset: Record<string, number> = { HOD: 0, DP: 1, IQA: 2 };
+      const baseY = 60 + stageOffset[stage] * 70;
+      const boxX = 40, boxW = Math.min(360, width - 80), boxH = 56;
+      lastPage.drawRectangle({
+        x: boxX, y: baseY, width: boxW, height: boxH,
+        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1.2,
+        color: rgb(0.95, 0.97, 1), opacity: 0.85,
+      });
+      lastPage.drawText(stageLabel, { x: boxX + 10, y: baseY + boxH - 16, size: 11, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
+      lastPage.drawText(`Name: ${approverName || "—"}`, { x: boxX + 10, y: baseY + boxH - 30, size: 9, font: helv });
+      lastPage.drawText(`Date: ${now.toLocaleDateString()}`, { x: boxX + 10, y: baseY + boxH - 42, size: 9, font: helv });
+      lastPage.drawText(`Timestamp: ${now.toLocaleString()}`, { x: boxX + 10, y: baseY + boxH - 52, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
+
+      const stampedBytes = await pdfDoc.save();
+      const newPath = `${doc.trainer_id}/${doc.assignment_id || "unassigned"}/stamped_${stage}_${Date.now()}.pdf`;
+      const { error: uploadErr } = await supabase.storage
+        .from("documents").upload(newPath, stampedBytes, { contentType: "application/pdf", upsert: false });
+      if (uploadErr) throw uploadErr;
+      return new Response(JSON.stringify({ signedFileUrl: newPath }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Signature & stamp images are stored in a public bucket — direct fetch is fine
     const [sig, stamp] = await Promise.all([
-      fetchAsArrayBuffer(signatureUrl),
-      fetchAsArrayBuffer(stampUrl),
+      fetchAsArrayBuffer(signatureUrl!),
+      fetchAsArrayBuffer(stampUrl!),
     ]);
-
-    const pdfDoc = await PDFDocument.load(pdfBytes);
 
     const embedImage = async (bytes: ArrayBuffer, contentType: string | null) => {
       const isPng = (contentType || "").includes("png") || new Uint8Array(bytes)[0] === 0x89;
@@ -131,8 +173,6 @@ Deno.serve(async (req) => {
     const pages = pdfDoc.getPages();
     const useCustom = placement && (placement.sigX != null || placement.stampX != null);
     const autofill = placement?.autofill ?? true;
-    const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const helvBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     if (useCustom) {
       const pageIdx = Math.max(0, Math.min(pages.length - 1, (placement!.page ?? pages.length) - 1));

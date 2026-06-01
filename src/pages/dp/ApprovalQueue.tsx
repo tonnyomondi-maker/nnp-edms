@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
 
 export default function ApprovalQueue() {
   const { currentUser } = useAuth();
@@ -83,6 +83,13 @@ export default function ApprovalQueue() {
     });
   };
 
+  const handleQuickApprove = (docId: string) => {
+    updateStatus.mutate({ docId, status: 'DP_APPROVED', mode: 'TEXT_ONLY' }, {
+      onSuccess: () => toast({ title: 'Approved by DP Academics', description: 'Quick-approved and forwarded to IQA.' }),
+      onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
+    });
+  };
+
   const handleReject = (docId: string) => {
     updateStatus.mutate({ docId, status: 'REJECTED', rejectionReason: 'Does not meet standards' }, {
       onSuccess: () => toast({ title: 'Document Rejected', variant: 'destructive' }),
@@ -126,8 +133,11 @@ export default function ApprovalQueue() {
                 onSelectChange={(c) => toggleOne(doc.id, c)}
                 actions={showActions ? (
                   <>
-                    <Button size="sm" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> Approve
+                    <Button size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'APPROVED BY DP ACADEMICS' with name & date">
+                      <Zap className="w-4 h-4" /> Quick Approve
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
+                      <CheckCircle2 className="w-4 h-4" /> Sign & Approve
                     </Button>
                     <Button size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
                       <XCircle className="w-4 h-4" /> Reject

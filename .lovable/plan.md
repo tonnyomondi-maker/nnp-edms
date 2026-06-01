@@ -1,67 +1,45 @@
 ## Plan
 
-### 1. Fix IQA Archive crash (blank/not responding)
-`src/pages/iqa/ArchiveScreen.tsx` calls `useState`/`useEffect`/`useMemo` *after* an early `return` (loading guard). This breaks the Rules of Hooks and crashes the page on every render where loading flips. Move all hooks above the `if (isLoading)` return.
+### 1. "Quick Approve" option for HOD & DP (text stamp instead of signature/stamp images)
 
-### 2. Expand Modular course to Module 1–10
-- `src/lib/sessions.ts`: change `MODULE_NUMBERS` to `1..10`.
-- DB: update `validate_course_stage()` trigger function to accept `module_number` 1–10 (currently capped at 8). Migration only — no data changes.
-- Audit all selectors (`UploadDocuments.tsx`, `useUnitSessionConfig.ts`, `TermFilter.tsx`) so Module 9/10 render and filter correctly.
+Add a secondary approval path so approvers can skip the signature+stamp placement modal and instead burn a simple text label onto the PDF:
+- **HOD**: `VERIFIED BY HOD — <Name> — <Date>`
+- **DP**: `APPROVED BY DP ACADEMICS — <Name> — <Date>`
 
-### 3. Signature & stamp placement — formatting + auto-fill controls
-In `PlacementModal`:
-- Add per-image controls: width slider, opacity, rotation (0/90/180/270), and an aspect-lock toggle.
-- Add a toggle group: "Auto-fill details" vs "Leave blanks for manual fill".
-  - Auto-fill (default): system stamps name, position/role, signature image, date, and stamp image.
-  - Blanks: only the stamp outline + labelled lines ("Name: ____", "Signature: ____", "Date: ____") are drawn so the approver can hand-write.
-- Persist new fields on the `documents` row: `*_sig_w`, `*_sig_h`, `*_sig_rot`, `*_sig_opacity`, `*_stamp_w/h/rot/opacity`, plus `*_autofill boolean`.
-- `stamp-document` edge function: respect width/height/rotation/opacity and the autofill flag. When `autofill=false`, draw only labelled blank lines and the empty stamp ring.
+**Changes:**
+- `supabase/functions/stamp-document/index.ts`: accept a new `mode: 'TEXT_ONLY'` body param. When set, skip image fetching and draw a bordered text block (top-right of last page by default, or at placement coords if provided). Still updates `signed_file_url`.
+- `src/hooks/useDocuments.ts` (`performApproval` / `useUpdateDocumentStatus`): accept `mode?: 'IMAGE' | 'TEXT_ONLY'`. When `TEXT_ONLY`, do not require `signature_url`/`stamp_url` on the profile; pass `mode` to the edge function; skip writing the sig/stamp URL columns.
+- `src/pages/hod/DepartmentQueue.tsx` and `src/pages/dp/ApprovalQueue.tsx`: add a second button **"Quick Verify"** (HOD) / **"Quick Approve"** (DP) next to the existing Approve button. It calls the mutation with `mode: 'TEXT_ONLY'` directly — no PlacementModal.
+- Bulk approve in `BulkActionBar` flow: pass `mode: 'TEXT_ONLY'` (bulk already skips placement, so this is the natural fit — current bulk approve will fail for users without signature/stamp; switching bulk to TEXT_ONLY fixes that).
 
-Migration adds the new nullable columns to `documents`.
+### 2. IQA early-download for once-per-term documents
 
-### 4. HOD enhancements
-- New tab in `DepartmentQueue.tsx`: **"Approved by me"** — lists docs where `hod_approved_by = auth.uid()` (statuses HOD_APPROVED, DP_APPROVED, ARCHIVED, plus REJECTED-by-me). Reuses the existing filter bar.
-- Confirm department scoping: existing RLS already restricts HODs to their department — verified in policies. No change needed beyond ensuring the test HOD profile has `department` set (will surface in the new HOD dashboard if missing).
-- New **HOD Dashboard** (`src/pages/hod/Dashboard.tsx`) showing:
-  - Trainers in their department and submission counts (submitted / approved / rejected / missing).
-  - Per-trainer missing one-time docs vs expected.
-  - Quick link to their own "Upload" flow (HODs can still submit their own teaching docs).
+Allow IQA to download a single once-per-term document (e.g. Scheme of Work, Course Outline — any `submission_type = 'ONCE_PER_TERM'`) at any stage, even before HOD verification or DP approval, **with a required reason**.
 
-### 5. Remove Assignments from DP Academics
-- Remove the "Manage Assignments" nav entry and route gating for DP Academics in `src/components/layout/BottomNav.tsx` / `AppShell.tsx` and `App.tsx` routing. Trainers self-assign via Upload (already implemented), so DP no longer needs assignment management.
-- Keep the page reachable only by Super Admin (see §6).
+**Changes:**
+- `src/pages/iqa/ArchiveScreen.tsx`: add a new tab/section **"Early Access"** listing all `ONCE_PER_TERM` documents regardless of status. Each row shows a **"Download with reason"** button that opens a dialog requiring a non-empty reason (min 10 chars), then:
+  1. Inserts an `audit_logs` row with `action = 'IQA_EARLY_DOWNLOAD'`, `details = { reason, document_status, document_type, dpa_basis: 'Kenya DPA 2019 s.30(1)(b)(e)' }`.
+  2. Fetches a signed URL for `file_url` (original) via `getCachedSignedUrl` and triggers browser download.
+- No DB schema change — `audit_logs` already accepts arbitrary `action` + `details` and IQA can already SELECT/INSERT via existing policies. (Verify INSERT policy exists; if not, add a migration allowing authenticated INSERT on `audit_logs` — currently the table shows "Can't INSERT". This will need a small migration.)
 
-### 6. Super Admin role
-- New enum value `SUPER_ADMIN` on `app_role` (migration: `ALTER TYPE app_role ADD VALUE 'SUPER_ADMIN'`).
-- New page `src/pages/admin/SystemSetup.tsx` for: assigning/removing roles, setting departments on profiles, managing assignments (moved from DP), viewing all users.
-- Update RLS on `user_roles` to allow `SUPER_ADMIN` (in addition to `DP_ACADEMICS`) to insert/update/delete roles. Long-term, DP role-management policies can be removed; for now keep both to avoid lockout.
-- Seed: provide a SQL snippet the user runs (or we expose a one-time button) to grant SUPER_ADMIN to a chosen user. We'll prompt for the email after the plan is approved.
-- Nav: SUPER_ADMIN sees "System Setup" entry; DP no longer sees "Manage Assignments".
+### Migration (if needed)
+Add INSERT policy on `public.audit_logs` for authenticated users so the client can log the early-download event:
+```sql
+CREATE POLICY "Authenticated can insert audit logs"
+ON public.audit_logs FOR INSERT TO authenticated
+WITH CHECK (performed_by = auth.uid());
+GRANT INSERT ON public.audit_logs TO authenticated;
+```
 
-### 7. Reports — real data, real metrics
-Rewrite `src/pages/Reports.tsx` (and add role-scoped variants):
-- Pull live from `documents`, `teaching_assignments`, `unit_session_config`, `profiles`.
-- Tabs:
-  1. **Per Trainer** — submissions count by status, % completeness against expected one-time docs (Learning Plan, Personal Timetable, Workload Allocation, Scheme of Work, Course Outline) per assigned unit.
-  2. **Missing Documentation** — for each (trainer × unit), list missing one-time docs and missing weekly docs (Session Plan / Class Attendance) for the active session/term/module based on `unit_session_config`.
-  3. **Department Compliance** — % per real department (the 8 listed earlier), drill-down by trainer.
-  4. **Approval Throughput** — counts/avg time SUBMITTED→HOD→DP→ARCHIVED using `submitted_at`, `hod_approved_at`, `dp_approved_at`, `archived_at`.
-- Scoping: HOD sees only their department; Trainer sees only themselves; DP/IQA/SUPER_ADMIN see all.
-- Replace hard-coded `DEPARTMENTS` and `ONE_TIME_DOCS` arrays with imports from `src/lib/sessions.ts` (already includes Course Outline and the 8 departments).
+### Files to touch
+- `supabase/functions/stamp-document/index.ts` — add text-only rendering branch
+- `src/hooks/useDocuments.ts` — thread `mode` through approval
+- `src/pages/hod/DepartmentQueue.tsx` — Quick Verify button
+- `src/pages/dp/ApprovalQueue.tsx` — Quick Approve button
+- `src/pages/iqa/ArchiveScreen.tsx` — Early Access tab + reason dialog
+- New migration for `audit_logs` INSERT policy
 
-### Database migrations summary
-1. `validate_course_stage`: allow module_number 1–10.
-2. `documents`: add `hod_sig_w/h/rot/opacity`, `hod_stamp_w/h/rot/opacity`, same for `dp_*` and `iqa_*`, plus `hod_autofill/dp_autofill/iqa_autofill boolean default true`.
-3. `app_role`: add `SUPER_ADMIN`.
-4. `user_roles` RLS: add SUPER_ADMIN policies for INSERT/UPDATE/DELETE/SELECT-all.
-
-### Files to create
-- `src/pages/hod/Dashboard.tsx`
-- `src/pages/admin/SystemSetup.tsx`
-- `src/components/common/ImageAdjustControls.tsx` (size/rotation/opacity sliders shared between sig & stamp)
-
-### Files to modify
-- `src/lib/sessions.ts`, `src/pages/iqa/ArchiveScreen.tsx`, `src/components/common/PlacementModal.tsx`, `supabase/functions/stamp-document/index.ts`, `src/hooks/useDocuments.ts` (persist new placement fields), `src/pages/hod/DepartmentQueue.tsx`, `src/pages/Reports.tsx`, `src/components/layout/BottomNav.tsx`, `src/components/layout/AppShell.tsx`, `src/App.tsx`, `src/contexts/AuthContext.tsx` (recognise SUPER_ADMIN).
-
-### Open question before I implement
-Which user email should receive the initial **SUPER_ADMIN** role? I'll seed it via an insert once you confirm.
+### Out of scope
+- No change to IQA archive flow itself (still requires sig+stamp placement)
+- No change to rejection flow
+- No change to existing image-based approval (remains the default high-fidelity option)
