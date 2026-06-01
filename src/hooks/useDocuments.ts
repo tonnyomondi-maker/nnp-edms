@@ -149,36 +149,35 @@ async function performApproval(
     return data;
   }
 
-  // Approval flow — fetch profile, require signature + stamp
+  // Approval flow — fetch profile. Signature + stamp only required for IMAGE mode.
   const { data: profile, error: profErr } = await supabase
     .from('profiles')
     .select('signature_url, stamp_url, full_name')
     .eq('user_id', userId)
     .single();
   if (profErr) throw profErr;
-  if (!profile?.signature_url || !profile?.stamp_url) {
+  if (mode === 'IMAGE' && (!profile?.signature_url || !profile?.stamp_url)) {
     throw new Error('Please upload your signature and stamp in Profile Settings before approving.');
   }
 
   const stage = status === 'HOD_APPROVED' ? 'HOD' : status === 'DP_APPROVED' ? 'DP' : 'IQA';
 
-  // Burn signature + stamp into PDF via edge function
+  // Burn signature + stamp (or text label) into PDF via edge function
   const { data: stampResp, error: stampErr } = await supabase.functions.invoke('stamp-document', {
     body: {
       documentId: docId,
       stage,
-      signatureUrl: profile.signature_url,
-      stampUrl: profile.stamp_url,
-      approverName: profile.full_name || '',
+      signatureUrl: profile?.signature_url || '',
+      stampUrl: profile?.stamp_url || '',
+      approverName: profile?.full_name || '',
       placement: placement || null,
+      mode,
     },
   });
   if (stampErr) throw new Error(stampErr.message || 'Failed to stamp document');
   const signedFileUrl = (stampResp as { signedFileUrl?: string })?.signedFileUrl;
   if (signedFileUrl) {
     updates.signed_file_url = signedFileUrl;
-    // Drop the previous signed URL from the preview cache so viewers fetch
-    // the freshly stamped version.
     clearSignedUrlCache(signedFileUrl);
   }
 
