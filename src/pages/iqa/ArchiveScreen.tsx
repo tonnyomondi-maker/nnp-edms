@@ -49,6 +49,60 @@ export default function ArchiveScreen() {
   const pending = useMemo(() => filterByTerm(allPending, termFilter), [allPending, termFilter]);
   const archived = useMemo(() => filterByTerm(allArchived, termFilter), [allArchived, termFilter]);
 
+  // Early-access pool: once-per-term docs (ONE_TIME) that have a file, regardless of status.
+  // Excludes already-archived docs (those use the normal Archived tab).
+  const earlyPool = useMemo(() => {
+    const docs = filterByTerm(allDocs || [], termFilter);
+    return docs.filter(d =>
+      d.submission_type === 'ONE_TIME' &&
+      (d.file_url || d.signed_file_url) &&
+      d.status !== 'ARCHIVED'
+    );
+  }, [allDocs, termFilter]);
+
+  const confirmEarlyDownload = async () => {
+    if (!earlyDoc || !currentUser) return;
+    if (earlyReason.trim().length < 10) {
+      toast({ title: 'Reason required', description: 'Please provide at least 10 characters explaining why this early download is needed.', variant: 'destructive' });
+      return;
+    }
+    setEarlyBusy(true);
+    try {
+      // 1) Log to audit_logs (DPA 2019 compliance trail)
+      const { error: logErr } = await supabase.from('audit_logs').insert({
+        document_id: earlyDoc.id,
+        action: 'IQA_EARLY_DOWNLOAD',
+        performed_by: currentUser.id,
+        details: {
+          reason: earlyReason.trim(),
+          document_status: earlyDoc.status,
+          document_type: earlyDoc.documentType,
+          dpa_basis: 'Kenya Data Protection Act 2019, s.30(1)(b) & (e) — performance of public duty / legitimate interest of IQA oversight',
+          downloaded_at: new Date().toISOString(),
+        },
+      });
+      if (logErr) throw logErr;
+
+      // 2) Fetch signed URL and trigger download
+      const url = await getCachedSignedUrl(earlyDoc.fileUrl);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = earlyDoc.fileName || 'document.pdf';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      toast({ title: 'Download started', description: 'Action logged in audit trail per Kenya DPA 2019.' });
+      setEarlyDoc(null);
+      setEarlyReason('');
+    } catch (e) {
+      toast({ title: 'Download failed', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
+    } finally {
+      setEarlyBusy(false);
+    }
+  };
+
   const handleArchive = async (docId: string) => {
     const doc = allPending.find(d => d.id === docId);
     if (!doc) return;
