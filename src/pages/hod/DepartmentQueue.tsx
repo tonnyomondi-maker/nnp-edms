@@ -97,6 +97,13 @@ export default function DepartmentQueue() {
     });
   };
 
+  const handleQuickApprove = (docId: string) => {
+    updateStatus.mutate({ docId, status: 'HOD_APPROVED', mode: 'TEXT_ONLY' }, {
+      onSuccess: () => toast({ title: 'Verified by HOD', description: 'Quick-verified and forwarded to DP Academics.' }),
+      onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
+    });
+  };
+
   const handleReject = (docId: string) => {
     updateStatus.mutate({ docId, status: 'REJECTED', rejectionReason: 'Needs revision' }, {
       onSuccess: () => toast({ title: 'Document Rejected', variant: 'destructive' }),
