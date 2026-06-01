@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useDocumentsByStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
+import { useDocumentsByStatus, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, useAllDocuments, type ApprovalPlacement } from '@/hooks/useDocuments';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
@@ -7,11 +7,15 @@ import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
-import { Archive, Loader2 } from 'lucide-react';
+import { Archive, Loader2, Download, ShieldAlert } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { StatusBadge } from '@/components/common/StatusBadge';
 
 export default function ArchiveScreen() {
   const { currentUser } = useAuth();
