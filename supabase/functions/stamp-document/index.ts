@@ -159,8 +159,12 @@ Deno.serve(async (req) => {
             x, y, width: sigDims.width, height: sigDims.height,
             rotate: degrees(sigRot), opacity: sigOpacity,
           });
-          page.drawText(`${STAGE_LABEL[stage]} — ${approverName}`, { x, y: y - 12, size: 8, font: helv });
-          page.drawText(new Date().toLocaleString(), { x, y: y - 22, size: 7, font: helv });
+          const now = new Date();
+          page.drawLine({ start: { x, y: y - 2 }, end: { x: x + sigDims.width, y: y - 2 }, thickness: 0.5 });
+          page.drawText(`${STAGE_LABEL[stage]}`, { x, y: y - 12, size: 8, font: helvBold });
+          page.drawText(`Name: ${approverName}`, { x, y: y - 22, size: 8, font: helv });
+          page.drawText(`Date: ${now.toLocaleDateString()}`, { x, y: y - 32, size: 7, font: helv });
+          page.drawText(`Signed: ${now.toLocaleString()}`, { x, y: y - 42, size: 7, font: helv });
         } else {
           // Draw labelled blank lines
           page.drawText(`${STAGE_LABEL[stage]}`, { x, y: y + sigDims.height + 6, size: 8, font: helvBold });
