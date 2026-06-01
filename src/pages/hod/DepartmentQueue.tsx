@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
 
 export default function DepartmentQueue() {
   const { currentUser } = useAuth();
