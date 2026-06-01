@@ -83,6 +83,13 @@ export default function ApprovalQueue() {
     });
   };
 
+  const handleQuickApprove = (docId: string) => {
+    updateStatus.mutate({ docId, status: 'DP_APPROVED', mode: 'TEXT_ONLY' }, {
+      onSuccess: () => toast({ title: 'Approved by DP Academics', description: 'Quick-approved and forwarded to IQA.' }),
+      onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
+    });
+  };
+
   const handleReject = (docId: string) => {
     updateStatus.mutate({ docId, status: 'REJECTED', rejectionReason: 'Does not meet standards' }, {
       onSuccess: () => toast({ title: 'Document Rejected', variant: 'destructive' }),
