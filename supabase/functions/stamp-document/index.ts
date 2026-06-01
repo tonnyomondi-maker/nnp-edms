@@ -21,10 +21,11 @@ interface Placement {
 interface StampRequest {
   documentId: string;
   stage: "HOD" | "DP" | "IQA";
-  signatureUrl: string;
-  stampUrl: string;
+  signatureUrl?: string;
+  stampUrl?: string;
   approverName: string;
   placement?: Placement | null;
+  mode?: "IMAGE" | "TEXT_ONLY";
 }
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
