@@ -254,7 +254,7 @@ export default function ArchiveScreen() {
           )}
         </TabsContent>
       </Tabs>
-      <Dialog open={!!earlyDoc} onOpenChange={(o) => { if (!o) { setEarlyDoc(null); setEarlyReason(''); } }}>
+      <Dialog open={!!earlyDoc} onOpenChange={(o) => { if (!o) { setEarlyDoc(null); setEarlyReason(''); setDpaAck(false); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-amber-600" /> Early download — provide reason</DialogTitle>
