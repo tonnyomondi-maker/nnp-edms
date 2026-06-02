@@ -383,6 +383,32 @@ export default function SystemSetup() {
           </CardContent>
         </Card>
       )}
+
+      {/* STEP 5: Danger Zone (SUPER_ADMIN only) */}
+      {step === 5 && isSuperAdmin && (
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-4 h-4" />
+              Danger Zone — Reset All Data
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This deletes <strong>all</strong> documents, audit logs, unit configs, teaching assignments, and uploaded files.
+              User accounts, roles, and Super Admin are preserved.
+            </p>
+            <p className="text-sm">
+              To confirm, type exactly: <code className="bg-muted px-1.5 py-0.5 rounded">RESET {todayKey}</code>
+            </p>
+            <Input value={resetText} onChange={(e) => setResetText(e.target.value)} placeholder={`RESET ${todayKey}`} />
+            <Button variant="destructive" onClick={handleReset} disabled={resetBusy || resetText.trim() !== `RESET ${todayKey}`}>
+              {resetBusy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Permanently reset system
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
