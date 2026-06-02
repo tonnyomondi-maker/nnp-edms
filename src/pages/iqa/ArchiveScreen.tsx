@@ -84,6 +84,7 @@ export default function ArchiveScreen() {
           document_status: earlyDoc.status,
           document_type: earlyDoc.documentType,
           dpa_basis: 'Kenya Data Protection Act 2019, s.30(1)(b) & (e) — performance of public duty / legitimate interest of IQA oversight',
+          dpa_acknowledged: true,
           downloaded_at: new Date().toISOString(),
         },
       });
