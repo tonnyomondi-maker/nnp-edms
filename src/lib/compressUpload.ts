@@ -16,7 +16,7 @@ async function compressPdf(file: File): Promise<File> {
     const bytes = await file.arrayBuffer();
     const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
     const out = await doc.save({ useObjectStreams: true, addDefaultPage: false });
-    const candidate = new File([out], file.name, { type: 'application/pdf' });
+    const candidate = new File([new Uint8Array(out)], file.name, { type: 'application/pdf' });
     if (candidate.size < file.size && (candidate.size >= MIN_SIZE || file.size < MIN_SIZE)) {
       return candidate;
     }
