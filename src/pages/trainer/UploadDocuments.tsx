@@ -176,8 +176,13 @@ export default function UploadDocuments() {
       for (const entry of files) {
         const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
         try {
+          // Compress while keeping document eligibility (PDF re-save / image down-scale)
+          const { file: optimised, originalSize, finalSize } = await compressForUpload(entry.file);
+          if (finalSize < originalSize) {
+            toast({ title: 'Optimised', description: `${entry.file.name}: ${formatBytes(originalSize)} → ${formatBytes(finalSize)}` });
+          }
           await submitDoc.mutateAsync({
-            file: entry.file,
+            file: optimised,
             documentType: entry.documentType as DocumentType,
             submissionType: isWeekly ? 'WEEKLY' : 'ONE_TIME',
             weekNumber: isWeekly ? entry.weekNumber : undefined,
