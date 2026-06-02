@@ -223,20 +223,16 @@ export default function SystemSetup() {
               </div>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">
-                  The user must already have signed up. Enter the email twice to confirm.
+                <p className="text-sm">
+                  The designated Super Admin email is <strong>{SUPER_ADMIN_EMAIL}</strong>. That account must have signed up at least once.
                 </p>
+                <Input value={SUPER_ADMIN_EMAIL} disabled />
                 <Input
-                  placeholder="superadmin@example.com"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder='Type CONFIRM to enable'
+                  value={confirmType}
+                  onChange={(e) => setConfirmType(e.target.value)}
                 />
-                <Input
-                  placeholder="Confirm email"
-                  value={confirmEmail}
-                  onChange={(e) => setConfirmEmail(e.target.value)}
-                />
-                <Button onClick={handleBootstrap} disabled={busy || !emailInput || !confirmEmail}>
+                <Button onClick={handleBootstrap} disabled={busy || confirmType.trim().toUpperCase() !== 'CONFIRM'}>
                   {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Confirm & Enable Super Admin
                 </Button>
