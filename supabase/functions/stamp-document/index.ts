@@ -123,6 +123,13 @@ Deno.serve(async (req) => {
     const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helvBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
+    // Resolve a STABLE date for this stage so re-exports always render the same text
+    const stageDateIso: string | null =
+      stage === "HOD" ? (doc.verified_by_hod_at ?? doc.hod_approved_at ?? null)
+      : stage === "DP" ? (doc.approved_by_dp_academics_at ?? doc.dp_approved_at ?? null)
+      : (doc.archived_at ?? null);
+    const stageDate = stageDateIso ? new Date(stageDateIso) : new Date();
+
     // Text-only quick approval: draw a labelled text block, skip signature/stamp images
     if (mode === "TEXT_ONLY") {
       const pages = pdfDoc.getPages();
@@ -133,7 +140,6 @@ Deno.serve(async (req) => {
         : stage === "DP"
           ? "APPROVED BY DP ACADEMICS"
           : "ARCHIVED BY IQA";
-      const now = new Date();
       const stageOffset: Record<string, number> = { HOD: 0, DP: 1, IQA: 2 };
       const baseY = 60 + stageOffset[stage] * 70;
       const boxX = 40, boxW = Math.min(360, width - 80), boxH = 56;
@@ -144,8 +150,8 @@ Deno.serve(async (req) => {
       });
       lastPage.drawText(stageLabel, { x: boxX + 10, y: baseY + boxH - 16, size: 11, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
       lastPage.drawText(`Name: ${approverName || "—"}`, { x: boxX + 10, y: baseY + boxH - 30, size: 9, font: helv });
-      lastPage.drawText(`Date: ${now.toLocaleDateString()}`, { x: boxX + 10, y: baseY + boxH - 42, size: 9, font: helv });
-      lastPage.drawText(`Timestamp: ${now.toLocaleString()}`, { x: boxX + 10, y: baseY + boxH - 52, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
+      lastPage.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: boxX + 10, y: baseY + boxH - 42, size: 9, font: helv });
+      lastPage.drawText(`Timestamp: ${stageDate.toLocaleString()}`, { x: boxX + 10, y: baseY + boxH - 52, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
 
       const stampedBytes = await pdfDoc.save();
       const newPath = `${doc.trainer_id}/${doc.assignment_id || "unassigned"}/stamped_${stage}_${Date.now()}.pdf`;
