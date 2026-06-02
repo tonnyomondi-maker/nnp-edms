@@ -180,18 +180,20 @@ export default function SystemSetup() {
       <PageHeader title="System Setup Wizard" subtitle="Configure your EDMS in three guided steps" />
 
       {/* Stepper */}
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex items-center gap-2 text-xs flex-wrap">
         {[
           { n: 1, label: 'Super Admin', icon: ShieldCheck },
           { n: 2, label: 'Departments', icon: Building2 },
           { n: 3, label: 'Roles', icon: Users },
+          { n: 4, label: 'Audit', icon: FileDown },
+          ...(isSuperAdmin ? [{ n: 5, label: 'Danger Zone', icon: AlertTriangle }] : []),
         ].map((s) => {
-          const done = stepDone[s.n as 1 | 2 | 3];
+          const done = (stepDone as Record<number, boolean>)[s.n] ?? false;
           const active = step === s.n;
           return (
             <button
               key={s.n}
-              onClick={() => setStep(s.n as 1 | 2 | 3)}
+              onClick={() => setStep(s.n as 1 | 2 | 3 | 4 | 5)}
               className={`flex-1 flex items-center gap-2 p-2 rounded border ${
                 active ? 'border-primary bg-primary/5' : 'border-border'
               }`}
