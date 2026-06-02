@@ -68,6 +68,10 @@ export default function ArchiveScreen() {
       toast({ title: 'Reason required', description: 'Please provide at least 10 characters explaining why this early download is needed.', variant: 'destructive' });
       return;
     }
+    if (!dpaAck) {
+      toast({ title: 'DPA acknowledgement required', description: 'You must acknowledge your obligations under the Kenya DPA 2019.', variant: 'destructive' });
+      return;
+    }
     setEarlyBusy(true);
     try {
       // 1) Log to audit_logs (DPA 2019 compliance trail)
