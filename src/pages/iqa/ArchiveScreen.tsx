@@ -30,6 +30,7 @@ export default function ArchiveScreen() {
   const [earlyDoc, setEarlyDoc] = useState<{ id: string; fileUrl: string; fileName: string; status: string; documentType: string } | null>(null);
   const [earlyReason, setEarlyReason] = useState('');
   const [earlyBusy, setEarlyBusy] = useState(false);
+  const [dpaAck, setDpaAck] = useState(false);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
 
