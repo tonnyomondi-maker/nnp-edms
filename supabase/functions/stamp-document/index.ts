@@ -123,6 +123,13 @@ Deno.serve(async (req) => {
     const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helvBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
+    // Resolve a STABLE date for this stage so re-exports always render the same text
+    const stageDateIso: string | null =
+      stage === "HOD" ? (doc.verified_by_hod_at ?? doc.hod_approved_at ?? null)
+      : stage === "DP" ? (doc.approved_by_dp_academics_at ?? doc.dp_approved_at ?? null)
+      : (doc.archived_at ?? null);
+    const stageDate = stageDateIso ? new Date(stageDateIso) : new Date();
+
     // Text-only quick approval: draw a labelled text block, skip signature/stamp images
     if (mode === "TEXT_ONLY") {
       const pages = pdfDoc.getPages();
@@ -133,7 +140,6 @@ Deno.serve(async (req) => {
         : stage === "DP"
           ? "APPROVED BY DP ACADEMICS"
           : "ARCHIVED BY IQA";
-      const now = new Date();
       const stageOffset: Record<string, number> = { HOD: 0, DP: 1, IQA: 2 };
       const baseY = 60 + stageOffset[stage] * 70;
       const boxX = 40, boxW = Math.min(360, width - 80), boxH = 56;
@@ -144,8 +150,8 @@ Deno.serve(async (req) => {
       });
       lastPage.drawText(stageLabel, { x: boxX + 10, y: baseY + boxH - 16, size: 11, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
       lastPage.drawText(`Name: ${approverName || "—"}`, { x: boxX + 10, y: baseY + boxH - 30, size: 9, font: helv });
-      lastPage.drawText(`Date: ${now.toLocaleDateString()}`, { x: boxX + 10, y: baseY + boxH - 42, size: 9, font: helv });
-      lastPage.drawText(`Timestamp: ${now.toLocaleString()}`, { x: boxX + 10, y: baseY + boxH - 52, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
+      lastPage.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: boxX + 10, y: baseY + boxH - 42, size: 9, font: helv });
+      lastPage.drawText(`Timestamp: ${stageDate.toLocaleString()}`, { x: boxX + 10, y: baseY + boxH - 52, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
 
       const stampedBytes = await pdfDoc.save();
       const newPath = `${doc.trainer_id}/${doc.assignment_id || "unassigned"}/stamped_${stage}_${Date.now()}.pdf`;
@@ -199,12 +205,12 @@ Deno.serve(async (req) => {
             x, y, width: sigDims.width, height: sigDims.height,
             rotate: degrees(sigRot), opacity: sigOpacity,
           });
-          const now = new Date();
+          // using stored stageDate
           page.drawLine({ start: { x, y: y - 2 }, end: { x: x + sigDims.width, y: y - 2 }, thickness: 0.5 });
           page.drawText(`${STAGE_LABEL[stage]}`, { x, y: y - 12, size: 8, font: helvBold });
           page.drawText(`Name: ${approverName}`, { x, y: y - 22, size: 8, font: helv });
-          page.drawText(`Date: ${now.toLocaleDateString()}`, { x, y: y - 32, size: 7, font: helv });
-          page.drawText(`Signed: ${now.toLocaleString()}`, { x, y: y - 42, size: 7, font: helv });
+          page.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x, y: y - 32, size: 7, font: helv });
+          page.drawText(`Signed: ${stageDate.toLocaleString()}`, { x, y: y - 42, size: 7, font: helv });
         } else {
           // Draw labelled blank lines
           page.drawText(`${STAGE_LABEL[stage]}`, { x, y: y + sigDims.height + 6, size: 8, font: helvBold });
@@ -244,11 +250,11 @@ Deno.serve(async (req) => {
       if (autofill) {
         lastPage.drawImage(sigImage, { x: 40, y: baseY + 40, width: sigDims.width, height: sigDims.height });
         lastPage.drawImage(stampImage, { x: 200, y: baseY + 10, width: stampDims.width, height: stampDims.height });
-        const now = new Date();
+        // using stored stageDate
         lastPage.drawLine({ start: { x: 40, y: baseY + 38 }, end: { x: 40 + sigDims.width, y: baseY + 38 }, thickness: 0.5 });
         lastPage.drawText(`Name: ${approverName}`, { x: 40, y: baseY + 28, size: 8, font: helv });
-        lastPage.drawText(`Date: ${now.toLocaleDateString()}`, { x: 40, y: baseY + 18, size: 8, font: helv });
-        lastPage.drawText(`Signed: ${now.toLocaleString()}`, { x: 40, y: baseY + 8, size: 7, font: helv });
+        lastPage.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: 40, y: baseY + 18, size: 8, font: helv });
+        lastPage.drawText(`Signed: ${stageDate.toLocaleString()}`, { x: 40, y: baseY + 8, size: 7, font: helv });
       } else {
         lastPage.drawText('Name: __________________________', { x: 40, y: baseY + 75, size: 9, font: helv });
         lastPage.drawText('Sign: __________________________', { x: 40, y: baseY + 55, size: 9, font: helv });

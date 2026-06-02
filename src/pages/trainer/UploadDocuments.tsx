@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Upload, FileText, X, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useSubmitDocument, useMyDocumentsBySession } from '@/hooks/useDocuments';
+import { compressForUpload, formatBytes } from '@/lib/compressUpload';
 import { useMyUnitConfigs, useUpsertUnitConfig } from '@/hooks/useUnitSessionConfig';
 import {
   DEPARTMENTS,
@@ -175,8 +176,13 @@ export default function UploadDocuments() {
       for (const entry of files) {
         const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
         try {
+          // Compress while keeping document eligibility (PDF re-save / image down-scale)
+          const { file: optimised, originalSize, finalSize } = await compressForUpload(entry.file);
+          if (finalSize < originalSize) {
+            toast({ title: 'Optimised', description: `${entry.file.name}: ${formatBytes(originalSize)} → ${formatBytes(finalSize)}` });
+          }
           await submitDoc.mutateAsync({
-            file: entry.file,
+            file: optimised,
             documentType: entry.documentType as DocumentType,
             submissionType: isWeekly ? 'WEEKLY' : 'ONE_TIME',
             weekNumber: isWeekly ? entry.weekNumber : undefined,

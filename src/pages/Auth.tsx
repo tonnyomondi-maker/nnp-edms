@@ -7,11 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import polytechnicLogo from '@/assets/polytechnic-logo.jpg';
 import { Footer } from '@/components/layout/Footer';
+import { DEPARTMENTS } from '@/lib/sessions';
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -211,7 +213,12 @@ export default function Auth() {
                 </div>
                 <div>
                   <Label>Department</Label>
-                  <Input value={department} onChange={e => setDepartment(e.target.value)} placeholder="Computer Science" required className="mt-1" />
+                  <Select value={department} onValueChange={setDepartment} required>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select your department" /></SelectTrigger>
+                    <SelectContent>
+                      {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label>Password</Label>

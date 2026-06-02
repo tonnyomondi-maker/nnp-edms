@@ -51,6 +51,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          approved_by_dp_academics_at: string | null
           archived_at: string | null
           assignment_id: string | null
           class_code: string | null
@@ -135,9 +136,11 @@ export type Database = {
           unit_code: string | null
           unit_name: string | null
           updated_at: string
+          verified_by_hod_at: string | null
           week_number: number | null
         }
         Insert: {
+          approved_by_dp_academics_at?: string | null
           archived_at?: string | null
           assignment_id?: string | null
           class_code?: string | null
@@ -222,9 +225,11 @@ export type Database = {
           unit_code?: string | null
           unit_name?: string | null
           updated_at?: string
+          verified_by_hod_at?: string | null
           week_number?: number | null
         }
         Update: {
+          approved_by_dp_academics_at?: string | null
           archived_at?: string | null
           assignment_id?: string | null
           class_code?: string | null
@@ -309,6 +314,7 @@ export type Database = {
           unit_code?: string | null
           unit_name?: string | null
           updated_at?: string
+          verified_by_hod_at?: string | null
           week_number?: number | null
         }
         Relationships: [
@@ -328,6 +334,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          is_test_user: boolean
           pf_number: string | null
           signature_url: string | null
           stamp_url: string | null
@@ -340,6 +347,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          is_test_user?: boolean
           pf_number?: string | null
           signature_url?: string | null
           stamp_url?: string | null
@@ -352,6 +360,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          is_test_user?: boolean
           pf_number?: string | null
           signature_url?: string | null
           stamp_url?: string | null

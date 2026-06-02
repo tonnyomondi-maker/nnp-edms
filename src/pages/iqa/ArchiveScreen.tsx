@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
@@ -29,6 +30,7 @@ export default function ArchiveScreen() {
   const [earlyDoc, setEarlyDoc] = useState<{ id: string; fileUrl: string; fileName: string; status: string; documentType: string } | null>(null);
   const [earlyReason, setEarlyReason] = useState('');
   const [earlyBusy, setEarlyBusy] = useState(false);
+  const [dpaAck, setDpaAck] = useState(false);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
 
@@ -66,6 +68,10 @@ export default function ArchiveScreen() {
       toast({ title: 'Reason required', description: 'Please provide at least 10 characters explaining why this early download is needed.', variant: 'destructive' });
       return;
     }
+    if (!dpaAck) {
+      toast({ title: 'DPA acknowledgement required', description: 'You must acknowledge your obligations under the Kenya DPA 2019.', variant: 'destructive' });
+      return;
+    }
     setEarlyBusy(true);
     try {
       // 1) Log to audit_logs (DPA 2019 compliance trail)
@@ -78,6 +84,7 @@ export default function ArchiveScreen() {
           document_status: earlyDoc.status,
           document_type: earlyDoc.documentType,
           dpa_basis: 'Kenya Data Protection Act 2019, s.30(1)(b) & (e) — performance of public duty / legitimate interest of IQA oversight',
+          dpa_acknowledged: true,
           downloaded_at: new Date().toISOString(),
         },
       });
@@ -247,7 +254,7 @@ export default function ArchiveScreen() {
           )}
         </TabsContent>
       </Tabs>
-      <Dialog open={!!earlyDoc} onOpenChange={(o) => { if (!o) { setEarlyDoc(null); setEarlyReason(''); } }}>
+      <Dialog open={!!earlyDoc} onOpenChange={(o) => { if (!o) { setEarlyDoc(null); setEarlyReason(''); setDpaAck(false); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-amber-600" /> Early download — provide reason</DialogTitle>
@@ -255,7 +262,15 @@ export default function ArchiveScreen() {
               This document is at status <strong>{earlyDoc?.status}</strong>. Your reason will be logged with your identity, the timestamp, and a Kenya DPA 2019 lawful-basis reference in the immutable audit trail.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs space-y-1">
+              <p className="font-semibold">Kenya Data Protection Act 2019 — Acknowledgement</p>
+              <p>By proceeding I confirm I am downloading this record under s.30(1)(b)&(e) for IQA oversight, will use it only for that purpose (s.25 — purpose limitation), keep it confidential (s.41), and not retain it beyond what is necessary (s.39).</p>
+            </div>
+            <label className="flex items-start gap-2 text-xs cursor-pointer">
+              <Checkbox checked={dpaAck} onCheckedChange={(c) => setDpaAck(!!c)} />
+              <span>I acknowledge my obligations under the Kenya Data Protection Act 2019.</span>
+            </label>
             <Label htmlFor="early-reason">Reason for early access *</Label>
             <Textarea
               id="early-reason"
@@ -268,8 +283,8 @@ export default function ArchiveScreen() {
             <p className="text-xs text-muted-foreground">{earlyReason.trim().length}/10 minimum characters</p>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setEarlyDoc(null); setEarlyReason(''); }} disabled={earlyBusy}>Cancel</Button>
-            <Button onClick={confirmEarlyDownload} disabled={earlyBusy || earlyReason.trim().length < 10} className="gap-1">
+            <Button variant="ghost" onClick={() => { setEarlyDoc(null); setEarlyReason(''); setDpaAck(false); }} disabled={earlyBusy}>Cancel</Button>
+            <Button onClick={confirmEarlyDownload} disabled={earlyBusy || earlyReason.trim().length < 10 || !dpaAck} className="gap-1">
               {earlyBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Confirm & Download
             </Button>

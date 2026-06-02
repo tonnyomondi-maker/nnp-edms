@@ -33,12 +33,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (authUser: SupabaseUser) => {
-    // Fetch profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', authUser.id)
-      .single();
+    // Fetch profile (with one retry for fault tolerance)
+    let profile = null;
+    for (let attempt = 0; attempt < 2 && !profile; attempt++) {
+      const { data } = await supabase.from('profiles').select('*').eq('user_id', authUser.id).maybeSingle();
+      profile = data;
+      if (!profile && attempt === 0) await new Promise(r => setTimeout(r, 600));
+    }
+
+    // Auto-bootstrap super admin for designated email
+    if (authUser.email?.toLowerCase() === 'tonny.omondi@nyamirapoly.ac.ke') {
+      try { await supabase.rpc('bootstrap_super_admin' as never, { target_email: authUser.email } as never); } catch { /* already set */ }
+    }
 
     // Fetch roles
     const { data: roles } = await supabase
@@ -48,18 +54,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const userRoles = (roles?.map(r => r.role) as UserRole[]) || ['TRAINER'];
 
-    if (profile) {
-      setCurrentUser({
-        id: authUser.id,
-        profileId: profile.id,
-        name: profile.full_name,
-        email: profile.email,
-        pfNumber: profile.pf_number,
-        department: profile.department,
-        roles: userRoles.length > 0 ? userRoles : ['TRAINER'],
-      });
-      setActiveRole(userRoles[0] || 'TRAINER');
-    }
+    setCurrentUser({
+      id: authUser.id,
+      profileId: profile?.id ?? authUser.id,
+      name: profile?.full_name ?? authUser.email ?? 'User',
+      email: profile?.email ?? authUser.email ?? '',
+      pfNumber: profile?.pf_number ?? null,
+      department: profile?.department ?? null,
+      roles: userRoles.length > 0 ? userRoles : ['TRAINER'],
+    });
+    setActiveRole(userRoles[0] || 'TRAINER');
   }, []);
 
   useEffect(() => {

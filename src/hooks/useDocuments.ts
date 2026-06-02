@@ -182,7 +182,9 @@ async function performApproval(
   }
 
   if (status === 'HOD_APPROVED') {
-    updates.hod_approved_at = new Date().toISOString();
+    const nowIso = new Date().toISOString();
+    updates.hod_approved_at = nowIso;
+    (updates as Record<string, unknown>).verified_by_hod_at = nowIso;
     updates.hod_signature_url = profile.signature_url;
     updates.hod_stamp_url = profile.stamp_url;
     updates.hod_approved_by = userId;
@@ -206,7 +208,9 @@ async function performApproval(
       });
     }
   } else if (status === 'DP_APPROVED') {
-    updates.dp_approved_at = new Date().toISOString();
+    const nowIso = new Date().toISOString();
+    updates.dp_approved_at = nowIso;
+    (updates as Record<string, unknown>).approved_by_dp_academics_at = nowIso;
     updates.dp_signature_url = profile.signature_url;
     updates.dp_stamp_url = profile.stamp_url;
     updates.dp_approved_by = userId;

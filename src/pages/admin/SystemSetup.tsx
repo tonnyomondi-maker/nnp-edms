@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { CheckCircle2, Circle, ShieldCheck, Users, Building2, FileDown, Loader2 } from 'lucide-react';
+import { CheckCircle2, Circle, ShieldCheck, Users, Building2, FileDown, Loader2, AlertTriangle } from 'lucide-react';
 import { DEPARTMENTS } from '@/lib/sessions';
 import { Link, Navigate } from 'react-router-dom';
 
+const SUPER_ADMIN_EMAIL = 'tonny.omondi@nyamirapoly.ac.ke';
 const ALL_ROLES: UserRole[] = ['TRAINER', 'HOD', 'DP_ACADEMICS', 'IQA', 'SUPER_ADMIN'];
 
 interface AuditRow {
@@ -27,15 +28,17 @@ interface AuditRow {
 
 export default function SystemSetup() {
   const { currentUser, loading: authLoading } = useAuth();
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [hasSuperAdmin, setHasSuperAdmin] = useState<boolean | null>(null);
-  const [emailInput, setEmailInput] = useState('');
-  const [confirmEmail, setConfirmEmail] = useState('');
+  const [confirmType, setConfirmType] = useState('');
   const [busy, setBusy] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [resetText, setResetText] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
 
   const isSuperAdmin = currentUser?.roles.includes('SUPER_ADMIN');
+  const todayKey = new Date().toISOString().slice(0, 10);
 
   const checkSuperAdmin = async () => {
     const { data, error } = await supabase
@@ -89,21 +92,38 @@ export default function SystemSetup() {
   if (hasSuperAdmin !== null && !allowed) return <Navigate to="/" replace />;
 
   const handleBootstrap = async () => {
-    if (emailInput.trim().toLowerCase() !== confirmEmail.trim().toLowerCase()) {
-      toast({ title: 'Emails do not match', variant: 'destructive' });
+    if (confirmType.trim().toUpperCase() !== 'CONFIRM') {
+      toast({ title: 'Type CONFIRM to proceed', variant: 'destructive' });
       return;
     }
     setBusy(true);
-    const { error } = await supabase.rpc('bootstrap_super_admin' as any, {
-      target_email: emailInput.trim(),
-    });
+    const { error } = await supabase.rpc('bootstrap_super_admin' as never, {
+      target_email: SUPER_ADMIN_EMAIL,
+    } as never);
     setBusy(false);
     if (error) {
       toast({ title: 'Failed', description: error.message, variant: 'destructive' });
     } else {
-      toast({ title: 'Super Admin assigned', description: emailInput });
+      toast({ title: 'Super Admin assigned', description: SUPER_ADMIN_EMAIL });
       setHasSuperAdmin(true);
       setStep(2);
+    }
+  };
+
+  const handleReset = async () => {
+    if (resetText.trim() !== `RESET ${todayKey}`) {
+      toast({ title: 'Confirmation text mismatch', description: `Type exactly: RESET ${todayKey}`, variant: 'destructive' });
+      return;
+    }
+    setResetBusy(true);
+    const { data, error } = await supabase.functions.invoke('system-reset', { body: { confirm: resetText.trim() } });
+    setResetBusy(false);
+    if (error || (data as { error?: string })?.error) {
+      toast({ title: 'Reset failed', description: error?.message || (data as { error?: string })?.error, variant: 'destructive' });
+    } else {
+      toast({ title: 'System reset complete', description: 'All documents, configs and audit data cleared.' });
+      setResetText('');
+      loadUsers(); loadAudit();
     }
   };
 
@@ -160,18 +180,20 @@ export default function SystemSetup() {
       <PageHeader title="System Setup Wizard" subtitle="Configure your EDMS in three guided steps" />
 
       {/* Stepper */}
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex items-center gap-2 text-xs flex-wrap">
         {[
           { n: 1, label: 'Super Admin', icon: ShieldCheck },
           { n: 2, label: 'Departments', icon: Building2 },
           { n: 3, label: 'Roles', icon: Users },
+          { n: 4, label: 'Audit', icon: FileDown },
+          ...(isSuperAdmin ? [{ n: 5, label: 'Danger Zone', icon: AlertTriangle }] : []),
         ].map((s) => {
-          const done = stepDone[s.n as 1 | 2 | 3];
+          const done = (stepDone as Record<number, boolean>)[s.n] ?? false;
           const active = step === s.n;
           return (
             <button
               key={s.n}
-              onClick={() => setStep(s.n as 1 | 2 | 3)}
+              onClick={() => setStep(s.n as 1 | 2 | 3 | 4 | 5)}
               className={`flex-1 flex items-center gap-2 p-2 rounded border ${
                 active ? 'border-primary bg-primary/5' : 'border-border'
               }`}
@@ -203,20 +225,16 @@ export default function SystemSetup() {
               </div>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">
-                  The user must already have signed up. Enter the email twice to confirm.
+                <p className="text-sm">
+                  The designated Super Admin email is <strong>{SUPER_ADMIN_EMAIL}</strong>. That account must have signed up at least once.
                 </p>
+                <Input value={SUPER_ADMIN_EMAIL} disabled />
                 <Input
-                  placeholder="superadmin@example.com"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder='Type CONFIRM to enable'
+                  value={confirmType}
+                  onChange={(e) => setConfirmType(e.target.value)}
                 />
-                <Input
-                  placeholder="Confirm email"
-                  value={confirmEmail}
-                  onChange={(e) => setConfirmEmail(e.target.value)}
-                />
-                <Button onClick={handleBootstrap} disabled={busy || !emailInput || !confirmEmail}>
+                <Button onClick={handleBootstrap} disabled={busy || confirmType.trim().toUpperCase() !== 'CONFIRM'}>
                   {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Confirm & Enable Super Admin
                 </Button>
@@ -362,6 +380,32 @@ export default function SystemSetup() {
                 <Link to="/admin/users">Open full user manager</Link>
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* STEP 5: Danger Zone (SUPER_ADMIN only) */}
+      {step === 5 && isSuperAdmin && (
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-4 h-4" />
+              Danger Zone — Reset All Data
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This deletes <strong>all</strong> documents, audit logs, unit configs, teaching assignments, and uploaded files.
+              User accounts, roles, and Super Admin are preserved.
+            </p>
+            <p className="text-sm">
+              To confirm, type exactly: <code className="bg-muted px-1.5 py-0.5 rounded">RESET {todayKey}</code>
+            </p>
+            <Input value={resetText} onChange={(e) => setResetText(e.target.value)} placeholder={`RESET ${todayKey}`} />
+            <Button variant="destructive" onClick={handleReset} disabled={resetBusy || resetText.trim() !== `RESET ${todayKey}`}>
+              {resetBusy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Permanently reset system
+            </Button>
           </CardContent>
         </Card>
       )}
