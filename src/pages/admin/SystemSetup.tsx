@@ -92,21 +92,38 @@ export default function SystemSetup() {
   if (hasSuperAdmin !== null && !allowed) return <Navigate to="/" replace />;
 
   const handleBootstrap = async () => {
-    if (emailInput.trim().toLowerCase() !== confirmEmail.trim().toLowerCase()) {
-      toast({ title: 'Emails do not match', variant: 'destructive' });
+    if (confirmType.trim().toUpperCase() !== 'CONFIRM') {
+      toast({ title: 'Type CONFIRM to proceed', variant: 'destructive' });
       return;
     }
     setBusy(true);
-    const { error } = await supabase.rpc('bootstrap_super_admin' as any, {
-      target_email: emailInput.trim(),
-    });
+    const { error } = await supabase.rpc('bootstrap_super_admin' as never, {
+      target_email: SUPER_ADMIN_EMAIL,
+    } as never);
     setBusy(false);
     if (error) {
       toast({ title: 'Failed', description: error.message, variant: 'destructive' });
     } else {
-      toast({ title: 'Super Admin assigned', description: emailInput });
+      toast({ title: 'Super Admin assigned', description: SUPER_ADMIN_EMAIL });
       setHasSuperAdmin(true);
       setStep(2);
+    }
+  };
+
+  const handleReset = async () => {
+    if (resetText.trim() !== `RESET ${todayKey}`) {
+      toast({ title: 'Confirmation text mismatch', description: `Type exactly: RESET ${todayKey}`, variant: 'destructive' });
+      return;
+    }
+    setResetBusy(true);
+    const { data, error } = await supabase.functions.invoke('system-reset', { body: { confirm: resetText.trim() } });
+    setResetBusy(false);
+    if (error || (data as { error?: string })?.error) {
+      toast({ title: 'Reset failed', description: error?.message || (data as { error?: string })?.error, variant: 'destructive' });
+    } else {
+      toast({ title: 'System reset complete', description: 'All documents, configs and audit data cleared.' });
+      setResetText('');
+      loadUsers(); loadAudit();
     }
   };
 
