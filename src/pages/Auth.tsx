@@ -213,7 +213,12 @@ export default function Auth() {
                 </div>
                 <div>
                   <Label>Department</Label>
-                  <Input value={department} onChange={e => setDepartment(e.target.value)} placeholder="Computer Science" required className="mt-1" />
+                  <Select value={department} onValueChange={setDepartment} required>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select your department" /></SelectTrigger>
+                    <SelectContent>
+                      {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label>Password</Label>
