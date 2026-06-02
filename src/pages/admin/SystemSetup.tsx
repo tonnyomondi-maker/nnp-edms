@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { CheckCircle2, Circle, ShieldCheck, Users, Building2, FileDown, Loader2 } from 'lucide-react';
+import { CheckCircle2, Circle, ShieldCheck, Users, Building2, FileDown, Loader2, AlertTriangle } from 'lucide-react';
 import { DEPARTMENTS } from '@/lib/sessions';
 import { Link, Navigate } from 'react-router-dom';
 
+const SUPER_ADMIN_EMAIL = 'tonny.omondi@nyamirapoly.ac.ke';
 const ALL_ROLES: UserRole[] = ['TRAINER', 'HOD', 'DP_ACADEMICS', 'IQA', 'SUPER_ADMIN'];
 
 interface AuditRow {
