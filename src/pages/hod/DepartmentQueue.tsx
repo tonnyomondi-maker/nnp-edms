@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useDocumentsByDepartment, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
@@ -15,7 +16,9 @@ import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
 import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
 
 export default function DepartmentQueue() {
-  const { currentUser } = useAuth();
+  const { currentUser, activeRole } = useAuth();
+  const guard = useRoleGuard();
+  const canAct = guard.canVerifyAsHOD();
   const { data: queue, isLoading } = useDocumentsByDepartment(currentUser?.department || '');
   const updateStatus = useUpdateDocumentStatus();
   const bulkUpdate = useBulkUpdateDocumentStatus();
@@ -24,6 +27,9 @@ export default function DepartmentQueue() {
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'SUBMITTED' });
+
+  // Clear selection if user switches away from HOD role mid-session
+  useEffect(() => { if (!canAct) setSelected(new Set()); }, [canAct, activeRole]);
 
   const baseQueue = useMemo(
     () => (queue || []).filter(d => d.trainer_id !== currentUser?.id),
