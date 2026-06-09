@@ -35,7 +35,14 @@ interface FileEntry {
   documentType: DocumentType | '';
   weekNumber?: number;
   sessionIndex?: number;
+  originalSize: number;
+  estimatedSize?: number;
+  compressed?: boolean;
+  eligibility: 'OK' | 'OVERSIZE' | 'CHECKING';
 }
+
+// 20 MB hard cap to keep documents eligible for embedding signatures + stamps.
+const MAX_ELIGIBLE_BYTES = 20 * 1024 * 1024;
 
 export default function UploadDocuments() {
   const navigate = useNavigate();
@@ -97,9 +104,23 @@ export default function UploadDocuments() {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file: f,
         documentType: '',
+        originalSize: f.size,
+        eligibility: 'CHECKING',
       });
     });
     setFiles((prev) => [...prev, ...valid]);
+    // Compute compression preview for each so the trainer sees pre/post sizes
+    // and an eligibility tag BEFORE they submit.
+    valid.forEach(async (entry) => {
+      try {
+        const { finalSize } = await compressForUpload(entry.file);
+        const compressed = finalSize < entry.originalSize;
+        const eligibility: FileEntry['eligibility'] = finalSize > MAX_ELIGIBLE_BYTES ? 'OVERSIZE' : 'OK';
+        setFiles((prev) => prev.map((f) => f.id === entry.id ? { ...f, estimatedSize: finalSize, compressed, eligibility } : f));
+      } catch {
+        setFiles((prev) => prev.map((f) => f.id === entry.id ? { ...f, eligibility: 'OK' } : f));
+      }
+    });
   }
 
   function updateFile(id: string, patch: Partial<FileEntry>) {
@@ -405,6 +426,30 @@ export default function UploadDocuments() {
                   <button onClick={() => removeFile(entry.id)} className="text-muted-foreground hover:text-destructive">
                     <X className="w-4 h-4" />
                   </button>
+                </div>
+
+                {/* Eligibility & compression preview */}
+                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                  <span className="text-muted-foreground">Original: {formatBytes(entry.originalSize)}</span>
+                  {entry.eligibility === 'CHECKING' && <span className="text-muted-foreground italic">Checking compression…</span>}
+                  {entry.estimatedSize !== undefined && entry.compressed && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      Will compress to {formatBytes(entry.estimatedSize)}
+                      {' '}(−{Math.round(100 - (entry.estimatedSize / entry.originalSize) * 100)}%)
+                    </span>
+                  )}
+                  {entry.estimatedSize !== undefined && !entry.compressed && (
+                    <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Already optimal — no compression applied</span>
+                  )}
+                  {entry.eligibility === 'OVERSIZE' && (
+                    <span className="px-1.5 py-0.5 rounded bg-destructive/15 text-destructive flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Over 20 MB after compression — signatures &amp; stamps may not embed reliably
+                    </span>
+                  )}
+                  {entry.eligibility === 'OK' && entry.estimatedSize !== undefined && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">Eligible ✓</span>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
