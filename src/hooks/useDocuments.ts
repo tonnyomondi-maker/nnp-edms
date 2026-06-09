@@ -343,9 +343,16 @@ export function useSubmitDocument() {
     }) => {
       const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
       const filePath = `${user!.id}/${sessionYear}_${sessionTerm}/${safeUnit}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}${sessionIndex ? `_S${sessionIndex}` : ''}_${Date.now()}.pdf`;
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, file);
+
+      // Retry storage upload with exponential backoff so transient network
+      // failures don't abort the submission.
+      let uploadError: Error | null = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { error } = await supabase.storage.from('documents').upload(filePath, file, { upsert: attempt > 1 });
+        if (!error) { uploadError = null; break; }
+        uploadError = error as unknown as Error;
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
+      }
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage
@@ -379,6 +386,12 @@ export function useSubmitDocument() {
         .select()
         .single();
       if (error) throw error;
+
+      // Best-effort mirror to Google Drive — never blocks the submission.
+      // The edge function has its own retry + backoff.
+      supabase.functions.invoke('gdrive-upload', { body: { documentId: data.id } })
+        .catch(() => { /* logged server-side */ });
+
       return data;
     },
     onSuccess: () => {
