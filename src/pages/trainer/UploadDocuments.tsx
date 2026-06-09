@@ -131,14 +131,6 @@ export default function UploadDocuments() {
     setFiles((prev) => prev.filter((f) => f.id !== id));
   }
 
-  function updateFile(id: string, patch: Partial<FileEntry>) {
-    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
-  }
-
-  function removeFile(id: string) {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
-  }
-
   const hasWeeklyType = files.some((f) => WEEKLY_DOC_TYPES.includes(f.documentType as typeof WEEKLY_DOC_TYPES[number]));
 
   // Validation per file
