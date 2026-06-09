@@ -49,6 +49,45 @@ export type Database = {
           },
         ]
       }
+      backup_metadata: {
+        Row: {
+          audit_logs_count: number | null
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          documents_count: number | null
+          id: string
+          note: string | null
+          snapshot_key: string
+          storage_files_count: number | null
+          total_bytes: number | null
+        }
+        Insert: {
+          audit_logs_count?: number | null
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          documents_count?: number | null
+          id?: string
+          note?: string | null
+          snapshot_key: string
+          storage_files_count?: number | null
+          total_bytes?: number | null
+        }
+        Update: {
+          audit_logs_count?: number | null
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          documents_count?: number | null
+          id?: string
+          note?: string | null
+          snapshot_key?: string
+          storage_files_count?: number | null
+          total_bytes?: number | null
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           approved_by_dp_academics_at: string | null
@@ -83,6 +122,8 @@ export type Database = {
           file_drive_id: string | null
           file_name: string
           file_url: string | null
+          gdrive_file_id: string | null
+          gdrive_web_view_link: string | null
           hod_approved_at: string | null
           hod_approved_by: string | null
           hod_autofill: boolean | null
@@ -172,6 +213,8 @@ export type Database = {
           file_drive_id?: string | null
           file_name: string
           file_url?: string | null
+          gdrive_file_id?: string | null
+          gdrive_web_view_link?: string | null
           hod_approved_at?: string | null
           hod_approved_by?: string | null
           hod_autofill?: boolean | null
@@ -261,6 +304,8 @@ export type Database = {
           file_drive_id?: string | null
           file_name?: string
           file_url?: string | null
+          gdrive_file_id?: string | null
+          gdrive_web_view_link?: string | null
           hod_approved_at?: string | null
           hod_approved_by?: string | null
           hod_autofill?: boolean | null
