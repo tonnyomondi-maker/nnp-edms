@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAllDocuments, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
@@ -14,7 +15,9 @@ import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
 import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
 
 export default function ApprovalQueue() {
-  const { currentUser } = useAuth();
+  const { currentUser, activeRole } = useAuth();
+  const guard = useRoleGuard();
+  const canAct = guard.canApproveAsDP();
   const { data: queue, isLoading } = useAllDocuments();
   const updateStatus = useUpdateDocumentStatus();
   const bulkUpdate = useBulkUpdateDocumentStatus();
@@ -104,6 +107,11 @@ export default function ApprovalQueue() {
   return (
     <div>
       <PageHeader title="DP Approval Queue" subtitle={`${docs.length} document(s)`} />
+      {!canAct && (
+        <div className="mb-3 p-2 rounded border border-amber-500/40 bg-amber-50 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-100">
+          You are viewing as <strong>{activeRole}</strong>. Switch to <strong>DP Academics</strong> in the top bar to approve documents.
+        </div>
+      )}
       <div className="mb-3 flex justify-end">
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
@@ -122,7 +130,7 @@ export default function ApprovalQueue() {
       <div className="space-y-3 mt-3">
         {docs.length > 0 ? (
           docs.map(doc => {
-            const showActions = canActOn(doc.status);
+            const showActions = canActOn(doc.status) && canAct;
             return (
               <DocumentCard
                 key={doc.id}
