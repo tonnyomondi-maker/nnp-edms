@@ -35,7 +35,14 @@ interface FileEntry {
   documentType: DocumentType | '';
   weekNumber?: number;
   sessionIndex?: number;
+  originalSize: number;
+  estimatedSize?: number;
+  compressed?: boolean;
+  eligibility: 'OK' | 'OVERSIZE' | 'CHECKING';
 }
+
+// 20 MB hard cap to keep documents eligible for embedding signatures + stamps.
+const MAX_ELIGIBLE_BYTES = 20 * 1024 * 1024;
 
 export default function UploadDocuments() {
   const navigate = useNavigate();
@@ -97,9 +104,31 @@ export default function UploadDocuments() {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file: f,
         documentType: '',
+        originalSize: f.size,
+        eligibility: 'CHECKING',
       });
     });
     setFiles((prev) => [...prev, ...valid]);
+    // Compute compression preview for each so the trainer sees pre/post sizes
+    // and an eligibility tag BEFORE they submit.
+    valid.forEach(async (entry) => {
+      try {
+        const { finalSize } = await compressForUpload(entry.file);
+        const compressed = finalSize < entry.originalSize;
+        const eligibility: FileEntry['eligibility'] = finalSize > MAX_ELIGIBLE_BYTES ? 'OVERSIZE' : 'OK';
+        setFiles((prev) => prev.map((f) => f.id === entry.id ? { ...f, estimatedSize: finalSize, compressed, eligibility } : f));
+      } catch {
+        setFiles((prev) => prev.map((f) => f.id === entry.id ? { ...f, eligibility: 'OK' } : f));
+      }
+    });
+  }
+
+  function updateFile(id: string, patch: Partial<FileEntry>) {
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  }
+
+  function removeFile(id: string) {
+    setFiles((prev) => prev.filter((f) => f.id !== id));
   }
 
   function updateFile(id: string, patch: Partial<FileEntry>) {
