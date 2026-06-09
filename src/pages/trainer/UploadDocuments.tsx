@@ -428,6 +428,30 @@ export default function UploadDocuments() {
                   </button>
                 </div>
 
+                {/* Eligibility & compression preview */}
+                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                  <span className="text-muted-foreground">Original: {formatBytes(entry.originalSize)}</span>
+                  {entry.eligibility === 'CHECKING' && <span className="text-muted-foreground italic">Checking compression…</span>}
+                  {entry.estimatedSize !== undefined && entry.compressed && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      Will compress to {formatBytes(entry.estimatedSize)}
+                      {' '}(−{Math.round(100 - (entry.estimatedSize / entry.originalSize) * 100)}%)
+                    </span>
+                  )}
+                  {entry.estimatedSize !== undefined && !entry.compressed && (
+                    <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Already optimal — no compression applied</span>
+                  )}
+                  {entry.eligibility === 'OVERSIZE' && (
+                    <span className="px-1.5 py-0.5 rounded bg-destructive/15 text-destructive flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Over 20 MB after compression — signatures &amp; stamps may not embed reliably
+                    </span>
+                  )}
+                  {entry.eligibility === 'OK' && entry.estimatedSize !== undefined && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">Eligible ✓</span>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <Select
                     value={entry.documentType}
