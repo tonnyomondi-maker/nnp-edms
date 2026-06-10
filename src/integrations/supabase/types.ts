@@ -453,6 +453,36 @@ export type Database = {
         }
         Relationships: []
       }
+      system_settings: {
+        Row: {
+          id: number
+          lock_active: boolean
+          lock_reason: string | null
+          locked_at: string | null
+          locked_by: string | null
+          locked_by_email: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          lock_active?: boolean
+          lock_reason?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          locked_by_email?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          lock_active?: boolean
+          lock_reason?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          locked_by_email?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       teaching_assignments: {
         Row: {
           academic_year: string
