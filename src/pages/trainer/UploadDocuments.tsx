@@ -114,6 +114,8 @@ export default function UploadDocuments() {
         documentType: '',
         originalSize: f.size,
         eligibility: 'CHECKING',
+        stage: 'idle',
+        gdriveAttempts: 0,
       });
     });
     setFiles((prev) => [...prev, ...valid]);
