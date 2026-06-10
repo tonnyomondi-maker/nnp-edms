@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { clearSignedUrlCache } from '@/hooks/useSignedDocUrl';
+import { assertSystemNotLocked } from '@/lib/systemLock';
 import type { Tables, TablesUpdate } from '@/integrations/supabase/types';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -271,6 +272,7 @@ export function useUpdateDocumentStatus() {
   return useMutation({
     mutationFn: async ({ docId, status, rejectionReason, placement, mode }: { docId: string; status: DocumentStatus; rejectionReason?: string; placement?: ApprovalPlacement | null; mode?: 'IMAGE' | 'TEXT_ONLY' }) => {
       if (!user) throw new Error('Not authenticated');
+      await assertSystemNotLocked(user.id);
       return performApproval(docId, status, rejectionReason, user.id, placement, mode);
     },
     onSuccess: () => {
@@ -285,6 +287,7 @@ export function useBulkUpdateDocumentStatus() {
   return useMutation({
     mutationFn: async ({ docIds, status, rejectionReason, mode }: { docIds: string[]; status: DocumentStatus; rejectionReason?: string; mode?: 'IMAGE' | 'TEXT_ONLY' }) => {
       if (!user) throw new Error('Not authenticated');
+      await assertSystemNotLocked(user.id);
       // Bulk approvals default to TEXT_ONLY since there is no placement UI in bulk.
       const resolvedMode: 'IMAGE' | 'TEXT_ONLY' = mode ?? (status === 'REJECTED' ? 'IMAGE' : 'TEXT_ONLY');
       const results = await Promise.allSettled(
