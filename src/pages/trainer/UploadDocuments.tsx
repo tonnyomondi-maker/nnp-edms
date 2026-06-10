@@ -306,6 +306,18 @@ export default function UploadDocuments() {
         subtitle={sessionLabel(sessionYear, sessionTerm)}
       />
 
+      {(!canUpload || writesBlocked) && (
+        <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs p-3 flex items-start gap-2">
+          <Lock className="w-4 h-4 mt-0.5" />
+          <div>
+            {writesBlocked
+              ? <>Uploads are temporarily blocked: <strong>{lock_reason || 'system maintenance'}</strong>.</>
+              : guard.reasonFor('upload')}
+          </div>
+        </div>
+      )}
+
+
       <Card className="mb-4">
         <CardContent className="p-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
