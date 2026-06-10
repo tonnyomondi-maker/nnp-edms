@@ -1,22 +1,23 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Upload, FileText, X, Loader2, AlertCircle } from 'lucide-react';
+import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, RotateCw, Cloud, CloudOff, Lock } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useSubmitDocument, useMyDocumentsBySession } from '@/hooks/useDocuments';
 import { compressForUpload, formatBytes } from '@/lib/compressUpload';
 import { useMyUnitConfigs, useUpsertUnitConfig } from '@/hooks/useUnitSessionConfig';
+import { useSystemLock } from '@/hooks/useSystemLock';
+import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { supabase } from '@/integrations/supabase/client';
 import {
   DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
   WEEKLY_DOC_TYPES,
-  SESSION_TERMS,
   COURSE_TYPES,
   MODULE_NUMBERS,
   getCurrentSession,
@@ -29,6 +30,8 @@ import type { Database } from '@/integrations/supabase/types';
 
 type DocumentType = Database['public']['Enums']['document_type'];
 
+type UploadStage = 'idle' | 'compressing' | 'uploading_storage' | 'storage_ok' | 'mirroring_gdrive' | 'gdrive_ok' | 'gdrive_failed' | 'failed';
+
 interface FileEntry {
   id: string;
   file: File;
@@ -39,13 +42,18 @@ interface FileEntry {
   estimatedSize?: number;
   compressed?: boolean;
   eligibility: 'OK' | 'OVERSIZE' | 'CHECKING';
+  // Resume / retry state
+  stage: UploadStage;
+  documentId?: string;
+  stageMessage?: string;
+  gdriveAttempts?: number;
 }
 
 // 20 MB hard cap to keep documents eligible for embedding signatures + stamps.
 const MAX_ELIGIBLE_BYTES = 20 * 1024 * 1024;
 
 export default function UploadDocuments() {
-  const navigate = useNavigate();
+  
   const submitDoc = useSubmitDocument();
   const upsertConfig = useUpsertUnitConfig();
 
@@ -106,6 +114,8 @@ export default function UploadDocuments() {
         documentType: '',
         originalSize: f.size,
         eligibility: 'CHECKING',
+        stage: 'idle',
+        gdriveAttempts: 0,
       });
     });
     setFiles((prev) => [...prev, ...valid]);
@@ -169,10 +179,77 @@ export default function UploadDocuments() {
     return null;
   }
 
+  const { writesBlocked, lock_active, lock_reason } = useSystemLock();
+  const guard = useRoleGuard();
+  const canUpload = guard.canUploadAsTrainer();
+
   const headerValid = department && unitCode && classCode && (!hasWeeklyType || sessionsPerWeek >= 1);
   const fileErrors = files.map((f) => ({ id: f.id, error: validateFile(f) }));
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
-  const canSubmit = headerValid && allFilesValid && !submitDoc.isPending;
+  const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
+  const canSubmit = headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked;
+
+  function setStage(id: string, patch: Partial<FileEntry>) {
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  }
+
+  async function mirrorToGDrive(entry: FileEntry, documentId: string) {
+    setStage(entry.id, { stage: 'mirroring_gdrive', stageMessage: 'Mirroring to Google Drive…' });
+    const attempt = (entry.gdriveAttempts ?? 0) + 1;
+    const { data, error } = await supabase.functions.invoke('gdrive-upload', { body: { documentId } });
+    if (error || (data as { error?: string })?.error) {
+      setStage(entry.id, {
+        stage: 'gdrive_failed',
+        stageMessage: error?.message || (data as { error?: string })?.error || 'Google Drive upload failed',
+        gdriveAttempts: attempt,
+      });
+      return false;
+    }
+    setStage(entry.id, { stage: 'gdrive_ok', stageMessage: 'Mirrored to Google Drive', gdriveAttempts: attempt });
+    return true;
+  }
+
+  async function processEntry(entry: FileEntry): Promise<{ ok: boolean; error?: string }> {
+    const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
+    try {
+      setStage(entry.id, { stage: 'compressing', stageMessage: 'Compressing…' });
+      const { file: optimised, originalSize, finalSize } = await compressForUpload(entry.file);
+      if (finalSize < originalSize) {
+        toast({ title: 'Optimised', description: `${entry.file.name}: ${formatBytes(originalSize)} → ${formatBytes(finalSize)}` });
+      }
+      setStage(entry.id, { stage: 'uploading_storage', stageMessage: 'Uploading to secure storage…' });
+      const submitted = await submitDoc.mutateAsync({
+        file: optimised,
+        documentType: entry.documentType as DocumentType,
+        submissionType: isWeekly ? 'WEEKLY' : 'ONE_TIME',
+        weekNumber: isWeekly ? entry.weekNumber : undefined,
+        sessionIndex: isWeekly ? entry.sessionIndex : undefined,
+        sessionsPerWeek: isWeekly ? sessionsPerWeek : undefined,
+        department,
+        unitCode,
+        unitName,
+        classCode,
+        sessionYear,
+        sessionTerm,
+        termNumber: courseType === 'MODULAR' ? null : termNumber,
+        courseType,
+        moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
+      });
+      setStage(entry.id, { stage: 'storage_ok', documentId: submitted.id, stageMessage: 'Uploaded — mirroring…' });
+      // Mirror in the same loop so the user sees Drive status before navigating away.
+      await mirrorToGDrive({ ...entry, documentId: submitted.id }, submitted.id);
+      return { ok: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed';
+      setStage(entry.id, { stage: 'failed', stageMessage: msg });
+      return { ok: false, error: msg };
+    }
+  }
+
+  async function retryGDrive(entry: FileEntry) {
+    if (!entry.documentId) return;
+    await mirrorToGDrive(entry, entry.documentId);
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -191,44 +268,19 @@ export default function UploadDocuments() {
         module_number: courseType === 'MODULAR' ? moduleNumber : null,
       });
 
-      // Submit each file sequentially for clearer error reporting
       let success = 0;
       const failures: string[] = [];
-      for (const entry of files) {
-        const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
-        try {
-          // Compress while keeping document eligibility (PDF re-save / image down-scale)
-          const { file: optimised, originalSize, finalSize } = await compressForUpload(entry.file);
-          if (finalSize < originalSize) {
-            toast({ title: 'Optimised', description: `${entry.file.name}: ${formatBytes(originalSize)} → ${formatBytes(finalSize)}` });
-          }
-          await submitDoc.mutateAsync({
-            file: optimised,
-            documentType: entry.documentType as DocumentType,
-            submissionType: isWeekly ? 'WEEKLY' : 'ONE_TIME',
-            weekNumber: isWeekly ? entry.weekNumber : undefined,
-            sessionIndex: isWeekly ? entry.sessionIndex : undefined,
-            sessionsPerWeek: isWeekly ? sessionsPerWeek : undefined,
-            department,
-            unitCode,
-            unitName,
-            classCode,
-            sessionYear,
-            sessionTerm,
-            termNumber: courseType === 'MODULAR' ? null : termNumber,
-            courseType,
-            moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
-          });
-          success++;
-        } catch (e) {
-          failures.push(`${entry.file.name}: ${e instanceof Error ? e.message : 'Failed'}`);
-        }
+      // Only process files not already uploaded to storage
+      for (const entry of files.filter((f) => f.stage !== 'storage_ok' && f.stage !== 'gdrive_ok' && f.stage !== 'gdrive_failed')) {
+        const r = await processEntry(entry);
+        if (r.ok) success++;
+        else failures.push(`${entry.file.name}: ${r.error}`);
       }
 
       if (success > 0) {
         toast({
           title: 'Upload complete',
-          description: `${success} of ${files.length} document(s) submitted.`,
+          description: `${success} of ${files.length} document(s) submitted. Check the Drive mirror status per file below.`,
         });
       }
       if (failures.length > 0) {
@@ -237,12 +289,6 @@ export default function UploadDocuments() {
           description: failures.slice(0, 3).join('; '),
           variant: 'destructive',
         });
-      }
-      if (failures.length === 0) {
-        navigate('/submissions');
-      } else {
-        // remove successful files
-        setFiles((prev) => prev.filter((f) => failures.some((m) => m.startsWith(f.file.name))));
       }
     } catch (e) {
       toast({
@@ -259,6 +305,18 @@ export default function UploadDocuments() {
         title="Upload Documents"
         subtitle={sessionLabel(sessionYear, sessionTerm)}
       />
+
+      {(!canUpload || writesBlocked) && (
+        <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs p-3 flex items-start gap-2">
+          <Lock className="w-4 h-4 mt-0.5" />
+          <div>
+            {writesBlocked
+              ? <>Uploads are temporarily blocked: <strong>{lock_reason || 'system maintenance'}</strong>.</>
+              : guard.reasonFor('upload')}
+          </div>
+        </div>
+      )}
+
 
       <Card className="mb-4">
         <CardContent className="p-4 space-y-4">
@@ -493,6 +551,34 @@ export default function UploadDocuments() {
                 {err && (
                   <div className="flex items-center gap-1.5 text-xs text-destructive">
                     <AlertCircle className="w-3 h-3" /> {err}
+                  </div>
+                )}
+
+                {/* Upload / mirror status — visible per file so the trainer can
+                    track progress, see failures, and retry the Google Drive
+                    step without re-uploading the PDF. */}
+                {entry.stage !== 'idle' && (
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] border-t pt-2">
+                    {entry.stage === 'compressing' && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" />Compressing…</span>}
+                    {entry.stage === 'uploading_storage' && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" />Uploading to secure storage…</span>}
+                    {entry.stage === 'storage_ok' && <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="w-3 h-3" />Stored</span>}
+                    {entry.stage === 'mirroring_gdrive' && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" />Mirroring to Google Drive (attempt {(entry.gdriveAttempts ?? 0) + 1})…</span>}
+                    {entry.stage === 'gdrive_ok' && <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><Cloud className="w-3 h-3" />Mirrored to Google Drive</span>}
+                    {entry.stage === 'gdrive_failed' && (
+                      <>
+                        <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
+                          <CloudOff className="w-3 h-3" />Drive mirror failed (attempt {entry.gdriveAttempts ?? 1}). File is safe in storage.
+                        </span>
+                        <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => retryGDrive(entry)}>
+                          <RotateCw className="w-3 h-3 mr-1" />Retry Drive upload
+                        </Button>
+                      </>
+                    )}
+                    {entry.stage === 'failed' && (
+                      <span className="flex items-center gap-1 text-destructive">
+                        <AlertCircle className="w-3 h-3" />{entry.stageMessage || 'Upload failed'}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
