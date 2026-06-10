@@ -23,37 +23,53 @@ Deno.serve(async (req) => {
       return json({ error: `Confirmation text must be exactly "RESET ${today}"` }, 400);
     }
 
-    // 1. Empty storage buckets
-    for (const bucket of ["documents", "signatures"]) {
-      try {
-        const { data: files } = await admin.storage.from(bucket).list("", { limit: 1000 });
-        const recurse = async (prefix: string) => {
-          const { data: items } = await admin.storage.from(bucket).list(prefix, { limit: 1000 });
-          if (!items) return;
-          const paths: string[] = [];
-          for (const it of items) {
-            const full = prefix ? `${prefix}/${it.name}` : it.name;
-            if (it.id === null) await recurse(full); // folder
-            else paths.push(full);
-          }
-          if (paths.length) await admin.storage.from(bucket).remove(paths);
-        };
-        await recurse("");
-        if (files?.length) await admin.storage.from(bucket).remove(files.map(f => f.name));
-      } catch { /* continue */ }
-    }
+    // 0. Engage safety lock — blocks all other users from writing while we reset.
+    await admin.from("system_settings").update({
+      lock_active: true,
+      lock_reason: "SYSTEM_RESET in progress",
+      locked_at: new Date().toISOString(),
+      locked_by: u.user.id,
+      locked_by_email: u.user.email,
+    }).eq("id", 1);
 
-    // 2. Wipe data tables (preserve profiles, user_roles)
-    for (const tbl of ["documents", "audit_logs", "role_change_audit", "unit_session_config", "teaching_assignments"]) {
-      await admin.from(tbl).delete().not("id", "is", null).then(() => {}, () => {});
-    }
+    try {
+      // 1. Empty storage buckets
+      for (const bucket of ["documents", "signatures"]) {
+        try {
+          const { data: files } = await admin.storage.from(bucket).list("", { limit: 1000 });
+          const recurse = async (prefix: string) => {
+            const { data: items } = await admin.storage.from(bucket).list(prefix, { limit: 1000 });
+            if (!items) return;
+            const paths: string[] = [];
+            for (const it of items) {
+              const full = prefix ? `${prefix}/${it.name}` : it.name;
+              if (it.id === null) await recurse(full);
+              else paths.push(full);
+            }
+            if (paths.length) await admin.storage.from(bucket).remove(paths);
+          };
+          await recurse("");
+          if (files?.length) await admin.storage.from(bucket).remove(files.map(f => f.name));
+        } catch { /* continue */ }
+      }
 
-    // 3. Final audit entry post-wipe
-    await admin.from("audit_logs").insert({
-      action: "SYSTEM_RESET",
-      performed_by: u.user.id,
-      details: { reset_at: new Date().toISOString(), confirmed_by_email: u.user.email },
-    });
+      // 2. Wipe data tables (preserve profiles, user_roles, system_settings)
+      for (const tbl of ["documents", "audit_logs", "role_change_audit", "unit_session_config", "teaching_assignments"]) {
+        await admin.from(tbl).delete().not("id", "is", null).then(() => {}, () => {});
+      }
+
+      // 3. Final audit entry post-wipe
+      await admin.from("audit_logs").insert({
+        action: "SYSTEM_RESET",
+        performed_by: u.user.id,
+        details: { reset_at: new Date().toISOString(), confirmed_by_email: u.user.email },
+      });
+    } finally {
+      // Release lock whether or not the wipe succeeded.
+      await admin.from("system_settings").update({
+        lock_active: false, lock_reason: null, locked_at: null, locked_by: null, locked_by_email: null,
+      }).eq("id", 1);
+    }
 
     return json({ ok: true });
   } catch (e) {
