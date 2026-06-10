@@ -298,8 +298,6 @@ export default function UploadDocuments() {
       });
     }
   }
-    }
-  }
 
   return (
     <div className="pb-8">
