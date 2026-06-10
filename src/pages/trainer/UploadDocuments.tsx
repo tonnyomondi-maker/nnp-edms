@@ -179,10 +179,77 @@ export default function UploadDocuments() {
     return null;
   }
 
+  const { writesBlocked, lock_active, lock_reason } = useSystemLock();
+  const guard = useRoleGuard();
+  const canUpload = guard.canUploadAsTrainer();
+
   const headerValid = department && unitCode && classCode && (!hasWeeklyType || sessionsPerWeek >= 1);
   const fileErrors = files.map((f) => ({ id: f.id, error: validateFile(f) }));
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
-  const canSubmit = headerValid && allFilesValid && !submitDoc.isPending;
+  const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
+  const canSubmit = headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked;
+
+  function setStage(id: string, patch: Partial<FileEntry>) {
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  }
+
+  async function mirrorToGDrive(entry: FileEntry, documentId: string) {
+    setStage(entry.id, { stage: 'mirroring_gdrive', stageMessage: 'Mirroring to Google Drive…' });
+    const attempt = (entry.gdriveAttempts ?? 0) + 1;
+    const { data, error } = await supabase.functions.invoke('gdrive-upload', { body: { documentId } });
+    if (error || (data as { error?: string })?.error) {
+      setStage(entry.id, {
+        stage: 'gdrive_failed',
+        stageMessage: error?.message || (data as { error?: string })?.error || 'Google Drive upload failed',
+        gdriveAttempts: attempt,
+      });
+      return false;
+    }
+    setStage(entry.id, { stage: 'gdrive_ok', stageMessage: 'Mirrored to Google Drive', gdriveAttempts: attempt });
+    return true;
+  }
+
+  async function processEntry(entry: FileEntry): Promise<{ ok: boolean; error?: string }> {
+    const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
+    try {
+      setStage(entry.id, { stage: 'compressing', stageMessage: 'Compressing…' });
+      const { file: optimised, originalSize, finalSize } = await compressForUpload(entry.file);
+      if (finalSize < originalSize) {
+        toast({ title: 'Optimised', description: `${entry.file.name}: ${formatBytes(originalSize)} → ${formatBytes(finalSize)}` });
+      }
+      setStage(entry.id, { stage: 'uploading_storage', stageMessage: 'Uploading to secure storage…' });
+      const submitted = await submitDoc.mutateAsync({
+        file: optimised,
+        documentType: entry.documentType as DocumentType,
+        submissionType: isWeekly ? 'WEEKLY' : 'ONE_TIME',
+        weekNumber: isWeekly ? entry.weekNumber : undefined,
+        sessionIndex: isWeekly ? entry.sessionIndex : undefined,
+        sessionsPerWeek: isWeekly ? sessionsPerWeek : undefined,
+        department,
+        unitCode,
+        unitName,
+        classCode,
+        sessionYear,
+        sessionTerm,
+        termNumber: courseType === 'MODULAR' ? null : termNumber,
+        courseType,
+        moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
+      });
+      setStage(entry.id, { stage: 'storage_ok', documentId: submitted.id, stageMessage: 'Uploaded — mirroring…' });
+      // Mirror in the same loop so the user sees Drive status before navigating away.
+      await mirrorToGDrive({ ...entry, documentId: submitted.id }, submitted.id);
+      return { ok: true };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed';
+      setStage(entry.id, { stage: 'failed', stageMessage: msg });
+      return { ok: false, error: msg };
+    }
+  }
+
+  async function retryGDrive(entry: FileEntry) {
+    if (!entry.documentId) return;
+    await mirrorToGDrive(entry, entry.documentId);
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -201,44 +268,19 @@ export default function UploadDocuments() {
         module_number: courseType === 'MODULAR' ? moduleNumber : null,
       });
 
-      // Submit each file sequentially for clearer error reporting
       let success = 0;
       const failures: string[] = [];
-      for (const entry of files) {
-        const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
-        try {
-          // Compress while keeping document eligibility (PDF re-save / image down-scale)
-          const { file: optimised, originalSize, finalSize } = await compressForUpload(entry.file);
-          if (finalSize < originalSize) {
-            toast({ title: 'Optimised', description: `${entry.file.name}: ${formatBytes(originalSize)} → ${formatBytes(finalSize)}` });
-          }
-          await submitDoc.mutateAsync({
-            file: optimised,
-            documentType: entry.documentType as DocumentType,
-            submissionType: isWeekly ? 'WEEKLY' : 'ONE_TIME',
-            weekNumber: isWeekly ? entry.weekNumber : undefined,
-            sessionIndex: isWeekly ? entry.sessionIndex : undefined,
-            sessionsPerWeek: isWeekly ? sessionsPerWeek : undefined,
-            department,
-            unitCode,
-            unitName,
-            classCode,
-            sessionYear,
-            sessionTerm,
-            termNumber: courseType === 'MODULAR' ? null : termNumber,
-            courseType,
-            moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
-          });
-          success++;
-        } catch (e) {
-          failures.push(`${entry.file.name}: ${e instanceof Error ? e.message : 'Failed'}`);
-        }
+      // Only process files not already uploaded to storage
+      for (const entry of files.filter((f) => f.stage !== 'storage_ok' && f.stage !== 'gdrive_ok' && f.stage !== 'gdrive_failed')) {
+        const r = await processEntry(entry);
+        if (r.ok) success++;
+        else failures.push(`${entry.file.name}: ${r.error}`);
       }
 
       if (success > 0) {
         toast({
           title: 'Upload complete',
-          description: `${success} of ${files.length} document(s) submitted.`,
+          description: `${success} of ${files.length} document(s) submitted. Check the Drive mirror status per file below.`,
         });
       }
       if (failures.length > 0) {
@@ -248,18 +290,14 @@ export default function UploadDocuments() {
           variant: 'destructive',
         });
       }
-      if (failures.length === 0) {
-        navigate('/submissions');
-      } else {
-        // remove successful files
-        setFiles((prev) => prev.filter((f) => failures.some((m) => m.startsWith(f.file.name))));
-      }
     } catch (e) {
       toast({
         title: 'Could not save unit config',
         description: e instanceof Error ? e.message : 'Unknown error',
         variant: 'destructive',
       });
+    }
+  }
     }
   }
 
