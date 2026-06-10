@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, Archive, RotateCcw, Database, Plus } from 'lucide-react';
+import { Loader2, Archive, RotateCcw, Database, Plus, Eye, Lock, AlertTriangle } from 'lucide-react';
 
 interface BackupRow {
   id: string;
@@ -21,6 +21,25 @@ interface BackupRow {
   storage_files_count: number;
   total_bytes: number;
   note: string | null;
+}
+
+interface TableDiff {
+  table: string;
+  wiped_before_restore: boolean;
+  snapshot_rows: number;
+  current_rows: number;
+  will_overwrite: number;
+  will_insert_new: number;
+  will_delete: number;
+  will_remain_untouched: number;
+  sample_overwrite_ids: string[];
+  sample_new_ids: string[];
+}
+interface DryRun {
+  manifest: Record<string, unknown>;
+  table_diffs: TableDiff[];
+  storage: { snapshot_files: number; current_files: number; will_overwrite_or_create: number; note: string };
+  summary: { total_will_overwrite: number; total_will_insert: number; total_will_delete: number };
 }
 
 function fmt(b: number) {
@@ -36,14 +55,21 @@ export default function SystemBackups() {
   const [note, setNote] = useState('');
   const [restoreFor, setRestoreFor] = useState<string | null>(null);
   const [restoreText, setRestoreText] = useState('');
+  const [dryRun, setDryRun] = useState<DryRun | null>(null);
+  const [dryRunKey, setDryRunKey] = useState<string | null>(null);
+  const [dryRunLoading, setDryRunLoading] = useState(false);
+  const [lockState, setLockState] = useState<{ lock_active: boolean; lock_reason: string | null } | null>(null);
 
   const load = async () => {
     const { data } = await supabase
       .from('backup_metadata' as never).select('*')
       .order('created_at', { ascending: false });
     setRows((data as never) || []);
+    const { data: ls } = await supabase
+      .from('system_settings' as never).select('lock_active,lock_reason').eq('id' as never, 1 as never).maybeSingle();
+    setLockState((ls as never) ?? null);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, []);
 
   if (loading) return null;
   if (!currentUser?.roles.includes('SUPER_ADMIN')) return <Navigate to="/" replace />;
@@ -55,12 +81,26 @@ export default function SystemBackups() {
     setBusy(true);
     const { data, error } = await supabase.functions.invoke('backup-system', { body: { note: note || null, includeFiles: true } });
     setBusy(false);
-    if (error || (data as any)?.error) {
-      toast({ title: 'Backup failed', description: error?.message || (data as any)?.error, variant: 'destructive' });
+    if (error || (data as { error?: string })?.error) {
+      toast({ title: 'Backup failed', description: error?.message || (data as { error?: string })?.error, variant: 'destructive' });
     } else {
-      toast({ title: 'Backup created', description: (data as any).snapshot_key });
+      toast({ title: 'Backup created', description: (data as { snapshot_key: string }).snapshot_key });
       setNote('');
       load();
+    }
+  };
+
+  const previewRestore = async (key: string) => {
+    setDryRunLoading(true);
+    setDryRunKey(key);
+    setDryRun(null);
+    const { data, error } = await supabase.functions.invoke('restore-system-dryrun', { body: { snapshot_key: key } });
+    setDryRunLoading(false);
+    if (error || (data as { error?: string })?.error) {
+      toast({ title: 'Preview failed', description: error?.message || (data as { error?: string })?.error, variant: 'destructive' });
+      setDryRunKey(null);
+    } else {
+      setDryRun(data as DryRun);
     }
   };
 
@@ -72,17 +112,53 @@ export default function SystemBackups() {
     setBusy(true);
     const { data, error } = await supabase.functions.invoke('restore-system', { body: { snapshot_key: key, confirm: restoreText } });
     setBusy(false);
-    if (error || (data as any)?.error) {
-      toast({ title: 'Restore failed', description: error?.message || (data as any)?.error, variant: 'destructive' });
+    if (error || (data as { error?: string })?.error) {
+      toast({ title: 'Restore failed', description: error?.message || (data as { error?: string })?.error, variant: 'destructive' });
     } else {
       toast({ title: 'System restored', description: `From ${key}` });
-      setRestoreFor(null); setRestoreText(''); load();
+      setRestoreFor(null); setRestoreText(''); setDryRun(null); setDryRunKey(null); load();
+    }
+  };
+
+  const toggleLock = async (active: boolean) => {
+    setBusy(true);
+    const { data, error } = await supabase.functions.invoke('system-lock', {
+      body: { active, reason: active ? 'Manual safety lock' : null },
+    });
+    setBusy(false);
+    if (error || (data as { error?: string })?.error) {
+      toast({ title: 'Lock change failed', description: error?.message || (data as { error?: string })?.error, variant: 'destructive' });
+    } else {
+      toast({ title: active ? 'System locked' : 'System unlocked' });
+      load();
     }
   };
 
   return (
     <div className="space-y-3 pb-8">
-      <PageHeader title="System Backups" subtitle="Create snapshots before risky operations, restore on demand" />
+      <PageHeader title="System Backups" subtitle="Create snapshots, preview restores safely, manage the safety lock" />
+
+      {/* Manual safety lock toggle */}
+      <Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Lock className="w-4 h-4" />Safety Lock</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            When the lock is ON, trainers cannot upload and HOD/DP/IQA cannot approve. The lock is engaged automatically during SYSTEM_RESET and SYSTEM_RESTORED. You can also engage it manually before risky maintenance.
+          </p>
+          <div className="flex items-center gap-2">
+            <Badge variant={lockState?.lock_active ? 'destructive' : 'secondary'}>
+              {lockState?.lock_active ? 'LOCKED' : 'Unlocked'}
+            </Badge>
+            {lockState?.lock_reason && <span className="text-xs text-muted-foreground">"{lockState.lock_reason}"</span>}
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant={lockState?.lock_active ? 'outline' : 'destructive'} onClick={() => toggleLock(!lockState?.lock_active)} disabled={busy}>
+              {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {lockState?.lock_active ? 'Unlock system' : 'Engage lock'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle className="text-base flex items-center gap-2"><Plus className="w-4 h-4" />New Backup</CardTitle></CardHeader>
@@ -120,10 +196,68 @@ export default function SystemBackups() {
                   <Badge variant="secondary" className="text-[10px]">{fmt(r.total_bytes)}</Badge>
                 </div>
               </div>
-              {restoreFor === r.snapshot_key ? (
+
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => previewRestore(r.snapshot_key)} disabled={dryRunLoading && dryRunKey === r.snapshot_key}>
+                  {dryRunLoading && dryRunKey === r.snapshot_key ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Eye className="w-4 h-4 mr-1" />}
+                  Preview restore (dry-run)
+                </Button>
+                {restoreFor !== r.snapshot_key && (
+                  <Button size="sm" variant="outline" onClick={() => { setRestoreFor(r.snapshot_key); setRestoreText(''); }}>
+                    <RotateCcw className="w-4 h-4 mr-1" />Restore from this snapshot
+                  </Button>
+                )}
+              </div>
+
+              {/* Dry-run results for this snapshot */}
+              {dryRunKey === r.snapshot_key && dryRun && (
+                <div className="border-t pt-2 space-y-2">
+                  <div className="text-xs font-medium flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    Dry-run preview — nothing has been changed yet.
+                  </div>
+                  <div className="flex flex-wrap gap-1 text-[10px]">
+                    <Badge variant="outline">{dryRun.summary.total_will_overwrite} will be overwritten</Badge>
+                    <Badge variant="outline">{dryRun.summary.total_will_insert} will be inserted</Badge>
+                    <Badge variant="destructive">{dryRun.summary.total_will_delete} will be deleted</Badge>
+                    <Badge variant="outline">{dryRun.storage.will_overwrite_or_create} files affected</Badge>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="text-[11px] w-full">
+                      <thead className="text-muted-foreground">
+                        <tr>
+                          <th className="text-left py-1 pr-2">Table</th>
+                          <th className="text-right pr-2">Snapshot</th>
+                          <th className="text-right pr-2">Current</th>
+                          <th className="text-right pr-2">Overwrite</th>
+                          <th className="text-right pr-2">New</th>
+                          <th className="text-right pr-2">Delete</th>
+                          <th className="text-right pr-2">Untouched</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dryRun.table_diffs.map((d) => (
+                          <tr key={d.table} className="border-t">
+                            <td className="py-1 pr-2 font-medium">{d.table}{d.wiped_before_restore && <span className="ml-1 text-destructive">⚠</span>}</td>
+                            <td className="text-right pr-2">{d.snapshot_rows}</td>
+                            <td className="text-right pr-2">{d.current_rows}</td>
+                            <td className="text-right pr-2">{d.will_overwrite}</td>
+                            <td className="text-right pr-2 text-emerald-700 dark:text-emerald-300">+{d.will_insert_new}</td>
+                            <td className="text-right pr-2 text-destructive">−{d.will_delete}</td>
+                            <td className="text-right pr-2 text-muted-foreground">{d.will_remain_untouched}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">⚠ = table is fully wiped first (any current row not in the snapshot is permanently deleted). Files: {dryRun.storage.note}</p>
+                </div>
+              )}
+
+              {restoreFor === r.snapshot_key && (
                 <div className="space-y-2 border-t pt-2">
                   <p className="text-xs text-destructive">
-                    This wipes current documents, audit logs, configs &amp; assignments and replaces them with the snapshot. Files in the documents bucket are overwritten.
+                    This wipes current documents, audit logs, configs &amp; assignments and replaces them with the snapshot. Storage files are upserted. The system safety lock will engage automatically.
                   </p>
                   <p className="text-xs">Type exactly: <code className="bg-muted px-1 rounded">RESTORE {r.snapshot_key}</code></p>
                   <Input value={restoreText} onChange={(e) => setRestoreText(e.target.value)} placeholder={`RESTORE ${r.snapshot_key}`} />
@@ -134,10 +268,6 @@ export default function SystemBackups() {
                     <Button size="sm" variant="outline" onClick={() => { setRestoreFor(null); setRestoreText(''); }}>Cancel</Button>
                   </div>
                 </div>
-              ) : (
-                <Button size="sm" variant="outline" onClick={() => { setRestoreFor(r.snapshot_key); setRestoreText(''); }}>
-                  <RotateCcw className="w-4 h-4 mr-1" />Restore from this snapshot
-                </Button>
               )}
             </div>
           ))}
