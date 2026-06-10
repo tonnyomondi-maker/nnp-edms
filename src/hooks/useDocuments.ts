@@ -344,6 +344,7 @@ export function useSubmitDocument() {
       courseType?: 'CYCLE' | 'MODULAR';
       moduleNumber?: number | null;
     }) => {
+      await assertSystemNotLocked(user?.id);
       const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
       const filePath = `${user!.id}/${sessionYear}_${sessionTerm}/${safeUnit}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}${sessionIndex ? `_S${sessionIndex}` : ''}_${Date.now()}.pdf`;
 
