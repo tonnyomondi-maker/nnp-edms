@@ -6,17 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Upload, FileText, X, Loader2, AlertCircle } from 'lucide-react';
+import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, RotateCw, Cloud, CloudOff, Lock } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useSubmitDocument, useMyDocumentsBySession } from '@/hooks/useDocuments';
 import { compressForUpload, formatBytes } from '@/lib/compressUpload';
 import { useMyUnitConfigs, useUpsertUnitConfig } from '@/hooks/useUnitSessionConfig';
+import { useSystemLock } from '@/hooks/useSystemLock';
+import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { supabase } from '@/integrations/supabase/client';
 import {
   DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
   WEEKLY_DOC_TYPES,
-  SESSION_TERMS,
   COURSE_TYPES,
   MODULE_NUMBERS,
   getCurrentSession,
@@ -29,6 +30,8 @@ import type { Database } from '@/integrations/supabase/types';
 
 type DocumentType = Database['public']['Enums']['document_type'];
 
+type UploadStage = 'idle' | 'compressing' | 'uploading_storage' | 'storage_ok' | 'mirroring_gdrive' | 'gdrive_ok' | 'gdrive_failed' | 'failed';
+
 interface FileEntry {
   id: string;
   file: File;
@@ -39,6 +42,11 @@ interface FileEntry {
   estimatedSize?: number;
   compressed?: boolean;
   eligibility: 'OK' | 'OVERSIZE' | 'CHECKING';
+  // Resume / retry state
+  stage: UploadStage;
+  documentId?: string;
+  stageMessage?: string;
+  gdriveAttempts?: number;
 }
 
 // 20 MB hard cap to keep documents eligible for embedding signatures + stamps.
