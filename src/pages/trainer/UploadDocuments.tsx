@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,7 +53,7 @@ interface FileEntry {
 const MAX_ELIGIBLE_BYTES = 20 * 1024 * 1024;
 
 export default function UploadDocuments() {
-  const navigate = useNavigate();
+  
   const submitDoc = useSubmitDocument();
   const upsertConfig = useUpsertUnitConfig();
 
