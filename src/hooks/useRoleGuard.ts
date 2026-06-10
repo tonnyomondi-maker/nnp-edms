@@ -4,38 +4,79 @@
 // actions are exposed.
 
 import { useAuth, type UserRole } from '@/contexts/AuthContext';
+import { useSystemLock } from '@/hooks/useSystemLock';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Doc = Tables<'documents'>;
+export type DocAction = 'upload' | 'list' | 'view' | 'export' | 'approve' | 'reject' | 'delete';
 
 export function useRoleGuard() {
   const { currentUser, activeRole } = useAuth();
+  const { writesBlocked, lock_active } = useSystemLock();
   const has = (r: UserRole) => !!currentUser?.roles.includes(r);
   const isActive = (r: UserRole) => activeRole === r;
+  const isWrite = (a: DocAction) => a === 'upload' || a === 'approve' || a === 'reject' || a === 'delete';
+
+  function canActOn(action: DocAction, doc?: Doc | null): boolean {
+    if (isWrite(action) && writesBlocked) return false;
+
+    switch (action) {
+      case 'list':
+      case 'view':
+      case 'export':
+        // Read/export is available to any signed-in role with the page's
+        // baseline access; lock does not block reads.
+        return true;
+      case 'upload':
+        return isActive('TRAINER') && has('TRAINER');
+      case 'approve':
+      case 'reject':
+        if (!doc) {
+          return (
+            (isActive('HOD') && has('HOD')) ||
+            (isActive('DP_ACADEMICS') && has('DP_ACADEMICS')) ||
+            (isActive('IQA') && has('IQA'))
+          );
+        }
+        if (isActive('HOD') && has('HOD') && doc.status === 'SUBMITTED') {
+          return !currentUser?.department || doc.department === currentUser.department;
+        }
+        if (isActive('DP_ACADEMICS') && has('DP_ACADEMICS') && doc.status === 'HOD_APPROVED') return true;
+        if (isActive('IQA') && has('IQA') && doc.status === 'DP_APPROVED') return true;
+        return false;
+      case 'delete':
+        return isActive('SUPER_ADMIN') && has('SUPER_ADMIN');
+      default:
+        return false;
+    }
+  }
+
+  function reasonFor(action: DocAction, doc?: Doc | null): string | null {
+    if (canActOn(action, doc)) return null;
+    if (isWrite(action) && writesBlocked) return 'System safety lock is active — writes are temporarily blocked.';
+    if (action === 'upload') return 'Switch to your Trainer role to upload documents.';
+    if (action === 'approve' || action === 'reject') {
+      if (doc?.status === 'SUBMITTED') return 'Switch to your HOD role (and department) to verify this document.';
+      if (doc?.status === 'HOD_APPROVED') return 'Switch to your DP Academics role to approve this document.';
+      if (doc?.status === 'DP_APPROVED') return 'Switch to your IQA role to archive this document.';
+      return 'Switch to the role that owns this approval stage.';
+    }
+    if (action === 'delete') return 'Only Super Admin can delete documents.';
+    return 'You do not have permission for this action in your current role.';
+  }
 
   return {
     activeRole,
+    lockActive: lock_active,
+    writesBlocked,
     isSuperAdmin: has('SUPER_ADMIN'),
-    // Each guard requires the role to be both held AND currently active.
-    canVerifyAsHOD: (doc?: Doc | null) => {
-      if (!isActive('HOD') || !has('HOD')) return false;
-      if (!doc) return true;
-      if (doc.status !== 'SUBMITTED') return false;
-      // HOD can only verify documents in their own department
-      if (currentUser?.department && doc.department !== currentUser.department) return false;
-      return true;
-    },
-    canApproveAsDP: (doc?: Doc | null) => {
-      if (!isActive('DP_ACADEMICS') || !has('DP_ACADEMICS')) return false;
-      if (!doc) return true;
-      return doc.status === 'HOD_APPROVED';
-    },
-    canArchiveAsIQA: (doc?: Doc | null) => {
-      if (!isActive('IQA') || !has('IQA')) return false;
-      if (!doc) return true;
-      return doc.status === 'DP_APPROVED';
-    },
-    canUploadAsTrainer: () => isActive('TRAINER') && has('TRAINER'),
+    canActOn,
+    reasonFor,
+    // Back-compat short forms kept for existing callers:
+    canVerifyAsHOD: (doc?: Doc | null) => canActOn('approve', doc) && isActive('HOD'),
+    canApproveAsDP: (doc?: Doc | null) => canActOn('approve', doc) && isActive('DP_ACADEMICS'),
+    canArchiveAsIQA: (doc?: Doc | null) => canActOn('approve', doc) && isActive('IQA'),
+    canUploadAsTrainer: () => canActOn('upload'),
     canManageUsers: () => isActive('SUPER_ADMIN') && has('SUPER_ADMIN'),
   };
 }
