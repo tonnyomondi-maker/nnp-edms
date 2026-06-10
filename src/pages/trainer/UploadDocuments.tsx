@@ -553,6 +553,34 @@ export default function UploadDocuments() {
                     <AlertCircle className="w-3 h-3" /> {err}
                   </div>
                 )}
+
+                {/* Upload / mirror status — visible per file so the trainer can
+                    track progress, see failures, and retry the Google Drive
+                    step without re-uploading the PDF. */}
+                {entry.stage !== 'idle' && (
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] border-t pt-2">
+                    {entry.stage === 'compressing' && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" />Compressing…</span>}
+                    {entry.stage === 'uploading_storage' && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" />Uploading to secure storage…</span>}
+                    {entry.stage === 'storage_ok' && <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="w-3 h-3" />Stored</span>}
+                    {entry.stage === 'mirroring_gdrive' && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" />Mirroring to Google Drive (attempt {(entry.gdriveAttempts ?? 0) + 1})…</span>}
+                    {entry.stage === 'gdrive_ok' && <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><Cloud className="w-3 h-3" />Mirrored to Google Drive</span>}
+                    {entry.stage === 'gdrive_failed' && (
+                      <>
+                        <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
+                          <CloudOff className="w-3 h-3" />Drive mirror failed (attempt {entry.gdriveAttempts ?? 1}). File is safe in storage.
+                        </span>
+                        <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => retryGDrive(entry)}>
+                          <RotateCw className="w-3 h-3 mr-1" />Retry Drive upload
+                        </Button>
+                      </>
+                    )}
+                    {entry.stage === 'failed' && (
+                      <span className="flex items-center gap-1 text-destructive">
+                        <AlertCircle className="w-3 h-3" />{entry.stageMessage || 'Upload failed'}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
