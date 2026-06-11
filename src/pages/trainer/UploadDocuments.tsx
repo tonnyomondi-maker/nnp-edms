@@ -695,10 +695,18 @@ export default function UploadDocuments() {
           {files.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-2">No files added yet</p>
           )}
+          {files.length > 0 && (
+            <div className="flex justify-end pt-1">
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground" onClick={() => { setFiles([]); resume.clear(); }}>
+                <X className="w-3 h-3" /> Clear resume state
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <Button
+      <ActionGuardButton
+        action="upload"
         onClick={handleSubmit}
         disabled={!canSubmit}
         className="w-full touch-target text-base"
@@ -706,7 +714,7 @@ export default function UploadDocuments() {
       >
         {submitDoc.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
         Submit {files.length > 0 ? `${files.length} Document${files.length > 1 ? 's' : ''}` : ''}
-      </Button>
+      </ActionGuardButton>
     </div>
   );
 }
