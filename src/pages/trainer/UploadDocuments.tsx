@@ -116,6 +116,7 @@ export default function UploadDocuments() {
       valid.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file: f,
+        fileName: f.name,
         documentType: '',
         originalSize: f.size,
         eligibility: 'CHECKING',
