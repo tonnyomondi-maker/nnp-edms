@@ -226,6 +226,10 @@ export default function UploadDocuments() {
   }
 
   async function processEntry(entry: FileEntry): Promise<{ ok: boolean; error?: string }> {
+    if (!entry.file) {
+      setStage(entry.id, { stage: 'failed', stageMessage: 'Re-attach the file to continue' });
+      return { ok: false, error: 'Re-attach the file to continue' };
+    }
     const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
     try {
       setStage(entry.id, { stage: 'compressing', stageMessage: 'Compressing…' });
