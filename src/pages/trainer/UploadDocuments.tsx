@@ -36,7 +36,9 @@ type UploadStage = 'idle' | 'compressing' | 'uploading_storage' | 'storage_ok' |
 
 interface FileEntry {
   id: string;
-  file: File;
+  // After rehydrate, file may be undefined and needsReattach is true.
+  file?: File;
+  fileName: string;
   documentType: DocumentType | '';
   weekNumber?: number;
   sessionIndex?: number;
@@ -49,6 +51,7 @@ interface FileEntry {
   documentId?: string;
   stageMessage?: string;
   gdriveAttempts?: number;
+  needsReattach?: boolean;
 }
 
 // 20 MB hard cap to keep documents eligible for embedding signatures + stamps.
