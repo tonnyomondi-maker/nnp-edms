@@ -203,9 +203,9 @@ export default function ArchiveScreen() {
                 selected={selected.has(doc.id)}
                 onSelectChange={(c) => toggleOne(doc.id, c)}
                 actions={
-                  <Button size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
+                  <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
                     <Archive className="w-4 h-4" /> Archive
-                  </Button>
+                  </ActionGuardButton>
                 }
               />
             ))
