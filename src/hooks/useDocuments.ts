@@ -196,8 +196,8 @@ async function performApproval(
     const nowIso = new Date().toISOString();
     updates.hod_approved_at = nowIso;
     (updates as Record<string, unknown>).verified_by_hod_at = nowIso;
-    updates.hod_signature_url = profile.signature_url;
-    updates.hod_stamp_url = profile.stamp_url;
+    updates.hod_signature_url = profileAny.signature_url || null;
+    updates.hod_stamp_url = profileAny.stamp_url || null;
     updates.hod_approved_by = userId;
     if (placement) {
       Object.assign(updates, {
@@ -222,8 +222,8 @@ async function performApproval(
     const nowIso = new Date().toISOString();
     updates.dp_approved_at = nowIso;
     (updates as Record<string, unknown>).approved_by_dp_academics_at = nowIso;
-    updates.dp_signature_url = profile.signature_url;
-    updates.dp_stamp_url = profile.stamp_url;
+    updates.dp_signature_url = profileAny.signature_url || null;
+    updates.dp_stamp_url = profileAny.stamp_url || null;
     updates.dp_approved_by = userId;
     if (placement) {
       Object.assign(updates, {
@@ -246,8 +246,8 @@ async function performApproval(
     }
   } else if (status === 'ARCHIVED') {
     updates.archived_at = new Date().toISOString();
-    updates.iqa_signature_url = profile.signature_url;
-    updates.iqa_stamp_url = profile.stamp_url;
+    updates.iqa_signature_url = profileAny.signature_url || null;
+    updates.iqa_stamp_url = profileAny.stamp_url || null;
     updates.iqa_archived_by = userId;
     if (placement) {
       Object.assign(updates, {
