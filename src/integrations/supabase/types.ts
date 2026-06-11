@@ -375,39 +375,69 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          default_sig_h: number | null
+          default_sig_opacity: number | null
+          default_sig_rot: number | null
+          default_sig_w: number | null
+          default_stamp_h: number | null
+          default_stamp_opacity: number | null
+          default_stamp_rot: number | null
+          default_stamp_w: number | null
           department: string | null
           email: string
           full_name: string
           id: string
           is_test_user: boolean
           pf_number: string | null
+          preferred_stamp_mode: string
           signature_url: string | null
+          stamp_required: boolean
           stamp_url: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          default_sig_h?: number | null
+          default_sig_opacity?: number | null
+          default_sig_rot?: number | null
+          default_sig_w?: number | null
+          default_stamp_h?: number | null
+          default_stamp_opacity?: number | null
+          default_stamp_rot?: number | null
+          default_stamp_w?: number | null
           department?: string | null
           email?: string
           full_name?: string
           id?: string
           is_test_user?: boolean
           pf_number?: string | null
+          preferred_stamp_mode?: string
           signature_url?: string | null
+          stamp_required?: boolean
           stamp_url?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          default_sig_h?: number | null
+          default_sig_opacity?: number | null
+          default_sig_rot?: number | null
+          default_sig_w?: number | null
+          default_stamp_h?: number | null
+          default_stamp_opacity?: number | null
+          default_stamp_rot?: number | null
+          default_stamp_w?: number | null
           department?: string | null
           email?: string
           full_name?: string
           id?: string
           is_test_user?: boolean
           pf_number?: string | null
+          preferred_stamp_mode?: string
           signature_url?: string | null
+          stamp_required?: boolean
           stamp_url?: string | null
           updated_at?: string
           user_id?: string
