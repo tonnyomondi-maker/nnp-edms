@@ -568,12 +568,30 @@ export default function UploadDocuments() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                    <span className="text-sm font-medium truncate">{entry.file.name}</span>
+                    <span className="text-sm font-medium truncate">{entry.fileName}</span>
+                    {entry.needsReattach && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-200 flex items-center gap-1">
+                        <History className="w-3 h-3" /> Needs re-attach
+                      </span>
+                    )}
                   </div>
                   <button onClick={() => removeFile(entry.id)} className="text-muted-foreground hover:text-destructive">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+
+                {entry.needsReattach && (
+                  <label className="flex items-center gap-2 text-xs text-amber-900 dark:text-amber-200 border border-dashed border-amber-500/50 rounded px-2 py-2 cursor-pointer hover:bg-amber-500/5">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    <span>Re-attach <strong>{entry.fileName}</strong> to resume this upload</span>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) reattachFile(entry.id, f); e.target.value = ''; }}
+                    />
+                  </label>
+                )}
 
                 {/* Eligibility & compression preview */}
                 <div className="flex flex-wrap items-center gap-2 text-[11px]">
