@@ -291,10 +291,10 @@ export default function UploadDocuments() {
       let success = 0;
       const failures: string[] = [];
       // Only process files not already uploaded to storage
-      for (const entry of files.filter((f) => f.stage !== 'storage_ok' && f.stage !== 'gdrive_ok' && f.stage !== 'gdrive_failed')) {
+      for (const entry of files.filter((f) => f.stage !== 'storage_ok' && f.stage !== 'gdrive_ok' && f.stage !== 'gdrive_failed' && !f.needsReattach)) {
         const r = await processEntry(entry);
         if (r.ok) success++;
-        else failures.push(`${entry.file.name}: ${r.error}`);
+        else failures.push(`${entry.fileName}: ${r.error}`);
       }
 
       if (success > 0) {
