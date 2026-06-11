@@ -150,15 +150,25 @@ async function performApproval(
     return data;
   }
 
-  // Approval flow — fetch profile. Signature + stamp only required for IMAGE mode.
+  // Approval flow — fetch profile. In IMAGE mode a signature is required;
+  // the stamp is only required when the approver has opted in to it
+  // (profile.stamp_required, default true). Lets institutions that only use
+  // signatures approve without ever uploading a stamp image.
   const { data: profile, error: profErr } = await supabase
     .from('profiles')
-    .select('signature_url, stamp_url, full_name')
+    .select('signature_url, stamp_url, full_name, stamp_required, preferred_stamp_mode')
     .eq('user_id', userId)
     .single();
   if (profErr) throw profErr;
-  if (mode === 'IMAGE' && (!profile?.signature_url || !profile?.stamp_url)) {
-    throw new Error('Please upload your signature and stamp in Profile Settings before approving.');
+  const profileAny = profile as unknown as { signature_url?: string; stamp_url?: string; full_name?: string; stamp_required?: boolean };
+  const stampRequired = profileAny?.stamp_required !== false; // default true
+  if (mode === 'IMAGE') {
+    if (!profileAny?.signature_url) {
+      throw new Error('Please add a signature in Profile Settings (upload, draw, or type one) before approving.');
+    }
+    if (stampRequired && !profileAny?.stamp_url) {
+      throw new Error('Please upload a stamp in Profile Settings, or switch off "Stamp required" to approve with just your signature.');
+    }
   }
 
   const stage = status === 'HOD_APPROVED' ? 'HOD' : status === 'DP_APPROVED' ? 'DP' : 'IQA';
@@ -168,9 +178,9 @@ async function performApproval(
     body: {
       documentId: docId,
       stage,
-      signatureUrl: profile?.signature_url || '',
-      stampUrl: profile?.stamp_url || '',
-      approverName: profile?.full_name || '',
+      signatureUrl: profileAny?.signature_url || '',
+      stampUrl: profileAny?.stamp_url || '',
+      approverName: profileAny?.full_name || '',
       placement: placement || null,
       mode,
     },
