@@ -163,18 +163,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Signature & stamp images are stored in a public bucket — direct fetch is fine
-    const [sig, stamp] = await Promise.all([
-      fetchAsArrayBuffer(signatureUrl!),
-      fetchAsArrayBuffer(stampUrl!),
-    ]);
+    // Signature is mandatory in IMAGE mode; stamp is optional (signature-only
+    // approvals are supported when the approver has no stamp configured).
+    const sig = await fetchAsArrayBuffer(signatureUrl!);
+    const stamp = stampUrl ? await fetchAsArrayBuffer(stampUrl) : null;
 
     const embedImage = async (bytes: ArrayBuffer, contentType: string | null) => {
       const isPng = (contentType || "").includes("png") || new Uint8Array(bytes)[0] === 0x89;
       return isPng ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
     };
     const sigImage = await embedImage(sig.buffer, sig.contentType);
-    const stampImage = await embedImage(stamp.buffer, stamp.contentType);
+    const stampImage = stamp ? await embedImage(stamp.buffer, stamp.contentType) : null;
 
     const pages = pdfDoc.getPages();
     const useCustom = placement && (placement.sigX != null || placement.stampX != null);
