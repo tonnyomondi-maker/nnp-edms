@@ -224,7 +224,7 @@ export function PlacementModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Position your {stage} signature & stamp</DialogTitle>
+          <DialogTitle>Position your {stage} {hasStamp ? 'signature & stamp' : 'signature'}</DialogTitle>
           <p className="text-xs text-muted-foreground">
             Drag to move, drag the corner to resize. Use the controls to rotate, resize and adjust opacity.
           </p>
