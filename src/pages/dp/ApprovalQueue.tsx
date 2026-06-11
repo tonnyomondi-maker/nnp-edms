@@ -65,14 +65,19 @@ export default function ApprovalQueue() {
     const doc = docs.find(d => d.id === docId);
     if (!doc) return;
     const { data: profile } = await supabase
-      .from('profiles').select('signature_url, stamp_url').eq('user_id', currentUser!.id).single();
-    if (!profile?.signature_url || !profile?.stamp_url) {
-      toast({ title: 'Setup required', description: 'Upload your signature & stamp in Profile Settings first.', variant: 'destructive' });
+      .from('profiles').select('signature_url, stamp_url, stamp_required').eq('user_id', currentUser!.id).single();
+    const profAny = profile as unknown as { signature_url?: string; stamp_url?: string; stamp_required?: boolean } | null;
+    if (!profAny?.signature_url) {
+      toast({ title: 'Setup required', description: 'Add a signature (upload, draw or type one) in Profile Settings first.', variant: 'destructive' });
+      return;
+    }
+    if (profAny.stamp_required !== false && !profAny.stamp_url) {
+      toast({ title: 'Stamp required', description: 'Upload a stamp in Profile Settings, or turn off "Stamp required" to sign without one.', variant: 'destructive' });
       return;
     }
     try {
       const pdfUrl = await getCachedSignedUrl(doc.signed_file_url || doc.file_url || '');
-      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profile.signature_url, stampUrl: profile.stamp_url });
+      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profAny.signature_url, stampUrl: profAny.stamp_url || '' });
     } catch (e) {
       toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
     }
