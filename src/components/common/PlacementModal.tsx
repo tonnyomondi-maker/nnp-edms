@@ -280,26 +280,28 @@ export function PlacementModal({
                   className="absolute -right-1 -bottom-1 w-3 h-3 bg-primary border border-background cursor-se-resize"
                   style={{ touchAction: 'none' }} />
               </div>
-              <div
-                onPointerDown={onMovePointerDown('stamp')}
-                className="absolute border-2 border-accent-foreground bg-accent cursor-move flex items-center justify-center select-none"
-                style={{
-                  left: `${stamp.x * 100}%`, top: `${stamp.y * 100}%`,
-                  width: `${stamp.w * 100}%`, height: `${stamp.h * 100}%`,
-                  touchAction: 'none',
-                }}
-              >
-                <img src={stampUrl} alt="stamp" className="max-w-full max-h-full object-contain pointer-events-none"
-                  style={{ transform: `rotate(${stamp.rot}deg)`, opacity: stamp.opacity }} />
-                <div onPointerDown={onResizePointerDown('stamp')}
-                  className="absolute -right-1 -bottom-1 w-3 h-3 bg-accent-foreground border border-background cursor-se-resize"
-                  style={{ touchAction: 'none' }} />
-              </div>
+              {hasStamp && (
+                <div
+                  onPointerDown={onMovePointerDown('stamp')}
+                  className="absolute border-2 border-accent-foreground bg-accent cursor-move flex items-center justify-center select-none"
+                  style={{
+                    left: `${stamp.x * 100}%`, top: `${stamp.y * 100}%`,
+                    width: `${stamp.w * 100}%`, height: `${stamp.h * 100}%`,
+                    touchAction: 'none',
+                  }}
+                >
+                  <img src={stampUrl} alt="stamp" className="max-w-full max-h-full object-contain pointer-events-none"
+                    style={{ transform: `rotate(${stamp.rot}deg)`, opacity: stamp.opacity }} />
+                  <div onPointerDown={onResizePointerDown('stamp')}
+                    className="absolute -right-1 -bottom-1 w-3 h-3 bg-accent-foreground border border-background cursor-se-resize"
+                    style={{ touchAction: 'none' }} />
+                </div>
+              )}
             </div>
           </div>
           <div className="w-52 shrink-0 space-y-2 overflow-auto">
             {renderControls('sig', 'Signature')}
-            {renderControls('stamp', 'Stamp')}
+            {hasStamp && renderControls('stamp', 'Stamp')}
           </div>
         </div>
 
