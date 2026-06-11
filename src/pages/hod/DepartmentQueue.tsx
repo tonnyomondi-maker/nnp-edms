@@ -171,15 +171,15 @@ export default function DepartmentQueue() {
                     onSelectChange={(c) => toggleOne(doc.id, c)}
                     actions={showActions ? (
                       <>
-                        <Button size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'VERIFIED BY HOD' with name & date">
+                        <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'VERIFIED BY HOD' with name & date">
                           <Zap className="w-4 h-4" /> Quick Verify
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
+                        </ActionGuardButton>
+                        <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
                           <CheckCircle2 className="w-4 h-4" /> Sign & Approve
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                        </ActionGuardButton>
+                        <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
                           <XCircle className="w-4 h-4" /> Reject
-                        </Button>
+                        </ActionGuardButton>
                       </>
                     ) : undefined}
                   />
