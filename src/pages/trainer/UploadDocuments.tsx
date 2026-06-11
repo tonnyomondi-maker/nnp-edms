@@ -77,6 +77,46 @@ export default function UploadDocuments() {
   const [moduleNumber, setModuleNumber] = useState<number>(1);
   const [files, setFiles] = useState<FileEntry[]>([]);
 
+  // --- Resume across page reloads ---
+  const resume = useUploadResume();
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current || !resume.hydrated) return;
+    hydratedRef.current = true;
+    const snap = resume.hydrated;
+    if (snap.header.sessionYear) setSessionYear(snap.header.sessionYear);
+    if (snap.header.sessionTerm) setSessionTerm(snap.header.sessionTerm as SessionTerm);
+    if (snap.header.department) setDepartment(snap.header.department);
+    if (snap.header.unitCode) setUnitCode(snap.header.unitCode);
+    if (snap.header.unitName) setUnitName(snap.header.unitName);
+    if (snap.header.classCode) setClassCode(snap.header.classCode);
+    if (snap.header.courseType) setCourseType(snap.header.courseType as CourseType);
+    if (snap.header.termNumber) setTermNumber(snap.header.termNumber);
+    if (snap.header.moduleNumber) setModuleNumber(snap.header.moduleNumber);
+    if (snap.header.sessionsPerWeek) setSessionsPerWeek(snap.header.sessionsPerWeek);
+    setFiles(snap.entries.map((e) => ({
+      id: e.id,
+      file: undefined,
+      fileName: e.fileName,
+      documentType: e.documentType as DocumentType | '',
+      weekNumber: e.weekNumber,
+      sessionIndex: e.sessionIndex,
+      originalSize: e.originalSize,
+      estimatedSize: e.estimatedSize,
+      compressed: e.compressed,
+      eligibility: e.eligibility,
+      stage: e.stage,
+      documentId: e.documentId,
+      stageMessage: e.stageMessage,
+      gdriveAttempts: e.gdriveAttempts,
+      needsReattach: e.needsReattach,
+    })));
+    if (snap.entries.some((e) => e.needsReattach)) {
+      toast({ title: 'Resumed previous upload session', description: 'Re-attach pending files to continue, or retry Drive mirrors for already-stored files.' });
+    }
+  }, [resume]);
+
+
   const { data: existingDocs = [] } = useMyDocumentsBySession(sessionYear, sessionTerm);
   const { data: configs = [] } = useMyUnitConfigs(sessionYear, sessionTerm);
 
