@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, RotateCw, Cloud, CloudOff, Lock } from 'lucide-react';
+import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, RotateCw, Cloud, CloudOff, Lock, History, Paperclip } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useSubmitDocument, useMyDocumentsBySession } from '@/hooks/useDocuments';
 import { compressForUpload, formatBytes } from '@/lib/compressUpload';
 import { useMyUnitConfigs, useUpsertUnitConfig } from '@/hooks/useUnitSessionConfig';
 import { useSystemLock } from '@/hooks/useSystemLock';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { useUploadResume } from '@/hooks/useUploadResume';
+import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { supabase } from '@/integrations/supabase/client';
 import {
   DEPARTMENTS,
