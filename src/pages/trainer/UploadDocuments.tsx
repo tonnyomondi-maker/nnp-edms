@@ -128,6 +128,7 @@ export default function UploadDocuments() {
     // Compute compression preview for each so the trainer sees pre/post sizes
     // and an eligibility tag BEFORE they submit.
     valid.forEach(async (entry) => {
+      if (!entry.file) return;
       try {
         const { finalSize } = await compressForUpload(entry.file);
         const compressed = finalSize < entry.originalSize;
@@ -137,6 +138,15 @@ export default function UploadDocuments() {
         setFiles((prev) => prev.map((f) => f.id === entry.id ? { ...f, eligibility: 'OK' } : f));
       }
     });
+  }
+
+  // Re-attach a file that was lost after refresh: keep all metadata, just
+  // bind a fresh File handle.
+  function reattachFile(id: string, file: File) {
+    setFiles((prev) => prev.map((f) => f.id === id ? {
+      ...f, file, fileName: file.name, originalSize: file.size,
+      needsReattach: false, stage: 'idle', stageMessage: undefined, eligibility: 'CHECKING',
+    } : f));
   }
 
   function updateFile(id: string, patch: Partial<FileEntry>) {
