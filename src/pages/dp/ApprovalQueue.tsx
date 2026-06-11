@@ -9,6 +9,7 @@ import { PlacementModal } from '@/components/common/PlacementModal';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { Button } from '@/components/ui/button';
+import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
@@ -65,14 +66,19 @@ export default function ApprovalQueue() {
     const doc = docs.find(d => d.id === docId);
     if (!doc) return;
     const { data: profile } = await supabase
-      .from('profiles').select('signature_url, stamp_url').eq('user_id', currentUser!.id).single();
-    if (!profile?.signature_url || !profile?.stamp_url) {
-      toast({ title: 'Setup required', description: 'Upload your signature & stamp in Profile Settings first.', variant: 'destructive' });
+      .from('profiles').select('signature_url, stamp_url, stamp_required').eq('user_id', currentUser!.id).single();
+    const profAny = profile as unknown as { signature_url?: string; stamp_url?: string; stamp_required?: boolean } | null;
+    if (!profAny?.signature_url) {
+      toast({ title: 'Setup required', description: 'Add a signature (upload, draw or type one) in Profile Settings first.', variant: 'destructive' });
+      return;
+    }
+    if (profAny.stamp_required !== false && !profAny.stamp_url) {
+      toast({ title: 'Stamp required', description: 'Upload a stamp in Profile Settings, or turn off "Stamp required" to sign without one.', variant: 'destructive' });
       return;
     }
     try {
       const pdfUrl = await getCachedSignedUrl(doc.signed_file_url || doc.file_url || '');
-      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profile.signature_url, stampUrl: profile.stamp_url });
+      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profAny.signature_url, stampUrl: profAny.stamp_url || '' });
     } catch (e) {
       toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
     }
@@ -141,15 +147,15 @@ export default function ApprovalQueue() {
                 onSelectChange={(c) => toggleOne(doc.id, c)}
                 actions={showActions ? (
                   <>
-                    <Button size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'APPROVED BY DP ACADEMICS' with name & date">
+                    <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'APPROVED BY DP ACADEMICS' with name & date">
                       <Zap className="w-4 h-4" /> Quick Approve
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
+                    </ActionGuardButton>
+                    <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
                       <CheckCircle2 className="w-4 h-4" /> Sign & Approve
-                    </Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                    </ActionGuardButton>
+                    <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
                       <XCircle className="w-4 h-4" /> Reject
-                    </Button>
+                    </ActionGuardButton>
                   </>
                 ) : undefined}
               />

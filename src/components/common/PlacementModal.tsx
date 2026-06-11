@@ -167,6 +167,8 @@ export function PlacementModal({
 
   const onPointerUp = () => setDrag(null);
 
+  const hasStamp = !!stampUrl;
+
   const handleConfirm = (useDefault: boolean) => {
     if (useDefault) {
       onConfirm({ autofill });
@@ -175,7 +177,9 @@ export function PlacementModal({
       onConfirm({
         page: pageNum,
         sigX: sig.x, sigY: sig.y, sigW: sig.w, sigH: sig.h, sigRot: sig.rot, sigOpacity: sig.opacity,
-        stampX: stamp.x, stampY: stamp.y, stampW: stamp.w, stampH: stamp.h, stampRot: stamp.rot, stampOpacity: stamp.opacity,
+        ...(hasStamp ? {
+          stampX: stamp.x, stampY: stamp.y, stampW: stamp.w, stampH: stamp.h, stampRot: stamp.rot, stampOpacity: stamp.opacity,
+        } : {}),
         autofill,
       });
     }
@@ -220,7 +224,7 @@ export function PlacementModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Position your {stage} signature & stamp</DialogTitle>
+          <DialogTitle>Position your {stage} {hasStamp ? 'signature & stamp' : 'signature'}</DialogTitle>
           <p className="text-xs text-muted-foreground">
             Drag to move, drag the corner to resize. Use the controls to rotate, resize and adjust opacity.
           </p>
@@ -276,26 +280,28 @@ export function PlacementModal({
                   className="absolute -right-1 -bottom-1 w-3 h-3 bg-primary border border-background cursor-se-resize"
                   style={{ touchAction: 'none' }} />
               </div>
-              <div
-                onPointerDown={onMovePointerDown('stamp')}
-                className="absolute border-2 border-accent-foreground bg-accent cursor-move flex items-center justify-center select-none"
-                style={{
-                  left: `${stamp.x * 100}%`, top: `${stamp.y * 100}%`,
-                  width: `${stamp.w * 100}%`, height: `${stamp.h * 100}%`,
-                  touchAction: 'none',
-                }}
-              >
-                <img src={stampUrl} alt="stamp" className="max-w-full max-h-full object-contain pointer-events-none"
-                  style={{ transform: `rotate(${stamp.rot}deg)`, opacity: stamp.opacity }} />
-                <div onPointerDown={onResizePointerDown('stamp')}
-                  className="absolute -right-1 -bottom-1 w-3 h-3 bg-accent-foreground border border-background cursor-se-resize"
-                  style={{ touchAction: 'none' }} />
-              </div>
+              {hasStamp && (
+                <div
+                  onPointerDown={onMovePointerDown('stamp')}
+                  className="absolute border-2 border-accent-foreground bg-accent cursor-move flex items-center justify-center select-none"
+                  style={{
+                    left: `${stamp.x * 100}%`, top: `${stamp.y * 100}%`,
+                    width: `${stamp.w * 100}%`, height: `${stamp.h * 100}%`,
+                    touchAction: 'none',
+                  }}
+                >
+                  <img src={stampUrl} alt="stamp" className="max-w-full max-h-full object-contain pointer-events-none"
+                    style={{ transform: `rotate(${stamp.rot}deg)`, opacity: stamp.opacity }} />
+                  <div onPointerDown={onResizePointerDown('stamp')}
+                    className="absolute -right-1 -bottom-1 w-3 h-3 bg-accent-foreground border border-background cursor-se-resize"
+                    style={{ touchAction: 'none' }} />
+                </div>
+              )}
             </div>
           </div>
           <div className="w-52 shrink-0 space-y-2 overflow-auto">
             {renderControls('sig', 'Signature')}
-            {renderControls('stamp', 'Stamp')}
+            {hasStamp && renderControls('stamp', 'Stamp')}
           </div>
         </div>
 

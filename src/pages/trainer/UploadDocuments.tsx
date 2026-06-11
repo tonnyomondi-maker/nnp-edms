@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, RotateCw, Cloud, CloudOff, Lock } from 'lucide-react';
+import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, RotateCw, Cloud, CloudOff, Lock, History, Paperclip } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useSubmitDocument, useMyDocumentsBySession } from '@/hooks/useDocuments';
 import { compressForUpload, formatBytes } from '@/lib/compressUpload';
 import { useMyUnitConfigs, useUpsertUnitConfig } from '@/hooks/useUnitSessionConfig';
 import { useSystemLock } from '@/hooks/useSystemLock';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
+import { useUploadResume } from '@/hooks/useUploadResume';
+import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { supabase } from '@/integrations/supabase/client';
 import {
   DEPARTMENTS,
@@ -34,7 +36,9 @@ type UploadStage = 'idle' | 'compressing' | 'uploading_storage' | 'storage_ok' |
 
 interface FileEntry {
   id: string;
-  file: File;
+  // After rehydrate, file may be undefined and needsReattach is true.
+  file?: File;
+  fileName: string;
   documentType: DocumentType | '';
   weekNumber?: number;
   sessionIndex?: number;
@@ -47,6 +51,7 @@ interface FileEntry {
   documentId?: string;
   stageMessage?: string;
   gdriveAttempts?: number;
+  needsReattach?: boolean;
 }
 
 // 20 MB hard cap to keep documents eligible for embedding signatures + stamps.
@@ -71,6 +76,46 @@ export default function UploadDocuments() {
   const [termNumber, setTermNumber] = useState<number>(1);
   const [moduleNumber, setModuleNumber] = useState<number>(1);
   const [files, setFiles] = useState<FileEntry[]>([]);
+
+  // --- Resume across page reloads ---
+  const resume = useUploadResume();
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current || !resume.hydrated) return;
+    hydratedRef.current = true;
+    const snap = resume.hydrated;
+    if (snap.header.sessionYear) setSessionYear(snap.header.sessionYear);
+    if (snap.header.sessionTerm) setSessionTerm(snap.header.sessionTerm as SessionTerm);
+    if (snap.header.department) setDepartment(snap.header.department);
+    if (snap.header.unitCode) setUnitCode(snap.header.unitCode);
+    if (snap.header.unitName) setUnitName(snap.header.unitName);
+    if (snap.header.classCode) setClassCode(snap.header.classCode);
+    if (snap.header.courseType) setCourseType(snap.header.courseType as CourseType);
+    if (snap.header.termNumber) setTermNumber(snap.header.termNumber);
+    if (snap.header.moduleNumber) setModuleNumber(snap.header.moduleNumber);
+    if (snap.header.sessionsPerWeek) setSessionsPerWeek(snap.header.sessionsPerWeek);
+    setFiles(snap.entries.map((e) => ({
+      id: e.id,
+      file: undefined,
+      fileName: e.fileName,
+      documentType: e.documentType as DocumentType | '',
+      weekNumber: e.weekNumber,
+      sessionIndex: e.sessionIndex,
+      originalSize: e.originalSize,
+      estimatedSize: e.estimatedSize,
+      compressed: e.compressed,
+      eligibility: e.eligibility,
+      stage: e.stage,
+      documentId: e.documentId,
+      stageMessage: e.stageMessage,
+      gdriveAttempts: e.gdriveAttempts,
+      needsReattach: e.needsReattach,
+    })));
+    if (snap.entries.some((e) => e.needsReattach)) {
+      toast({ title: 'Resumed previous upload session', description: 'Re-attach pending files to continue, or retry Drive mirrors for already-stored files.' });
+    }
+  }, [resume]);
+
 
   const { data: existingDocs = [] } = useMyDocumentsBySession(sessionYear, sessionTerm);
   const { data: configs = [] } = useMyUnitConfigs(sessionYear, sessionTerm);
@@ -111,6 +156,7 @@ export default function UploadDocuments() {
       valid.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file: f,
+        fileName: f.name,
         documentType: '',
         originalSize: f.size,
         eligibility: 'CHECKING',
@@ -122,6 +168,7 @@ export default function UploadDocuments() {
     // Compute compression preview for each so the trainer sees pre/post sizes
     // and an eligibility tag BEFORE they submit.
     valid.forEach(async (entry) => {
+      if (!entry.file) return;
       try {
         const { finalSize } = await compressForUpload(entry.file);
         const compressed = finalSize < entry.originalSize;
@@ -131,6 +178,15 @@ export default function UploadDocuments() {
         setFiles((prev) => prev.map((f) => f.id === entry.id ? { ...f, eligibility: 'OK' } : f));
       }
     });
+  }
+
+  // Re-attach a file that was lost after refresh: keep all metadata, just
+  // bind a fresh File handle.
+  function reattachFile(id: string, file: File) {
+    setFiles((prev) => prev.map((f) => f.id === id ? {
+      ...f, file, fileName: file.name, originalSize: file.size,
+      needsReattach: false, stage: 'idle', stageMessage: undefined, eligibility: 'CHECKING',
+    } : f));
   }
 
   function updateFile(id: string, patch: Partial<FileEntry>) {
@@ -210,6 +266,10 @@ export default function UploadDocuments() {
   }
 
   async function processEntry(entry: FileEntry): Promise<{ ok: boolean; error?: string }> {
+    if (!entry.file) {
+      setStage(entry.id, { stage: 'failed', stageMessage: 'Re-attach the file to continue' });
+      return { ok: false, error: 'Re-attach the file to continue' };
+    }
     const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
     try {
       setStage(entry.id, { stage: 'compressing', stageMessage: 'Compressing…' });
@@ -251,6 +311,35 @@ export default function UploadDocuments() {
     await mirrorToGDrive(entry, entry.documentId);
   }
 
+  // Persist resume snapshot whenever something material changes.
+  useEffect(() => {
+    if (!hydratedRef.current && !resume.hydrated && files.length === 0) return;
+    resume.save({
+      header: { sessionYear, sessionTerm, department, unitCode, unitName, classCode, courseType, termNumber, moduleNumber, sessionsPerWeek },
+      entries: files.map((f) => ({
+        id: f.id,
+        fileName: f.fileName,
+        originalSize: f.originalSize,
+        estimatedSize: f.estimatedSize,
+        compressed: f.compressed,
+        eligibility: f.eligibility,
+        documentType: f.documentType || '',
+        weekNumber: f.weekNumber,
+        sessionIndex: f.sessionIndex,
+        stage: f.stage,
+        documentId: f.documentId,
+        stageMessage: f.stageMessage,
+        gdriveAttempts: f.gdriveAttempts,
+        needsReattach: f.needsReattach,
+      })),
+    });
+    // Auto-clear when nothing is left to resume.
+    if (files.length === 0 || files.every((f) => f.stage === 'gdrive_ok')) {
+      resume.clear();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, sessionYear, sessionTerm, department, unitCode, unitName, classCode, courseType, termNumber, moduleNumber, sessionsPerWeek]);
+
   async function handleSubmit() {
     if (!canSubmit) return;
     try {
@@ -271,10 +360,10 @@ export default function UploadDocuments() {
       let success = 0;
       const failures: string[] = [];
       // Only process files not already uploaded to storage
-      for (const entry of files.filter((f) => f.stage !== 'storage_ok' && f.stage !== 'gdrive_ok' && f.stage !== 'gdrive_failed')) {
+      for (const entry of files.filter((f) => f.stage !== 'storage_ok' && f.stage !== 'gdrive_ok' && f.stage !== 'gdrive_failed' && !f.needsReattach)) {
         const r = await processEntry(entry);
         if (r.ok) success++;
-        else failures.push(`${entry.file.name}: ${r.error}`);
+        else failures.push(`${entry.fileName}: ${r.error}`);
       }
 
       if (success > 0) {
@@ -479,12 +568,30 @@ export default function UploadDocuments() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <FileText className="w-4 h-4 text-primary flex-shrink-0" />
-                    <span className="text-sm font-medium truncate">{entry.file.name}</span>
+                    <span className="text-sm font-medium truncate">{entry.fileName}</span>
+                    {entry.needsReattach && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-200 flex items-center gap-1">
+                        <History className="w-3 h-3" /> Needs re-attach
+                      </span>
+                    )}
                   </div>
                   <button onClick={() => removeFile(entry.id)} className="text-muted-foreground hover:text-destructive">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+
+                {entry.needsReattach && (
+                  <label className="flex items-center gap-2 text-xs text-amber-900 dark:text-amber-200 border border-dashed border-amber-500/50 rounded px-2 py-2 cursor-pointer hover:bg-amber-500/5">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    <span>Re-attach <strong>{entry.fileName}</strong> to resume this upload</span>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) reattachFile(entry.id, f); e.target.value = ''; }}
+                    />
+                  </label>
+                )}
 
                 {/* Eligibility & compression preview */}
                 <div className="flex flex-wrap items-center gap-2 text-[11px]">
@@ -588,10 +695,18 @@ export default function UploadDocuments() {
           {files.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-2">No files added yet</p>
           )}
+          {files.length > 0 && (
+            <div className="flex justify-end pt-1">
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground" onClick={() => { setFiles([]); resume.clear(); }}>
+                <X className="w-3 h-3" /> Clear resume state
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <Button
+      <ActionGuardButton
+        action="upload"
         onClick={handleSubmit}
         disabled={!canSubmit}
         className="w-full touch-target text-base"
@@ -599,7 +714,7 @@ export default function UploadDocuments() {
       >
         {submitDoc.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
         Submit {files.length > 0 ? `${files.length} Document${files.length > 1 ? 's' : ''}` : ''}
-      </Button>
+      </ActionGuardButton>
     </div>
   );
 }

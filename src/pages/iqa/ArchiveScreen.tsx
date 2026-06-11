@@ -7,6 +7,7 @@ import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { Button } from '@/components/ui/button';
+import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -114,14 +115,19 @@ export default function ArchiveScreen() {
     const doc = allPending.find(d => d.id === docId);
     if (!doc) return;
     const { data: profile } = await supabase
-      .from('profiles').select('signature_url, stamp_url').eq('user_id', currentUser!.id).single();
-    if (!profile?.signature_url || !profile?.stamp_url) {
-      toast({ title: 'Setup required', description: 'Upload your signature & stamp in Profile Settings first.', variant: 'destructive' });
+      .from('profiles').select('signature_url, stamp_url, stamp_required').eq('user_id', currentUser!.id).single();
+    const profAny = profile as unknown as { signature_url?: string; stamp_url?: string; stamp_required?: boolean } | null;
+    if (!profAny?.signature_url) {
+      toast({ title: 'Setup required', description: 'Add a signature (upload, draw or type one) in Profile Settings first.', variant: 'destructive' });
+      return;
+    }
+    if (profAny.stamp_required !== false && !profAny.stamp_url) {
+      toast({ title: 'Stamp required', description: 'Upload a stamp in Profile Settings, or turn off "Stamp required" to archive with just your signature.', variant: 'destructive' });
       return;
     }
     try {
       const pdfUrl = await getCachedSignedUrl(doc.signed_file_url || doc.file_url || '');
-      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profile.signature_url, stampUrl: profile.stamp_url });
+      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profAny.signature_url, stampUrl: profAny.stamp_url || '' });
     } catch (e) {
       toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
     }
@@ -197,9 +203,9 @@ export default function ArchiveScreen() {
                 selected={selected.has(doc.id)}
                 onSelectChange={(c) => toggleOne(doc.id, c)}
                 actions={
-                  <Button size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
+                  <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
                     <Archive className="w-4 h-4" /> Archive
-                  </Button>
+                  </ActionGuardButton>
                 }
               />
             ))

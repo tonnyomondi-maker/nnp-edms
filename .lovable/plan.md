@@ -1,72 +1,95 @@
-# Plan: Super Admin, Setup Hardening, Compression & Stamp Date Consistency
+## 1. Persist UploadDocuments resume state
 
-## 1. Designated Super Admin: tonny.omondi@nyamirapoly.ac.ke
-- Update `bootstrap_super_admin` RPC to **only** allow promotion of `tonny.omondi@nyamirapoly.ac.ke` (case-insensitive). Any other email is rejected.
-- On `SystemSetup` Step 1, pre-fill and lock the email field to that address; user only needs to type "CONFIRM" to enable.
-- If the target account has not yet signed up, show a friendly message: "Ask Tonny Omondi to sign up first using tonny.omondi@nyamirapoly.ac.ke, then return here."
-- Auto-bootstrap path: when that user signs in and no SUPER_ADMIN exists, AuthContext silently calls the RPC so role is granted on first login.
+Today the per-file upload list lives in component state and disappears on refresh. I'll persist a metadata-only snapshot to `localStorage` and rehydrate on mount so the retry flow survives reloads.
 
-## 2. Signup: department dropdown + default TRAINER role
-- Replace free-text "Department" input in `src/pages/Auth.tsx` with a `<Select>` populated from `DEPARTMENTS` in `src/lib/sessions.ts`. Required field.
-- Extend `handle_new_user()` trigger to also write `department` and `pf_number` from `raw_user_meta_data`, and to INSERT a `TRAINER` row into `user_roles` for every new user (idempotent via `ON CONFLICT DO NOTHING`).
-- Remove client-side trainer-role assumption; rely on DB trigger.
+**What gets persisted (per file, keyed by user id):**
 
-## 3. Super Admin user management
-- Grant SUPER_ADMIN the same INSERT/UPDATE/DELETE rights on `user_roles` and `profiles` that DP_ACADEMICS has (policies already partly exist; add missing ones).
-- In `ManageUsers.tsx`:
-  - "Add user" dialog (Super Admin only): collects email, name, department, optional "Mark as test user" toggle. Calls a new `admin-create-user` edge function (uses service role to `auth.admin.createUser` with a temp password + email invite).
-  - "Test user" tag stored in `profiles.is_test_user boolean` (new column); shown as badge; filterable.
-  - Role chips already allow add/remove — confirm multi-role works (DP can also be TRAINER+HOD+IQA — backend already supports this).
+- `id`, `fileName`, `originalSize`, `estimatedSize`, `compressed`, `eligibility`
+- `documentType`, `weekNumber`, `sessionIndex`
+- `stage`, `documentId`, `stageMessage`, `gdriveAttempts`
+- Header fields (`sessionYear`, `sessionTerm`, `department`, `unitCode`, `unitName`, `classCode`, `courseType`, `termNumber`, `moduleNumber`, `sessionsPerWeek`)
 
-## 4. System Reset (fresh start)
-- Add Step 5 "Danger Zone" in `SystemSetup.tsx`, visible only to SUPER_ADMIN.
-- Button "Reset all data" → modal requires typing `RESET <year>-<month>-<day>` to confirm.
-- Calls new `system-reset` edge function (service role) that:
-  - Deletes all rows from `documents`, `audit_logs`, `role_change_audit`, `unit_session_config`, `teaching_assignments`.
-  - Empties `documents` and `signatures` storage buckets.
-  - Preserves `profiles`, `user_roles`, and the SUPER_ADMIN.
-  - Writes a final `audit_logs` entry `SYSTEM_RESET` with actor + timestamp **after** wipe.
+**What it does not persist:** the raw `File` blob (browsers cannot serialize it safely). Strategy:
 
-## 5. IQA early-download DPA 2019 acknowledgement modal
-- Before any IQA early download in `ArchiveScreen.tsx`, show a blocking dialog that:
-  - Lists Kenya DPA 2019 obligations (lawful basis s.30, purpose limitation, confidentiality, retention).
-  - Requires checking "I acknowledge my obligations under the Kenya Data Protection Act 2019" + typing the reason (existing min-10-char rule).
-  - Acknowledgement (`dpa_acknowledged: true`) is stored in the audit_logs `details` jsonb.
-- Acknowledgement is required every time (not cached), per compliance best practice.
+- Files that already reached `storage_ok` / `gdrive_ok` / `gdrive_failed` have a `documentId`. After refresh they're fully usable — the **Retry Drive upload** button works because it only needs `documentId`.
+- Files still in `idle` / `compressing` / `uploading_storage` are rehydrated as a placeholder card marked **Needs re-attach** with the original filename and metadata. The trainer can either reattach the same file (matched by name) to continue, or remove it.
+- A new **Clear resume state** action wipes the snapshot.
 
-## 6. Upload compression while preserving eligibility
-- New util `src/lib/compressUpload.ts`:
-  - **PDF**: load with `pdf-lib`, re-save with `useObjectStreams: true` and re-encode embedded images via canvas at 150 DPI / JPEG q=0.82. Skip if resulting file is larger than original.
-  - **Images (jpg/png)**: resize so max dimension ≤ 2200px, re-encode as JPEG q=0.85.
-  - **Other types** (docx, xlsx): pass through unchanged.
-  - Hard cap: never produce a file smaller than 50KB unless original was; never alter PDF text content.
-- Wire into `src/pages/trainer/UploadDocuments.tsx` before storage upload; show "Optimised 4.2 MB → 1.1 MB" toast.
+Snapshot is written on every state change (debounced) and cleared once all entries reach a terminal state (`gdrive_ok` or removed).
 
-## 7. Consistent stamp dates across exports (new DB fields)
-- Migration:
-  - `documents.verified_by_hod_at timestamptz` — set on HOD approve, immutable thereafter.
-  - `documents.approved_by_dp_academics_at timestamptz` — set on DP approve, immutable thereafter.
-  - Backfill from existing `hod_approved_at` / `dp_approved_at`.
-  - Trigger blocks UPDATE if either column is already non-null (prevents re-dating on re-stamp/re-export).
-- `useDocuments.ts`: when transitioning to `HOD_APPROVED` / `DP_APPROVED`, set the new field only if currently null.
-- `stamp-document/index.ts`: TEXT_ONLY and IMAGE branches read these fields from the document row and render the **stored** date/time instead of `new Date()`. Same value is used in any future re-export, ensuring identical text across ZIPs and PDFs.
+## 2. Role-aware action buttons with tooltips
 
-## 8. Fault tolerance pass
-- Wrap every Supabase call in `SystemSetup`, `ManageUsers`, `ArchiveScreen`, and edge functions with try/catch + user-friendly toast (no silent failures).
-- Add retries (3× exponential backoff) for `stamp-document`, `export-session-zip`, and the new `admin-create-user` / `system-reset` invocations.
-- All edge functions: validate body with `zod`, return 400 with field errors; 500 paths always include `corsHeaders`.
-- `AuthContext`: if profile load fails, retry once and fall back to a minimal user object rather than freezing the app.
-- Storage download fallbacks: try signed URL → public URL → service-role download in order.
+Wrap every action button across the app in a shared `<ActionGuardButton>` that uses `useRoleGuard` to disable the button when `canActOn(action, doc)` is false and renders a `<Tooltip>` showing `guard.reasonFor(action, doc)` (e.g. "Switch to your HOD role to verify this document.", "System safety lock is active — writes are blocked.", "Only Super Admin can delete documents.").
 
----
+Buttons updated:
 
-## Technical Notes
-- New migrations: dept dropdown trigger update, super-admin email pin, `is_test_user`, reset audit action enum-free (already text), `verified_by_hod_at` + `approved_by_dp_academics_at` columns + immutability trigger.
-- New edge functions: `admin-create-user`, `system-reset` (both `verify_jwt = false` with in-code JWT + SUPER_ADMIN check).
-- No changes to existing approval flow semantics; only date source changes.
-- Compression is client-side only (no server cost); skip-on-larger guard prevents regressions.
+- `UploadDocuments`: Submit, Retry Drive upload
+- `hod/DepartmentQueue`, `dp/ApprovalQueue`, `iqa/ArchiveScreen`: Approve, Reject, Bulk actions
+- `MySubmissions`, `Reports`, `SessionExports`: Export
+- `admin/ManageUsers`, `admin/SystemBackups`: Delete / Reset
+- `DocumentCard` action menu: View (always) vs Approve/Reject/Delete (guarded)
 
-## Out of Scope
-- Changing existing IQA archive signature/stamp placement flow.
-- Re-architecting role model (multi-role already supported).
-- Email template customisation for invited users (uses Supabase default).
+A single component keeps copy consistent and screen-reader friendly (`aria-disabled` + tooltip describing the reason).
+
+## 3. Flexible signature & approval flow
+
+**Current behavior (verified):** `performApproval` in `useDocuments.ts` requires both `signature_url` and `stamp_url` when `mode='IMAGE'`. There is already a `TEXT_ONLY` mode but the UI only exposes it implicitly during bulk approvals.
+
+**Changes:**
+
+*ProfileSettings*
+
+- Add a **Signature method** selector with three options that the approver can switch between any time:
+  1. **Upload image** — current PNG upload (unchanged).
+  2. **Draw signature** — a small `<canvas>` pad; saved as transparent PNG to the `signatures` bucket using the same path scheme.
+  3. **Typed signature** — pick a handwriting font + name; rendered to PNG on save.
+- Add a stamp **optional** toggle: many institutions only require a signature. When stamp is missing the approval pipeline falls back to signature-only embedding.
+- Show **Approval readiness** status: "Ready (image)", "Ready (text-only)", or "Needs setup" with a one-click switch.
+
+*Approval action UI (`PlacementModal` and queues)*
+
+- Replace the implicit mode with an explicit toggle group: **Image stamp** / **Text-only stamp**. Default = whichever the approver last used (persisted in profile column `preferred_stamp_mode`).
+- In Image mode allow per-approval tweaks: size, rotation, opacity sliders for both signature and stamp; "Save as my default" stores them on the profile so next approval reuses them.
+- Allow approval to proceed with **only a signature** (no stamp) when the approver chose that path — back-end check is relaxed accordingly.
+
+*Backend*
+
+- `performApproval`: only require `signature_url` (not `stamp_url`) in IMAGE mode; pass `stampUrl: ''` to `stamp-document` when absent.
+- Migration: add `profiles.preferred_stamp_mode` (`IMAGE`|`TEXT_ONLY`, default `IMAGE`), `profiles.stamp_required` (bool, default true), and default placement columns (`default_sig_w`, `default_sig_h`, `default_sig_opacity`, etc.) for "Save as my default".
+- `stamp-document` edge function already tolerates an empty `stampUrl` for text-only; verify and update the branch that skips stamp embedding when the URL is empty in image mode too.
+
+## 4. Are files now stored in Google Drive?
+
+**Yes — mirrored, not replaced.** Today's flow (in `useDocuments.useSubmitDocument` + `supabase/functions/gdrive-upload`):
+
+1. Trainer submit → file uploaded to Lovable Cloud Storage `documents` bucket (with 3-attempt retry).
+2. Row inserted into `documents` table.
+3. `gdrive-upload` edge function is invoked best-effort. It downloads from Storage, then POSTs a multipart upload through the Lovable connector gateway to **Tonny's connected Google Drive account** with up to 4 retries + exponential backoff.
+4. On success the row is updated with `gdrive_file_id` and `gdrive_web_view_link`, and an `audit_logs` row with `action='GDRIVE_MIRRORED'` is written.
+
+**Important caveats to surface in the UI:**
+
+- The connector uses the `drive.file` scope, so files land in the **root of the connected Drive** (not in nested folders); the intended `EDMS/{year}_{term}/{dept}/{unit}` path is stored in the file description for searchability. If you want real folders, we'd need to switch to a per-user OAuth flow with the broader `drive` scope.
+- The Drive copy is a **backup mirror**. The app still serves PDFs from Lovable Storage; nothing currently reads the file back from Drive.
+- Drive uploads are best-effort: storage upload is the source of truth, the Drive mirror retry button (already in UploadDocuments) and the new persisted resume state let the trainer recover failed mirrors after refresh.
+
+## Technical changes
+
+**Frontend**
+
+- `src/hooks/useUploadResume.ts` — new: localStorage snapshot read/write, debounced.
+- `src/pages/trainer/UploadDocuments.tsx` — hydrate from snapshot, render "Needs re-attach" placeholders, wire Clear button.
+- `src/components/common/ActionGuardButton.tsx` — new wrapper around `Button` + `Tooltip` + `useRoleGuard`.
+- Replace direct `<Button>` action calls across queues, archive, reports, exports, manage-users, system-backups, document card.
+- `src/pages/ProfileSettings.tsx` — signature method tabs (upload/draw/type), stamp-optional toggle, readiness badge, defaults persistence.
+- `src/components/common/PlacementModal.tsx` — explicit Image vs Text-only toggle, "Save as default" action.
+- `src/hooks/useDocuments.ts` — relax stamp requirement; thread chosen mode + saved defaults.
+
+**Backend**
+
+- Migration: add `preferred_stamp_mode`, `stamp_required`, `default_sig_*`, `default_stamp_*` columns on `profiles`.
+- `supabase/functions/stamp-document/index.ts` — skip stamp embedding when `stampUrl` is empty (image mode); keep text-only path intact.
+
+No schema changes touch `documents`, `audit_logs`, or storage policies. Google Drive integration is unchanged in this pass — we only document its current behavior and offer the folder-scope upgrade as a follow-up.  Proceed.
+
+&nbsp;
