@@ -167,6 +167,8 @@ export function PlacementModal({
 
   const onPointerUp = () => setDrag(null);
 
+  const hasStamp = !!stampUrl;
+
   const handleConfirm = (useDefault: boolean) => {
     if (useDefault) {
       onConfirm({ autofill });
@@ -175,7 +177,9 @@ export function PlacementModal({
       onConfirm({
         page: pageNum,
         sigX: sig.x, sigY: sig.y, sigW: sig.w, sigH: sig.h, sigRot: sig.rot, sigOpacity: sig.opacity,
-        stampX: stamp.x, stampY: stamp.y, stampW: stamp.w, stampH: stamp.h, stampRot: stamp.rot, stampOpacity: stamp.opacity,
+        ...(hasStamp ? {
+          stampX: stamp.x, stampY: stamp.y, stampW: stamp.w, stampH: stamp.h, stampRot: stamp.rot, stampOpacity: stamp.opacity,
+        } : {}),
         autofill,
       });
     }
