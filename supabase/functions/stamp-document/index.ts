@@ -96,8 +96,8 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (mode === "IMAGE" && (!signatureUrl || !stampUrl)) {
-      return new Response(JSON.stringify({ error: "Signature and stamp required for image mode" }), {
+    if (mode === "IMAGE" && !signatureUrl) {
+      return new Response(JSON.stringify({ error: "Signature is required for image mode" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
