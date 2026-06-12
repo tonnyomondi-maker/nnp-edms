@@ -102,6 +102,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Re-check per-document-type policy server-side so a tampered client
+    // cannot bypass a stamp requirement.
+    const { data: policyRow } = await supabase
+      .from("document_type_policy")
+      .select("signature_only_allowed,stamp_required")
+      .eq("document_type", (await supabase.from("documents").select("document_type").eq("id", documentId).single()).data?.document_type ?? "")
+      .maybeSingle();
+    const stampMandatory = (policyRow?.stamp_required ?? true) && !(policyRow?.signature_only_allowed ?? false);
+    if (stampMandatory && !stampUrl && mode === "IMAGE") {
+      return new Response(JSON.stringify({ error: "Policy requires an embedded stamp for this document type." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (mode === "TEXT_ONLY" && (policyRow?.stamp_required ?? true) && !(policyRow?.signature_only_allowed ?? false)) {
+      return new Response(JSON.stringify({ error: "Text-only approval is not allowed for this document type." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: doc, error: docErr } = await supabase
       .from("documents").select("*").eq("id", documentId).single();
     if (docErr || !doc) throw new Error("Document not found");

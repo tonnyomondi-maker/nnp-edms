@@ -1,95 +1,85 @@
-## 1. Persist UploadDocuments resume state
+## 1. Admin "System Reset" entry point
 
-Today the per-file upload list lives in component state and disappears on refresh. I'll persist a metadata-only snapshot to `localStorage` and rehydrate on mount so the retry flow survives reloads.
+The backend already exists: `supabase/functions/system-reset/index.ts` (Super-Admin only, requires `RESET YYYY-MM-DD` confirmation, engages safety lock, wipes storage + data tables, leaves profiles/roles/system_settings intact, writes a `SYSTEM_RESET` audit row). It's currently surfaced inside `admin/SystemBackups.tsx` only.
 
-**What gets persisted (per file, keyed by user id):**
+Add a dedicated, more discoverable **System Reset** card on `admin/SystemSetup.tsx`:
 
-- `id`, `fileName`, `originalSize`, `estimatedSize`, `compressed`, `eligibility`
-- `documentType`, `weekNumber`, `sessionIndex`
-- `stage`, `documentId`, `stageMessage`, `gdriveAttempts`
-- Header fields (`sessionYear`, `sessionTerm`, `department`, `unitCode`, `unitName`, `classCode`, `courseType`, `termNumber`, `moduleNumber`, `sessionsPerWeek`)
+- Red-bordered destructive card visible only to active Super Admin.
+- Shows the same `RESET <today>` confirmation input + a typed checkbox ("I understand this wipes all documents and audit history").
+- Calls the existing `system-reset` function via `supabase.functions.invoke`.
+- Disables itself when the safety lock is already engaged by another admin.
+- Shows last-reset timestamp pulled from `audit_logs` (action=`SYSTEM_RESET`).
 
-**What it does not persist:** the raw `File` blob (browsers cannot serialize it safely). Strategy:
+No new edge function, no schema change.
 
-- Files that already reached `storage_ok` / `gdrive_ok` / `gdrive_failed` have a `documentId`. After refresh they're fully usable — the **Retry Drive upload** button works because it only needs `documentId`.
-- Files still in `idle` / `compressing` / `uploading_storage` are rehydrated as a placeholder card marked **Needs re-attach** with the original filename and metadata. The trainer can either reattach the same file (matched by name) to continue, or remove it.
-- A new **Clear resume state** action wipes the snapshot.
+## 2. Extend `ActionGuardButton` coverage to export / report actions
 
-Snapshot is written on every state change (debounced) and cleared once all entries reach a terminal state (`gdrive_ok` or removed).
+Add a new `DocAction` value `'export'` already exists in `useRoleGuard.ts` but currently returns `true` for everyone. Refine:
 
-## 2. Role-aware action buttons with tooltips
+- `'export'` allowed for: active TRAINER (own scope), HOD, DP_ACADEMICS, IQA, SUPER_ADMIN. Not blocked by lock.
+- `'reset'` (new) allowed only for active SUPER_ADMIN, **blocked when lock is on unless caller is the locker**.
 
-Wrap every action button across the app in a shared `<ActionGuardButton>` that uses `useRoleGuard` to disable the button when `canActOn(action, doc)` is false and renders a `<Tooltip>` showing `guard.reasonFor(action, doc)` (e.g. "Switch to your HOD role to verify this document.", "System safety lock is active — writes are blocked.", "Only Super Admin can delete documents.").
+Wrap the following buttons in `ActionGuardButton`:
 
-Buttons updated:
+- `pages/Reports.tsx` — "Export CSV" / "Export PDF" buttons.
+- `pages/admin/SessionExports.tsx` — "Export ZIP" and "Export & free storage" buttons.
+- `pages/trainer/MySubmissions.tsx` — per-row "Download" / "Export" buttons.
+- `pages/admin/SystemBackups.tsx` — existing reset button (move/share with new SystemSetup card via shared component).
+- `pages/admin/ManageUsers.tsx` — Delete user button (action=`'delete'`, already exists).
 
-- `UploadDocuments`: Submit, Retry Drive upload
-- `hod/DepartmentQueue`, `dp/ApprovalQueue`, `iqa/ArchiveScreen`: Approve, Reject, Bulk actions
-- `MySubmissions`, `Reports`, `SessionExports`: Export
-- `admin/ManageUsers`, `admin/SystemBackups`: Delete / Reset
-- `DocumentCard` action menu: View (always) vs Approve/Reject/Delete (guarded)
+Tooltip copy comes from `useRoleGuard.reasonFor`, with new strings for `'export'` and `'reset'`.
 
-A single component keeps copy consistent and screen-reader friendly (`aria-disabled` + tooltip describing the reason).
+## 3. Per-document-type signature-only policy
 
-## 3. Flexible signature & approval flow
+Today `profiles.stamp_required` is a single per-approver boolean. Replace with a per-document-type map so admins can say "Weekly Class Attendance can be signature-only, One-time Course Outline requires a stamp."
 
-**Current behavior (verified):** `performApproval` in `useDocuments.ts` requires both `signature_url` and `stamp_url` when `mode='IMAGE'`. There is already a `TEXT_ONLY` mode but the UI only exposes it implicitly during bulk approvals.
+**Schema (migration)**
 
-**Changes:**
+New table:
 
-*ProfileSettings*
+```text
+public.document_type_policy
+  document_type            document_type PRIMARY KEY
+  signature_only_allowed   boolean   NOT NULL DEFAULT false
+  stamp_required           boolean   NOT NULL DEFAULT true
+  notes                    text
+  updated_by               uuid
+  updated_at               timestamptz
+```
 
-- Add a **Signature method** selector with three options that the approver can switch between any time:
-  1. **Upload image** — current PNG upload (unchanged).
-  2. **Draw signature** — a small `<canvas>` pad; saved as transparent PNG to the `signatures` bucket using the same path scheme.
-  3. **Typed signature** — pick a handwriting font + name; rendered to PNG on save.
-- Add a stamp **optional** toggle: many institutions only require a signature. When stamp is missing the approval pipeline falls back to signature-only embedding.
-- Show **Approval readiness** status: "Ready (image)", "Ready (text-only)", or "Needs setup" with a one-click switch.
+- GRANT SELECT to authenticated, ALL to service_role.
+- RLS: SELECT to authenticated; INSERT/UPDATE/DELETE only to SUPER_ADMIN via `has_role`.
+- Seed defaults: WEEKLY-submission types (`Class Attendance`, `Session Plan`) → `signature_only_allowed = true, stamp_required = false`. ONE_TIME types (`Learning Plan`, `Personal Timetable`, `Workload Allocation`, `Scheme of Work`, `Course Outline`) → `stamp_required = true`.
 
-*Approval action UI (`PlacementModal` and queues)*
+**Admin UI**
 
-- Replace the implicit mode with an explicit toggle group: **Image stamp** / **Text-only stamp**. Default = whichever the approver last used (persisted in profile column `preferred_stamp_mode`).
-- In Image mode allow per-approval tweaks: size, rotation, opacity sliders for both signature and stamp; "Save as my default" stores them on the profile so next approval reuses them.
-- Allow approval to proceed with **only a signature** (no stamp) when the approver chose that path — back-end check is relaxed accordingly.
+- New page `pages/admin/ApprovalPolicies.tsx` (linked from `SystemSetup`). Table of document types with two toggles per row: "Allow signature-only" and "Stamp required". Super-Admin only, wrapped in `ActionGuardButton`.
 
-*Backend*
+**Approval flow integration**
 
-- `performApproval`: only require `signature_url` (not `stamp_url`) in IMAGE mode; pass `stampUrl: ''` to `stamp-document` when absent.
-- Migration: add `profiles.preferred_stamp_mode` (`IMAGE`|`TEXT_ONLY`, default `IMAGE`), `profiles.stamp_required` (bool, default true), and default placement columns (`default_sig_w`, `default_sig_h`, `default_sig_opacity`, etc.) for "Save as my default".
-- `stamp-document` edge function already tolerates an empty `stampUrl` for text-only; verify and update the branch that skips stamp embedding when the URL is empty in image mode too.
+- `useDocuments.performApproval`: before validating `signature_url` / `stamp_url`, fetch the policy row for `doc.document_type`. Effective rule = `policy.stamp_required && !(policy.signature_only_allowed && approverChoseTextOrSignatureOnly)`. Approver's `profiles.preferred_stamp_mode` only narrows the choice; it cannot bypass a policy that mandates a stamp.
+- `PlacementModal.tsx`: hide / disable the "Text-only" and "Signature only" toggles when policy forbids them, with an inline note: "Stamp required for this document type."
+- `stamp-document` edge function: re-check the policy server-side using `service_role` client; reject the request if signature-only is used on a type that requires stamp.
 
-## 4. Are files now stored in Google Drive?
+**Profile changes**
 
-**Yes — mirrored, not replaced.** Today's flow (in `useDocuments.useSubmitDocument` + `supabase/functions/gdrive-upload`):
+- Keep `profiles.preferred_stamp_mode` (UX default).
+- Treat `profiles.stamp_required` as deprecated; the policy table is the source of truth. Migration leaves the column for backward-compat but UI in `ProfileSettings` is removed and replaced with a read-only "Policy summary" listing which document types accept signature-only for the current approver.
 
-1. Trainer submit → file uploaded to Lovable Cloud Storage `documents` bucket (with 3-attempt retry).
-2. Row inserted into `documents` table.
-3. `gdrive-upload` edge function is invoked best-effort. It downloads from Storage, then POSTs a multipart upload through the Lovable connector gateway to **Tonny's connected Google Drive account** with up to 4 retries + exponential backoff.
-4. On success the row is updated with `gdrive_file_id` and `gdrive_web_view_link`, and an `audit_logs` row with `action='GDRIVE_MIRRORED'` is written.
+## Files
 
-**Important caveats to surface in the UI:**
+**New**
+- `supabase/migrations/<ts>_document_type_policy.sql`
+- `src/pages/admin/ApprovalPolicies.tsx`
+- `src/components/admin/SystemResetCard.tsx` (shared between SystemSetup and SystemBackups)
+- `src/hooks/useDocTypePolicy.ts`
 
-- The connector uses the `drive.file` scope, so files land in the **root of the connected Drive** (not in nested folders); the intended `EDMS/{year}_{term}/{dept}/{unit}` path is stored in the file description for searchability. If you want real folders, we'd need to switch to a per-user OAuth flow with the broader `drive` scope.
-- The Drive copy is a **backup mirror**. The app still serves PDFs from Lovable Storage; nothing currently reads the file back from Drive.
-- Drive uploads are best-effort: storage upload is the source of truth, the Drive mirror retry button (already in UploadDocuments) and the new persisted resume state let the trainer recover failed mirrors after refresh.
+**Modified**
+- `src/hooks/useRoleGuard.ts` — refine `'export'`, add `'reset'`, reason strings.
+- `src/pages/Reports.tsx`, `src/pages/admin/SessionExports.tsx`, `src/pages/trainer/MySubmissions.tsx`, `src/pages/admin/SystemBackups.tsx`, `src/pages/admin/ManageUsers.tsx`, `src/pages/admin/SystemSetup.tsx` — wrap action buttons.
+- `src/hooks/useDocuments.ts` — policy-aware validation in `performApproval`.
+- `src/components/common/PlacementModal.tsx` — hide disallowed modes per policy.
+- `src/pages/ProfileSettings.tsx` — remove stamp-required toggle, add policy summary.
+- `supabase/functions/stamp-document/index.ts` — server-side policy enforcement.
 
-## Technical changes
-
-**Frontend**
-
-- `src/hooks/useUploadResume.ts` — new: localStorage snapshot read/write, debounced.
-- `src/pages/trainer/UploadDocuments.tsx` — hydrate from snapshot, render "Needs re-attach" placeholders, wire Clear button.
-- `src/components/common/ActionGuardButton.tsx` — new wrapper around `Button` + `Tooltip` + `useRoleGuard`.
-- Replace direct `<Button>` action calls across queues, archive, reports, exports, manage-users, system-backups, document card.
-- `src/pages/ProfileSettings.tsx` — signature method tabs (upload/draw/type), stamp-optional toggle, readiness badge, defaults persistence.
-- `src/components/common/PlacementModal.tsx` — explicit Image vs Text-only toggle, "Save as default" action.
-- `src/hooks/useDocuments.ts` — relax stamp requirement; thread chosen mode + saved defaults.
-
-**Backend**
-
-- Migration: add `preferred_stamp_mode`, `stamp_required`, `default_sig_*`, `default_stamp_*` columns on `profiles`.
-- `supabase/functions/stamp-document/index.ts` — skip stamp embedding when `stampUrl` is empty (image mode); keep text-only path intact.
-
-No schema changes touch `documents`, `audit_logs`, or storage policies. Google Drive integration is unchanged in this pass — we only document its current behavior and offer the folder-scope upgrade as a follow-up.  Proceed.
-
-&nbsp;
+No changes to Google Drive flow or storage buckets.

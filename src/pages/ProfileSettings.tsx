@@ -233,50 +233,54 @@ export default function ProfileSettings() {
               )}
             </div>
 
-            {/* Stamp settings */}
+            {/* Stamp settings — per-document-type policy controls when stamp is mandatory.
+                The approver can still upload/replace/remove a stamp image. */}
             <div className="space-y-2 border-t pt-4">
               <div className="flex items-center justify-between gap-2">
                 <Label className="flex flex-col">
-                  <span>Stamp required to approve</span>
-                  <span className="text-[10px] font-normal text-muted-foreground">Turn off if your institution only requires a signature.</span>
+                  <span>Use signature-only when policy allows</span>
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    Super Admin sets per-document-type rules. When a document type allows it and this is on, your approvals skip the stamp.
+                  </span>
                 </Label>
-                <Switch checked={stampRequired} onCheckedChange={handleToggleStampRequired} />
+                <Switch checked={!stampRequired} onCheckedChange={(v) => handleToggleStampRequired(!v)} />
               </div>
 
-              {stampRequired && (
-                <div className="flex items-center gap-3 pt-1">
-                  <div className="w-20 h-20 rounded border border-border bg-muted flex items-center justify-center overflow-hidden">
-                    {stampUrl ? (
-                      <img src={stampUrl} alt="stamp" className="max-h-full max-w-full object-contain" />
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">No stamp</span>
-                    )}
-                  </div>
-                  <input
-                    ref={stampInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    className="hidden"
-                    onChange={(e) => e.target.files?.[0] && handleUploadAsset('stamp', e.target.files[0])}
-                  />
-                  <Button variant="outline" size="sm" disabled={uploadingStamp} onClick={() => stampInputRef.current?.click()} className="gap-1">
-                    {uploadingStamp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                    {stampUrl ? 'Replace' : 'Upload'}
-                  </Button>
-                  {stampUrl && (
-                    <Button variant="ghost" size="sm" onClick={handleRemoveStamp} className="gap-1 text-destructive">
-                      <Trash2 className="w-3.5 h-3.5" /> Remove
-                    </Button>
+              <div className="flex items-center gap-3 pt-1">
+                <div className="w-20 h-20 rounded border border-border bg-muted flex items-center justify-center overflow-hidden">
+                  {stampUrl ? (
+                    <img src={stampUrl} alt="stamp" className="max-h-full max-w-full object-contain" />
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">No stamp</span>
                   )}
                 </div>
-              )}
+                <input
+                  ref={stampInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.[0] && handleUploadAsset('stamp', e.target.files[0])}
+                />
+                <Button variant="outline" size="sm" disabled={uploadingStamp} onClick={() => stampInputRef.current?.click()} className="gap-1">
+                  {uploadingStamp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  {stampUrl ? 'Replace' : 'Upload'}
+                </Button>
+                {stampUrl && (
+                  <Button variant="ghost" size="sm" onClick={handleRemoveStamp} className="gap-1 text-destructive">
+                    <Trash2 className="w-3.5 h-3.5" /> Remove
+                  </Button>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Document types that require a stamp will still need one regardless of this toggle.
+              </p>
             </div>
 
             {!ready && (
               <div className="rounded border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs p-2">
                 {!sigReady
                   ? 'Add a signature to unlock the “Sign & Approve” action. You can still use Quick Verify (text-only) without one.'
-                  : 'Upload a stamp, or turn off “Stamp required” to approve with just your signature.'}
+                  : 'Upload a stamp — some document types require one. Super Admin can allow signature-only per document type in Approval Policies.'}
               </div>
             )}
           </CardContent>

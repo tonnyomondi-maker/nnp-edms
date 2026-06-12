@@ -11,6 +11,8 @@ import { toast } from '@/hooks/use-toast';
 import { CheckCircle2, Circle, ShieldCheck, Users, Building2, FileDown, Loader2, AlertTriangle } from 'lucide-react';
 import { DEPARTMENTS } from '@/lib/sessions';
 import { Link, Navigate } from 'react-router-dom';
+import { SystemResetCard } from '@/components/admin/SystemResetCard';
+import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 
 const SUPER_ADMIN_EMAIL = 'tonny.omondi@nyamirapoly.ac.ke';
 const ALL_ROLES: UserRole[] = ['TRAINER', 'HOD', 'DP_ACADEMICS', 'IQA', 'SUPER_ADMIN'];
@@ -34,11 +36,8 @@ export default function SystemSetup() {
   const [busy, setBusy] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
-  const [resetText, setResetText] = useState('');
-  const [resetBusy, setResetBusy] = useState(false);
-
   const isSuperAdmin = currentUser?.roles.includes('SUPER_ADMIN');
-  const todayKey = new Date().toISOString().slice(0, 10);
+
 
   const checkSuperAdmin = async () => {
     const { data, error } = await supabase
@@ -110,22 +109,6 @@ export default function SystemSetup() {
     }
   };
 
-  const handleReset = async () => {
-    if (resetText.trim() !== `RESET ${todayKey}`) {
-      toast({ title: 'Confirmation text mismatch', description: `Type exactly: RESET ${todayKey}`, variant: 'destructive' });
-      return;
-    }
-    setResetBusy(true);
-    const { data, error } = await supabase.functions.invoke('system-reset', { body: { confirm: resetText.trim() } });
-    setResetBusy(false);
-    if (error || (data as { error?: string })?.error) {
-      toast({ title: 'Reset failed', description: error?.message || (data as { error?: string })?.error, variant: 'destructive' });
-    } else {
-      toast({ title: 'System reset complete', description: 'All documents, configs and audit data cleared.' });
-      setResetText('');
-      loadUsers(); loadAudit();
-    }
-  };
 
   const addRole = async (userId: string, role: UserRole) => {
     const { error } = await supabase.from('user_roles').insert({ user_id: userId, role });
@@ -344,10 +327,10 @@ export default function SystemSetup() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Role & Department Audit Trail</CardTitle>
-            <Button size="sm" variant="outline" onClick={exportAudit} disabled={audit.length === 0}>
+            <ActionGuardButton action="export" size="sm" variant="outline" onClick={exportAudit} disabled={audit.length === 0}>
               <FileDown className="w-4 h-4 mr-1" />
               Export CSV
-            </Button>
+            </ActionGuardButton>
           </CardHeader>
           <CardContent>
             {audit.length === 0 ? (
@@ -375,40 +358,23 @@ export default function SystemSetup() {
                 ))}
               </div>
             )}
-            <div className="pt-3">
+            <div className="pt-3 flex gap-2 flex-wrap">
               <Button asChild variant="outline">
                 <Link to="/admin/users">Open full user manager</Link>
               </Button>
+              {isSuperAdmin && (
+                <Button asChild variant="outline">
+                  <Link to="/admin/policies">Approval policies</Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
       {/* STEP 5: Danger Zone (SUPER_ADMIN only) */}
-      {step === 5 && isSuperAdmin && (
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2 text-destructive">
-              <AlertTriangle className="w-4 h-4" />
-              Danger Zone — Reset All Data
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              This deletes <strong>all</strong> documents, audit logs, unit configs, teaching assignments, and uploaded files.
-              User accounts, roles, and Super Admin are preserved.
-            </p>
-            <p className="text-sm">
-              To confirm, type exactly: <code className="bg-muted px-1.5 py-0.5 rounded">RESET {todayKey}</code>
-            </p>
-            <Input value={resetText} onChange={(e) => setResetText(e.target.value)} placeholder={`RESET ${todayKey}`} />
-            <Button variant="destructive" onClick={handleReset} disabled={resetBusy || resetText.trim() !== `RESET ${todayKey}`}>
-              {resetBusy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Permanently reset system
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {step === 5 && isSuperAdmin && <SystemResetCard onAfterReset={() => { loadUsers(); loadAudit(); }} />}
+
     </div>
   );
 }
