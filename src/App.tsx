@@ -20,6 +20,7 @@ import ManageAssignments from "./pages/admin/ManageAssignments";
 import SessionExports from "./pages/admin/SessionExports";
 import SystemSetup from "./pages/admin/SystemSetup";
 import SystemBackups from "./pages/admin/SystemBackups";
+import ApprovalPolicies from "./pages/admin/ApprovalPolicies";
 import AuditLog from "./pages/admin/AuditLog";
 import Reports from "./pages/Reports";
 import ProfileSettings from "./pages/ProfileSettings";
@@ -62,6 +63,7 @@ function ProtectedRoutes() {
         <Route path="/admin/exports" element={<SessionExports />} />
         <Route path="/admin/setup" element={<SystemSetup />} />
         <Route path="/admin/backups" element={<SystemBackups />} />
+        <Route path="/admin/policies" element={<ApprovalPolicies />} />
         <Route path="/admin/audit" element={<AuditLog />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/profile" element={<ProfileSettings />} />
