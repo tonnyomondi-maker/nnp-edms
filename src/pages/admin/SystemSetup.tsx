@@ -109,22 +109,6 @@ export default function SystemSetup() {
     }
   };
 
-  const handleReset = async () => {
-    if (resetText.trim() !== `RESET ${todayKey}`) {
-      toast({ title: 'Confirmation text mismatch', description: `Type exactly: RESET ${todayKey}`, variant: 'destructive' });
-      return;
-    }
-    setResetBusy(true);
-    const { data, error } = await supabase.functions.invoke('system-reset', { body: { confirm: resetText.trim() } });
-    setResetBusy(false);
-    if (error || (data as { error?: string })?.error) {
-      toast({ title: 'Reset failed', description: error?.message || (data as { error?: string })?.error, variant: 'destructive' });
-    } else {
-      toast({ title: 'System reset complete', description: 'All documents, configs and audit data cleared.' });
-      setResetText('');
-      loadUsers(); loadAudit();
-    }
-  };
 
   const addRole = async (userId: string, role: UserRole) => {
     const { error } = await supabase.from('user_roles').insert({ user_id: userId, role });
