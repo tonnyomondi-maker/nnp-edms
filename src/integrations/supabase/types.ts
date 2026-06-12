@@ -88,6 +88,33 @@ export type Database = {
         }
         Relationships: []
       }
+      document_type_policy: {
+        Row: {
+          document_type: Database["public"]["Enums"]["document_type"]
+          notes: string | null
+          signature_only_allowed: boolean
+          stamp_required: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          document_type: Database["public"]["Enums"]["document_type"]
+          notes?: string | null
+          signature_only_allowed?: boolean
+          stamp_required?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          document_type?: Database["public"]["Enums"]["document_type"]
+          notes?: string | null
+          signature_only_allowed?: boolean
+          stamp_required?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           approved_by_dp_academics_at: string | null
