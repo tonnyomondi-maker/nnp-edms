@@ -358,10 +358,15 @@ export default function SystemSetup() {
                 ))}
               </div>
             )}
-            <div className="pt-3">
+            <div className="pt-3 flex gap-2 flex-wrap">
               <Button asChild variant="outline">
                 <Link to="/admin/users">Open full user manager</Link>
               </Button>
+              {isSuperAdmin && (
+                <Button asChild variant="outline">
+                  <Link to="/admin/policies">Approval policies</Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
