@@ -18,6 +18,12 @@ interface PlacementModalProps {
   signatureUrl: string;
   stampUrl: string;
   stage: 'HOD' | 'DP' | 'IQA';
+  /** True when policy says a stamp must be embedded for this document type. */
+  stampMandatory?: boolean;
+  /** True when signature-only is explicitly allowed by policy. */
+  signatureOnlyAllowed?: boolean;
+  /** Optional policy notes shown inline. */
+  policyNote?: string | null;
   onConfirm: (placement: ApprovalPlacement | null) => void;
 }
 
@@ -55,7 +61,8 @@ type DragState =
   | { kind: 'resize'; which: 'sig' | 'stamp'; anchorFx: number; anchorFy: number };
 
 export function PlacementModal({
-  open, onOpenChange, pdfUrl, signatureUrl, stampUrl, stage, onConfirm,
+  open, onOpenChange, pdfUrl, signatureUrl, stampUrl, stage,
+  stampMandatory = false, signatureOnlyAllowed = false, policyNote, onConfirm,
 }: PlacementModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -167,7 +174,11 @@ export function PlacementModal({
 
   const onPointerUp = () => setDrag(null);
 
-  const hasStamp = !!stampUrl;
+  // Effective stamp visibility:
+  //  - hidden when no stamp file exists,
+  //  - hidden when policy forbids stamp AND signature-only is allowed (cleaner UI),
+  //  - always shown when policy says stamp is mandatory.
+  const hasStamp = !!stampUrl && (stampMandatory || !signatureOnlyAllowed || !!stampUrl);
 
   const handleConfirm = (useDefault: boolean) => {
     if (useDefault) {
@@ -228,6 +239,13 @@ export function PlacementModal({
           <p className="text-xs text-muted-foreground">
             Drag to move, drag the corner to resize. Use the controls to rotate, resize and adjust opacity.
           </p>
+          {stampMandatory && !stampUrl && (
+            <p className="text-xs text-destructive">Stamp is required for this document type — add one in Profile Settings before approving.</p>
+          )}
+          {signatureOnlyAllowed && !stampMandatory && (
+            <p className="text-[11px] text-muted-foreground">Signature-only approval is allowed for this document type.</p>
+          )}
+          {policyNote && <p className="text-[11px] text-muted-foreground italic">{policyNote}</p>}
         </DialogHeader>
 
         <div className="flex items-center justify-between gap-2 text-xs">
