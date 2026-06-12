@@ -8,14 +8,14 @@ import { useSystemLock } from '@/hooks/useSystemLock';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Doc = Tables<'documents'>;
-export type DocAction = 'upload' | 'list' | 'view' | 'export' | 'approve' | 'reject' | 'delete';
+export type DocAction = 'upload' | 'list' | 'view' | 'export' | 'approve' | 'reject' | 'delete' | 'reset';
 
 export function useRoleGuard() {
   const { currentUser, activeRole } = useAuth();
-  const { writesBlocked, lock_active } = useSystemLock();
+  const { writesBlocked, lock_active, isSuperAdminActive } = useSystemLock();
   const has = (r: UserRole) => !!currentUser?.roles.includes(r);
   const isActive = (r: UserRole) => activeRole === r;
-  const isWrite = (a: DocAction) => a === 'upload' || a === 'approve' || a === 'reject' || a === 'delete';
+  const isWrite = (a: DocAction) => a === 'upload' || a === 'approve' || a === 'reject' || a === 'delete' || a === 'reset';
 
   function canActOn(action: DocAction, doc?: Doc | null): boolean {
     if (isWrite(action) && writesBlocked) return false;
@@ -23,10 +23,16 @@ export function useRoleGuard() {
     switch (action) {
       case 'list':
       case 'view':
-      case 'export':
-        // Read/export is available to any signed-in role with the page's
-        // baseline access; lock does not block reads.
         return true;
+      case 'export':
+        // Lock does not block reads/exports. Any signed-in approver role
+        // (or the document owner via a TRAINER session) can export. Tooltip
+        // copy below explains the restriction when active role is wrong.
+        if (!currentUser) return false;
+        return (
+          isActive('TRAINER') || isActive('HOD') || isActive('DP_ACADEMICS') ||
+          isActive('IQA') || isActive('SUPER_ADMIN')
+        );
       case 'upload':
         return isActive('TRAINER') && has('TRAINER');
       case 'approve':
@@ -46,6 +52,13 @@ export function useRoleGuard() {
         return false;
       case 'delete':
         return isActive('SUPER_ADMIN') && has('SUPER_ADMIN');
+      case 'reset':
+        // Reset is destructive: only Super Admin, and only when no other
+        // admin currently holds the safety lock (isSuperAdminActive lets the
+        // locker themselves proceed).
+        if (!isActive('SUPER_ADMIN') || !has('SUPER_ADMIN')) return false;
+        if (lock_active && !isSuperAdminActive) return false;
+        return true;
       default:
         return false;
     }
@@ -55,6 +68,11 @@ export function useRoleGuard() {
     if (canActOn(action, doc)) return null;
     if (isWrite(action) && writesBlocked) return 'System safety lock is active — writes are temporarily blocked.';
     if (action === 'upload') return 'Switch to your Trainer role to upload documents.';
+    if (action === 'export') return 'Sign in with an approver, trainer, or admin role to export data.';
+    if (action === 'reset') {
+      if (lock_active) return 'Another admin is already running a destructive operation. Wait for the safety lock to release.';
+      return 'Only Super Admin can reset the system. Switch to your Super Admin role.';
+    }
     if (action === 'approve' || action === 'reject') {
       if (doc?.status === 'SUBMITTED') return 'Switch to your HOD role (and department) to verify this document.';
       if (doc?.status === 'HOD_APPROVED') return 'Switch to your DP Academics role to approve this document.';
@@ -80,6 +98,7 @@ export function useRoleGuard() {
     canManageUsers: () => isActive('SUPER_ADMIN') && has('SUPER_ADMIN'),
   };
 }
+
 
 export function roleLabel(r: UserRole): string {
   return ({
