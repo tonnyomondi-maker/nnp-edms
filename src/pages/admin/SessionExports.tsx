@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
@@ -173,15 +174,17 @@ export default function SessionExports() {
                   <span className="font-semibold">{exported}</span>
                 </div>
 
-                <Button
+                <ActionGuardButton
+                  action="export"
                   className="w-full"
                   disabled={archived === 0 || !!busyKey}
                   onClick={() => runExport(s.key, false)}
                 >
                   {busyDl ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Download ZIP
-                </Button>
-                <Button
+                </ActionGuardButton>
+                <ActionGuardButton
+                  action="export"
                   className="w-full"
                   variant="destructive"
                   disabled={archived === 0 || !!busyKey}
@@ -189,7 +192,7 @@ export default function SessionExports() {
                 >
                   {busyDel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
                   Download & Free Storage
-                </Button>
+                </ActionGuardButton>
               </CardContent>
             </Card>
           );
