@@ -280,7 +280,7 @@ export default function ProfileSettings() {
               <div className="rounded border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs p-2">
                 {!sigReady
                   ? 'Add a signature to unlock the “Sign & Approve” action. You can still use Quick Verify (text-only) without one.'
-                  : 'Upload a stamp, or turn off “Stamp required” to approve with just your signature.'}
+                  : 'Upload a stamp — some document types require one. Super Admin can allow signature-only per document type in Approval Policies.'}
               </div>
             )}
           </CardContent>
