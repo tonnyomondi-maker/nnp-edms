@@ -36,11 +36,8 @@ export default function SystemSetup() {
   const [busy, setBusy] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
-  const [resetText, setResetText] = useState('');
-  const [resetBusy, setResetBusy] = useState(false);
-
   const isSuperAdmin = currentUser?.roles.includes('SUPER_ADMIN');
-  const todayKey = new Date().toISOString().slice(0, 10);
+
 
   const checkSuperAdmin = async () => {
     const { data, error } = await supabase
