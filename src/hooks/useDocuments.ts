@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { clearSignedUrlCache } from '@/hooks/useSignedDocUrl';
 import { assertSystemNotLocked } from '@/lib/systemLock';
+import { fetchPolicyFor } from '@/hooks/useDocTypePolicy';
 import type { Tables, TablesUpdate } from '@/integrations/supabase/types';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -150,25 +151,33 @@ async function performApproval(
     return data;
   }
 
-  // Approval flow — fetch profile. In IMAGE mode a signature is required;
-  // the stamp is only required when the approver has opted in to it
-  // (profile.stamp_required, default true). Lets institutions that only use
-  // signatures approve without ever uploading a stamp image.
-  const { data: profile, error: profErr } = await supabase
-    .from('profiles')
-    .select('signature_url, stamp_url, full_name, stamp_required, preferred_stamp_mode')
-    .eq('user_id', userId)
-    .single();
+  // Approval flow — fetch profile + per-document-type policy. Policy is the
+  // source of truth: it decides whether stamp is required and whether
+  // signature-only is even allowed. Approver's preferred_stamp_mode and
+  // legacy stamp_required only narrow within what policy permits.
+  const [{ data: profile, error: profErr }, docMeta] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('signature_url, stamp_url, full_name, stamp_required, preferred_stamp_mode')
+      .eq('user_id', userId)
+      .single(),
+    supabase.from('documents').select('document_type').eq('id', docId).single(),
+  ]);
   if (profErr) throw profErr;
+  if (docMeta.error) throw docMeta.error;
+  const policy = await fetchPolicyFor((docMeta.data as { document_type: string }).document_type);
   const profileAny = profile as unknown as { signature_url?: string; stamp_url?: string; full_name?: string; stamp_required?: boolean };
-  const stampRequired = profileAny?.stamp_required !== false; // default true
+  // Effective stamp requirement = policy override OR (policy default AND approver opted in).
+  const stampRequired = policy.stamp_required && !(policy.signature_only_allowed && profileAny?.stamp_required === false);
   if (mode === 'IMAGE') {
     if (!profileAny?.signature_url) {
       throw new Error('Please add a signature in Profile Settings (upload, draw, or type one) before approving.');
     }
     if (stampRequired && !profileAny?.stamp_url) {
-      throw new Error('Please upload a stamp in Profile Settings, or switch off "Stamp required" to approve with just your signature.');
+      throw new Error(`A stamp is required to approve "${(docMeta.data as { document_type: string }).document_type}". Upload one in Profile Settings, or ask Super Admin to allow signature-only for this document type.`);
     }
+  } else if (mode === 'TEXT_ONLY' && policy.stamp_required && !policy.signature_only_allowed) {
+    throw new Error(`Text-only quick approval is disabled for "${(docMeta.data as { document_type: string }).document_type}" — policy requires an embedded stamp.`);
   }
 
   const stage = status === 'HOD_APPROVED' ? 'HOD' : status === 'DP_APPROVED' ? 'DP' : 'IQA';
