@@ -55,11 +55,20 @@ async function downloadFromStorage(
 }
 
 async function fetchAsArrayBuffer(url: string): Promise<{ buffer: ArrayBuffer; contentType: string | null }> {
-  const res = await fetch(url);
+  // SSRF guard: only allow fetching images from our own Supabase storage.
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { throw new Error("Invalid image URL"); }
+  const expectedOrigin = new URL(supabaseUrl).origin;
+  if (parsed.origin !== expectedOrigin || !parsed.pathname.startsWith("/storage/v1/object/")) {
+    throw new Error("Image URL must point to this project's Supabase Storage");
+  }
+  const res = await fetch(parsed.toString());
   if (!res.ok) throw new Error(`Fetch failed (${res.status}) for ${url.slice(0, 80)}…`);
   const buffer = await res.arrayBuffer();
   return { buffer, contentType: res.headers.get("content-type") };
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
