@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { DocPreviewLink } from './DocPreviewLink';
 import { DocStatusTimeline } from './DocStatusTimeline';
 import { AuditTrailButton } from './AuditTrailButton';
+import { RetryDriveSyncButton } from './RetryDriveSyncButton';
 
 type DocumentRow = Tables<'documents'> & {
   hod_signature_url?: string | null;
