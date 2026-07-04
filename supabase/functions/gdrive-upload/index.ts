@@ -126,6 +126,10 @@ Deno.serve(async (req) => {
           await admin.from("documents").update({
             gdrive_file_id: json_.id,
             gdrive_web_view_link: json_.webViewLink ?? null,
+            gdrive_sync_status: "success",
+            gdrive_last_error: null,
+            gdrive_last_attempt_at: new Date().toISOString(),
+            gdrive_attempt_count: attempt,
           }).eq("id", documentId);
 
           await admin.from("audit_logs").insert({
@@ -144,6 +148,21 @@ Deno.serve(async (req) => {
         await new Promise(r => setTimeout(r, 500 * 2 ** (attempt - 1)));
       }
     }
+
+    // Persist failure state so users can retry later from the UI
+    await admin.from("documents").update({
+      gdrive_sync_status: "failed",
+      gdrive_last_error: lastErr.slice(0, 500),
+      gdrive_last_attempt_at: new Date().toISOString(),
+      gdrive_attempt_count: MAX_ATTEMPTS,
+    }).eq("id", documentId);
+
+    await admin.from("audit_logs").insert({
+      document_id: documentId,
+      action: "GDRIVE_MIRROR_FAILED",
+      performed_by: u.user.id,
+      details: { error: lastErr.slice(0, 500), attempts: MAX_ATTEMPTS },
+    });
 
     return json({ error: `Google Drive upload failed after ${MAX_ATTEMPTS} attempts: ${lastErr}` }, 502);
   } catch (e) {
