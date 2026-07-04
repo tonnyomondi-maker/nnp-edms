@@ -127,6 +127,12 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                 >
                   Timeline {showTimeline ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
                 </button>
+                <RetryDriveSyncButton
+                  documentId={doc.id}
+                  syncStatus={(doc as { gdrive_sync_status?: string | null }).gdrive_sync_status}
+                  webViewLink={(doc as { gdrive_web_view_link?: string | null }).gdrive_web_view_link}
+                  lastError={(doc as { gdrive_last_error?: string | null }).gdrive_last_error}
+                />
               </div>
               {doc.status === 'REJECTED' && doc.rejection_reason && (
                 <p className="mt-2 text-[11px] px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/20">
