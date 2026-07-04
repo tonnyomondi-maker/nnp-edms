@@ -111,6 +111,49 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Role/stage authorization: caller must hold the role matching the stage.
+    const callerId = userData.user.id;
+    const stageRole: Record<string, string> = { HOD: "HOD", DP: "DP_ACADEMICS", IQA: "IQA" };
+    const requiredRole = stageRole[stage];
+    if (!requiredRole) {
+      return new Response(JSON.stringify({ error: "Invalid stage" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: rolesRows } = await supabase
+      .from("user_roles").select("role").eq("user_id", callerId);
+    const callerRoles = new Set((rolesRows || []).map((r) => r.role));
+    if (!callerRoles.has(requiredRole) && !callerRoles.has("SUPER_ADMIN")) {
+      return new Response(JSON.stringify({ error: `Forbidden — ${requiredRole} role required` }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Stage/status consistency: caller can only stamp docs currently at the
+    // expected upstream status for their stage.
+    const expectedStatus: Record<string, string> = {
+      HOD: "SUBMITTED", DP: "HOD_APPROVED", IQA: "DP_APPROVED",
+    };
+    const { data: docStatus } = await supabase
+      .from("documents").select("status,trainer_id").eq("id", documentId).single();
+    if (!docStatus) {
+      return new Response(JSON.stringify({ error: "Document not found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // Trainers may never stamp their own docs even if they somehow hold a role.
+    if (docStatus.trainer_id === callerId && !callerRoles.has("SUPER_ADMIN")) {
+      return new Response(JSON.stringify({ error: "You cannot approve your own document" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (docStatus.status !== expectedStatus[stage] && !callerRoles.has("SUPER_ADMIN")) {
+      return new Response(JSON.stringify({ error: `Document is not awaiting ${stage} action` }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     // Re-check per-document-type policy server-side so a tampered client
     // cannot bypass a stamp requirement.
     const { data: policyRow } = await supabase
