@@ -1,85 +1,57 @@
-## 1. Admin "System Reset" entry point
+## Goal
+Give users a reliable way to re-mirror any document to Google Drive after an initial failure, from anywhere the document appears — not only during the original upload session. Also confirm and clarify the current approval-signing flow.
 
-The backend already exists: `supabase/functions/system-reset/index.ts` (Super-Admin only, requires `RESET YYYY-MM-DD` confirmation, engages safety lock, wipes storage + data tables, leaves profiles/roles/system_settings intact, writes a `SYSTEM_RESET` audit row). It's currently surfaced inside `admin/SystemBackups.tsx` only.
+## 1. Persist Drive sync state per document
 
-Add a dedicated, more discoverable **System Reset** card on `admin/SystemSetup.tsx`:
+Add tracking columns to `documents` so we know exactly which files failed vs. succeeded and can surface a retry action long after upload:
 
-- Red-bordered destructive card visible only to active Super Admin.
-- Shows the same `RESET <today>` confirmation input + a typed checkbox ("I understand this wipes all documents and audit history").
-- Calls the existing `system-reset` function via `supabase.functions.invoke`.
-- Disables itself when the safety lock is already engaged by another admin.
-- Shows last-reset timestamp pulled from `audit_logs` (action=`SYSTEM_RESET`).
+- `gdrive_sync_status` — enum-like text: `pending | success | failed | skipped`
+- `gdrive_last_error` — text (last failure message)
+- `gdrive_last_attempt_at` — timestamptz
+- `gdrive_attempt_count` — int
 
-No new edge function, no schema change.
+`gdrive-upload` edge function updates these fields on every attempt (success clears error and sets `success`; failure records the error and `failed`). Existing rows with `gdrive_file_id` set are backfilled to `success`; the rest to `pending`.
 
-## 2. Extend `ActionGuardButton` coverage to export / report actions
+## 2. Reusable `RetryDriveSyncButton` component
 
-Add a new `DocAction` value `'export'` already exists in `useRoleGuard.ts` but currently returns `true` for everyone. Refine:
+New component `src/components/common/RetryDriveSyncButton.tsx`:
 
-- `'export'` allowed for: active TRAINER (own scope), HOD, DP_ACADEMICS, IQA, SUPER_ADMIN. Not blocked by lock.
-- `'reset'` (new) allowed only for active SUPER_ADMIN, **blocked when lock is on unless caller is the locker**.
+- Props: `documentId`, `syncStatus`, `webViewLink`, `lastError`, optional `size`.
+- Behavior:
+  - If `success` → shows "Open in Drive" link (uses `gdrive_web_view_link`).
+  - If `failed` or `pending` (with a stored file) → shows "Retry Drive sync" button; on click, invokes `gdrive-upload` and toasts success/failure with the specific error message.
+  - Disabled state while in-flight with spinner.
+  - Uses `sonner` toasts and refreshes the parent list via a passed `onSynced` callback (or React Query invalidation where applicable).
+- Wrapped in `ActionGuardButton` so it respects role permissions (owner + HOD/DP/IQA/SUPER_ADMIN, matching the edge function's authorization).
 
-Wrap the following buttons in `ActionGuardButton`:
+## 3. Surface the button in the document lists
 
-- `pages/Reports.tsx` — "Export CSV" / "Export PDF" buttons.
-- `pages/admin/SessionExports.tsx` — "Export ZIP" and "Export & free storage" buttons.
-- `pages/trainer/MySubmissions.tsx` — per-row "Download" / "Export" buttons.
-- `pages/admin/SystemBackups.tsx` — existing reset button (move/share with new SystemSetup card via shared component).
-- `pages/admin/ManageUsers.tsx` — Delete user button (action=`'delete'`, already exists).
+Wire the button into the places a document row is shown so users can retry without going back to the upload screen:
 
-Tooltip copy comes from `useRoleGuard.reasonFor`, with new strings for `'export'` and `'reset'`.
+- `src/pages/trainer/UploadDocuments.tsx` — in-session tile keeps its existing inline retry, plus the shared button on the "My submissions" list for prior uploads.
+- `src/pages/hod/DepartmentQueue.tsx`, `src/pages/dp/ApprovalQueue.tsx`, `src/pages/iqa/ArchiveScreen.tsx` — one small Drive status chip + retry/open button per row.
+- No changes to approval logic; the button is purely a mirror action.
 
-## 3. Per-document-type signature-only policy
+## 4. Feedback + audit
 
-Today `profiles.stamp_required` is a single per-approver boolean. Replace with a per-document-type map so admins can say "Weekly Class Attendance can be signature-only, One-time Course Outline requires a stamp."
+- Success toast: "Mirrored to Google Drive" with an "Open" action linking to `webViewLink`.
+- Failure toast: "Google Drive sync failed — {error}" and the error also persists in `gdrive_last_error` for later inspection.
+- Every attempt already writes an `audit_logs` row via the edge function; failures now log too (`GDRIVE_MIRROR_FAILED` with error + attempt count).
 
-**Schema (migration)**
+## 5. Approval-signing flow — clarification (no code change unless you want one)
 
-New table:
+Current behavior (already implemented in earlier turns):
 
-```text
-public.document_type_policy
-  document_type            document_type PRIMARY KEY
-  signature_only_allowed   boolean   NOT NULL DEFAULT false
-  stamp_required           boolean   NOT NULL DEFAULT true
-  notes                    text
-  updated_by               uuid
-  updated_at               timestamptz
-```
+- Approvers can approve using **either** an uploaded signature **or** an uploaded stamp **or** both, subject to the per-document-type policy in `document_type_policy` (`signature_only_allowed`, `stamp_required`).
+- The `stamp-document` edge function stamps the PDF with whichever assets the approver has and always appends the approver's role, name, and date at the bottom of the page.
+- If a document type has `signature_only_allowed = false` AND `stamp_required = true`, approval is blocked unless a stamp asset exists.
+- If neither asset exists but policy permits, we still write a **text-only approval block** (role + name + date) at the end of the document — so approvals never silently succeed without a visible marker.
 
-- GRANT SELECT to authenticated, ALL to service_role.
-- RLS: SELECT to authenticated; INSERT/UPDATE/DELETE only to SUPER_ADMIN via `has_role`.
-- Seed defaults: WEEKLY-submission types (`Class Attendance`, `Session Plan`) → `signature_only_allowed = true, stamp_required = false`. ONE_TIME types (`Learning Plan`, `Personal Timetable`, `Workload Allocation`, `Scheme of Work`, `Course Outline`) → `stamp_required = true`.
+If you want the text-only fallback to be togglable per policy (e.g. "always require at least a signature") tell me and I'll add a `text_only_allowed` flag; otherwise this section is informational only.
 
-**Admin UI**
+## Technical details
 
-- New page `pages/admin/ApprovalPolicies.tsx` (linked from `SystemSetup`). Table of document types with two toggles per row: "Allow signature-only" and "Stamp required". Super-Admin only, wrapped in `ActionGuardButton`.
-
-**Approval flow integration**
-
-- `useDocuments.performApproval`: before validating `signature_url` / `stamp_url`, fetch the policy row for `doc.document_type`. Effective rule = `policy.stamp_required && !(policy.signature_only_allowed && approverChoseTextOrSignatureOnly)`. Approver's `profiles.preferred_stamp_mode` only narrows the choice; it cannot bypass a policy that mandates a stamp.
-- `PlacementModal.tsx`: hide / disable the "Text-only" and "Signature only" toggles when policy forbids them, with an inline note: "Stamp required for this document type."
-- `stamp-document` edge function: re-check the policy server-side using `service_role` client; reject the request if signature-only is used on a type that requires stamp.
-
-**Profile changes**
-
-- Keep `profiles.preferred_stamp_mode` (UX default).
-- Treat `profiles.stamp_required` as deprecated; the policy table is the source of truth. Migration leaves the column for backward-compat but UI in `ProfileSettings` is removed and replaced with a read-only "Policy summary" listing which document types accept signature-only for the current approver.
-
-## Files
-
-**New**
-- `supabase/migrations/<ts>_document_type_policy.sql`
-- `src/pages/admin/ApprovalPolicies.tsx`
-- `src/components/admin/SystemResetCard.tsx` (shared between SystemSetup and SystemBackups)
-- `src/hooks/useDocTypePolicy.ts`
-
-**Modified**
-- `src/hooks/useRoleGuard.ts` — refine `'export'`, add `'reset'`, reason strings.
-- `src/pages/Reports.tsx`, `src/pages/admin/SessionExports.tsx`, `src/pages/trainer/MySubmissions.tsx`, `src/pages/admin/SystemBackups.tsx`, `src/pages/admin/ManageUsers.tsx`, `src/pages/admin/SystemSetup.tsx` — wrap action buttons.
-- `src/hooks/useDocuments.ts` — policy-aware validation in `performApproval`.
-- `src/components/common/PlacementModal.tsx` — hide disallowed modes per policy.
-- `src/pages/ProfileSettings.tsx` — remove stamp-required toggle, add policy summary.
-- `supabase/functions/stamp-document/index.ts` — server-side policy enforcement.
-
-No changes to Google Drive flow or storage buckets.
+- Migration: `alter table public.documents add column ... ; update ... set gdrive_sync_status = 'success' where gdrive_file_id is not null;` (no new table, existing GRANTs/RLS cover it).
+- `types.ts` regenerates after migration.
+- Edge function edits are additive (status writes + error capture); the existing SSRF and role guards stay in place.
+- Client uses `supabase.functions.invoke('gdrive-upload', { body: { documentId } })`; no new endpoints.
