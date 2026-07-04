@@ -44,6 +44,25 @@ Deno.serve(async (req) => {
       .single();
     if (docErr || !doc) throw new Error("Document not found");
 
+    // Authorization: caller must be the document owner OR hold a privileged role.
+    const callerId = userData.user.id;
+    const isOwner = doc.trainer_id === callerId;
+    let allowed = isOwner;
+    if (!allowed) {
+      const { data: rolesRows } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", callerId);
+      const roles = new Set((rolesRows || []).map((r) => r.role));
+      allowed = ["HOD", "DP_ACADEMICS", "IQA", "SUPER_ADMIN"].some((r) => roles.has(r));
+    }
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     const userIds = [doc.trainer_id, doc.hod_approved_by, doc.dp_approved_by, doc.iqa_archived_by]
       .filter((x): x is string => !!x);
     const { data: profiles } = await supabase

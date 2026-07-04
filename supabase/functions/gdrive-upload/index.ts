@@ -48,6 +48,18 @@ Deno.serve(async (req) => {
       .single();
     if (docErr || !doc) return json({ error: "Document not found" }, 404);
 
+    // Authorization: only the trainer who owns the doc, or a privileged role,
+    // may trigger a Google Drive mirror.
+    const callerId = u.user.id;
+    let allowed = doc.trainer_id === callerId;
+    if (!allowed) {
+      const { data: rolesRows } = await admin
+        .from("user_roles").select("role").eq("user_id", callerId);
+      const roles = new Set((rolesRows || []).map((r) => r.role));
+      allowed = ["HOD", "DP_ACADEMICS", "IQA", "SUPER_ADMIN"].some((r) => roles.has(r));
+    }
+    if (!allowed) return json({ error: "Forbidden" }, 403);
+
     if (doc.gdrive_file_id) {
       // Already mirrored — return cached info
       return json({ fileId: doc.gdrive_file_id, alreadyMirrored: true });
