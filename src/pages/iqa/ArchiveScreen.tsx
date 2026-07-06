@@ -167,6 +167,59 @@ export default function ArchiveScreen() {
     });
   };
 
+  // Bulk-retry failed Google Drive mirrors for the currently filtered department.
+  // Concurrency is capped at 3 to avoid hammering the connector gateway.
+  const departments = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of allDocs || []) if (d.department) set.add(d.department);
+    return Array.from(set).sort();
+  }, [allDocs]);
+
+  const handleBulkDriveRetry = async () => {
+    if (!deptFilter) {
+      toast({ title: 'Pick a department first', description: 'Choose the department whose failed syncs to retry.', variant: 'destructive' });
+      return;
+    }
+    setBulkRetrying(true);
+    try {
+      const { data: failed, error } = await supabase
+        .from('documents')
+        .select('id')
+        .eq('department', deptFilter)
+        .eq('gdrive_sync_status' as never, 'failed' as never);
+      if (error) throw error;
+      const ids = (failed || []).map((r: { id: string }) => r.id);
+      if (ids.length === 0) {
+        toast({ title: 'Nothing to retry', description: `No failed Drive syncs in ${deptFilter}.` });
+        setBulkRetrying(false);
+        return;
+      }
+      let ok = 0, bad = 0;
+      const pool = 3;
+      const queue = [...ids];
+      const workers = Array.from({ length: pool }, async () => {
+        while (queue.length) {
+          const id = queue.shift()!;
+          try {
+            const { data, error: e } = await supabase.functions.invoke('gdrive-upload', { body: { documentId: id } });
+            const errMsg = e?.message || (data as { error?: string })?.error;
+            if (errMsg) bad++; else ok++;
+          } catch { bad++; }
+        }
+      });
+      await Promise.all(workers);
+      toast({
+        title: 'Drive retry complete',
+        description: `${ok} succeeded, ${bad} failed (department: ${deptFilter}).`,
+        variant: bad > 0 ? 'destructive' : 'default',
+      });
+    } catch (e) {
+      toast({ title: 'Bulk retry failed', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
+    } finally {
+      setBulkRetrying(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
@@ -174,7 +227,30 @@ export default function ArchiveScreen() {
   return (
     <div>
       <PageHeader title="IQA Archive" subtitle={`Final document repository${termFilter !== 'ALL' ? ` • ${termFilter.startsWith('M') ? 'Module ' + termFilter.slice(1) : 'Term ' + termFilter.slice(1)}` : ''}`} />
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex flex-wrap items-center gap-2 justify-end">
+        <Link to="/iqa/verifier-packs" className="text-xs underline text-primary flex items-center gap-1">
+          <ExternalLink className="w-3 h-3" /> Verifier packs
+        </Link>
+        <select
+          value={deptFilter}
+          onChange={(e) => setDeptFilter(e.target.value)}
+          className="h-8 rounded border bg-background px-2 text-xs"
+          aria-label="Department for bulk Drive retry"
+        >
+          <option value="">Dept for Drive retry…</option>
+          {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+        <ActionGuardButton
+          action="approve"
+          size="sm"
+          variant="outline"
+          onClick={handleBulkDriveRetry}
+          disabled={bulkRetrying || !deptFilter}
+          className="gap-1 h-8"
+        >
+          {bulkRetrying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
+          Retry failed Drive syncs
+        </ActionGuardButton>
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
       <Tabs defaultValue="pending">
