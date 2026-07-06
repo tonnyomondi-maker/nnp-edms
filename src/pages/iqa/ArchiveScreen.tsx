@@ -15,7 +15,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
-import { Archive, Loader2, Download, ShieldAlert } from 'lucide-react';
+import { Archive, Loader2, Download, ShieldAlert, RotateCw, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from '@/components/common/StatusBadge';
 
