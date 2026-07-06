@@ -60,6 +60,7 @@ function ProtectedRoutes() {
         <Route path="/hod/dashboard" element={<HodDashboard />} />
         <Route path="/dp/queue" element={<ApprovalQueue />} />
         <Route path="/iqa/archive" element={<ArchiveScreen />} />
+        <Route path="/iqa/verifier-packs" element={<VerifierPacks />} />
         <Route path="/admin/users" element={<ManageUsers />} />
         <Route path="/admin/assignments" element={<ManageAssignments />} />
         <Route path="/admin/exports" element={<SessionExports />} />
@@ -85,9 +86,10 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/*" element={<ProtectedRoutes />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/verify/pack" element={<VerifyPack />} />
+          <Route path="/*" element={<ProtectedRoutes />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>
