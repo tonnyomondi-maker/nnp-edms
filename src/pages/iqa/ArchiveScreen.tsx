@@ -35,6 +35,8 @@ export default function ArchiveScreen() {
   const [dpaAck, setDpaAck] = useState(false);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
+  const [deptFilter, setDeptFilter] = useState<string>('');
+  const [bulkRetrying, setBulkRetrying] = useState(false);
 
   const allPending = useMemo(() => pendingDocs || [], [pendingDocs]);
   const allArchived = useMemo(() => archivedDocs || [], [archivedDocs]);
