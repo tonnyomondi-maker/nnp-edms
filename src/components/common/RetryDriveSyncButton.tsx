@@ -1,55 +1,37 @@
-// Reusable button that retries mirroring a document to Google Drive when the
-// initial sync failed, or opens the mirrored file when sync already succeeded.
+// Retry button for a failed Google Drive mirror. Only rendered when:
+//   - syncStatus === 'failed'  AND
+//   - the active role is IQA or SUPER_ADMIN
+// This concentrates retry traffic on the archival role and hides the button
+// entirely once the mirror succeeds.
 
 import { useState } from 'react';
-import { Cloud, CloudOff, ExternalLink, Loader2, RotateCw } from 'lucide-react';
+import { Loader2, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Props {
   documentId: string;
   syncStatus?: string | null;
-  webViewLink?: string | null;
   lastError?: string | null;
   size?: 'sm' | 'default';
   onSynced?: () => void;
 }
 
-export function RetryDriveSyncButton({
-  documentId,
-  syncStatus,
-  webViewLink,
-  lastError,
-  size = 'sm',
-  onSynced,
-}: Props) {
+export function RetryDriveSyncButton({ documentId, syncStatus, lastError, size = 'sm', onSynced }: Props) {
+  const { activeRole } = useAuth();
   const [busy, setBusy] = useState(false);
 
-  if (syncStatus === 'success' && webViewLink) {
-    return (
-      <Button
-        asChild
-        size={size}
-        variant="ghost"
-        className="text-emerald-700 dark:text-emerald-300 gap-1"
-      >
-        <a href={webViewLink} target="_blank" rel="noreferrer">
-          <Cloud className="w-3.5 h-3.5" />
-          Open in Drive
-          <ExternalLink className="w-3 h-3" />
-        </a>
-      </Button>
-    );
-  }
+  // Hide entirely unless the mirror failed AND we're the archival role.
+  if (syncStatus !== 'failed') return null;
+  if (activeRole !== 'IQA' && activeRole !== 'SUPER_ADMIN') return null;
 
   const handleRetry = async () => {
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('gdrive-upload', {
-        body: { documentId },
-      });
+      const { data, error } = await supabase.functions.invoke('gdrive-upload', { body: { documentId } });
       const errMsg = error?.message || (data as { error?: string })?.error;
       if (errMsg) {
         toast.error('Google Drive sync failed', { description: errMsg });
@@ -57,9 +39,7 @@ export function RetryDriveSyncButton({
         const link = (data as { webViewLink?: string })?.webViewLink;
         toast.success('Mirrored to Google Drive', {
           description: link ? 'File available in Drive.' : undefined,
-          action: link
-            ? { label: 'Open', onClick: () => window.open(link, '_blank', 'noopener') }
-            : undefined,
+          action: link ? { label: 'Open', onClick: () => window.open(link, '_blank', 'noopener') } : undefined,
         });
         onSynced?.();
       }
@@ -70,19 +50,10 @@ export function RetryDriveSyncButton({
     }
   };
 
-  const label = syncStatus === 'failed' ? 'Retry Drive sync' : 'Sync to Drive';
-  const Icon = syncStatus === 'failed' ? RotateCw : CloudOff;
-
   const btn = (
-    <Button
-      size={size}
-      variant="outline"
-      onClick={handleRetry}
-      disabled={busy}
-      className="gap-1"
-    >
-      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />}
-      {label}
+    <Button size={size} variant="outline" onClick={handleRetry} disabled={busy} className="gap-1">
+      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
+      Retry Drive sync
     </Button>
   );
 
@@ -90,12 +61,8 @@ export function RetryDriveSyncButton({
   return (
     <TooltipProvider delayDuration={150}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="inline-flex">{btn}</span>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-xs text-xs">
-          Last error: {lastError}
-        </TooltipContent>
+        <TooltipTrigger asChild><span className="inline-flex">{btn}</span></TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs">Last error: {lastError}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
