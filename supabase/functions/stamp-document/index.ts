@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
     // cannot bypass a stamp requirement.
     const { data: policyRow } = await supabase
       .from("document_type_policy")
-      .select("signature_only_allowed,stamp_required")
+      .select("signature_only_allowed,stamp_required,forbid_text_only_fallback")
       .eq("document_type", (await supabase.from("documents").select("document_type").eq("id", documentId).single()).data?.document_type ?? "")
       .maybeSingle();
     const stampMandatory = (policyRow?.stamp_required ?? true) && !(policyRow?.signature_only_allowed ?? false);
@@ -167,10 +167,17 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (mode === "TEXT_ONLY" && (policyRow?.stamp_required ?? true) && !(policyRow?.signature_only_allowed ?? false)) {
-      return new Response(JSON.stringify({ error: "Text-only approval is not allowed for this document type." }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (mode === "TEXT_ONLY") {
+      if (policyRow?.forbid_text_only_fallback) {
+        return new Response(JSON.stringify({ error: "Text-only approval is disabled for this document type." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if ((policyRow?.stamp_required ?? true) && !(policyRow?.signature_only_allowed ?? false)) {
+        return new Response(JSON.stringify({ error: "Text-only approval is not allowed for this document type." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const { data: doc, error: docErr } = await supabase

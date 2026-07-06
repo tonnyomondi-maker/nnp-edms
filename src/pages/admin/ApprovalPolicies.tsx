@@ -43,6 +43,7 @@ export default function ApprovalPolicies() {
         document_type: t,
         signature_only_allowed: false,
         stamp_required: true,
+        forbid_text_only_fallback: false,
         notes: null,
         updated_at: '',
       };
@@ -70,6 +71,7 @@ export default function ApprovalPolicies() {
       document_type: type,
       signature_only_allowed: row.signature_only_allowed,
       stamp_required: row.stamp_required,
+      forbid_text_only_fallback: row.forbid_text_only_fallback,
       notes: row.notes,
       updated_by: currentUser.id,
     };
@@ -132,6 +134,16 @@ export default function ApprovalPolicies() {
                     <Switch
                       checked={row.stamp_required}
                       onCheckedChange={(v) => saveRow(t, { stamp_required: v })}
+                    />
+                  </Label>
+                  <Label className="flex items-center justify-between gap-2 border rounded p-2 text-xs cursor-pointer sm:col-span-2">
+                    <div>
+                      <div className="font-medium">Forbid text-only fallback</div>
+                      <div className="text-muted-foreground">Approver must have an uploaded signature or stamp — no plain-text approval block.</div>
+                    </div>
+                    <Switch
+                      checked={row.forbid_text_only_fallback}
+                      onCheckedChange={(v) => saveRow(t, { forbid_text_only_fallback: v })}
                     />
                   </Label>
                 </div>

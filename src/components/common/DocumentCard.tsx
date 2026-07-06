@@ -130,9 +130,18 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                 <RetryDriveSyncButton
                   documentId={doc.id}
                   syncStatus={(doc as { gdrive_sync_status?: string | null }).gdrive_sync_status}
-                  webViewLink={(doc as { gdrive_web_view_link?: string | null }).gdrive_web_view_link}
                   lastError={(doc as { gdrive_last_error?: string | null }).gdrive_last_error}
                 />
+                {(doc as { gdrive_web_view_link?: string | null }).gdrive_web_view_link && (
+                  <a
+                    href={(doc as { gdrive_web_view_link?: string }).gdrive_web_view_link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted hover:bg-muted/70 transition-colors text-[10px] font-medium text-emerald-700 dark:text-emerald-300"
+                  >
+                    Drive
+                  </a>
+                )}
               </div>
               {doc.status === 'REJECTED' && doc.rejection_reason && (
                 <p className="mt-2 text-[11px] px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/20">

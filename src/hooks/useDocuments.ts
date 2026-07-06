@@ -176,8 +176,13 @@ async function performApproval(
     if (stampRequired && !profileAny?.stamp_url) {
       throw new Error(`A stamp is required to approve "${(docMeta.data as { document_type: string }).document_type}". Upload one in Profile Settings, or ask Super Admin to allow signature-only for this document type.`);
     }
-  } else if (mode === 'TEXT_ONLY' && policy.stamp_required && !policy.signature_only_allowed) {
-    throw new Error(`Text-only quick approval is disabled for "${(docMeta.data as { document_type: string }).document_type}" — policy requires an embedded stamp.`);
+  } else if (mode === 'TEXT_ONLY') {
+    if (policy.forbid_text_only_fallback) {
+      throw new Error(`Text-only approval is disabled for "${(docMeta.data as { document_type: string }).document_type}" — approver must have an uploaded signature or stamp.`);
+    }
+    if (policy.stamp_required && !policy.signature_only_allowed) {
+      throw new Error(`Text-only quick approval is disabled for "${(docMeta.data as { document_type: string }).document_type}" — policy requires an embedded stamp.`);
+    }
   }
 
   const stage = status === 'HOD_APPROVED' ? 'HOD' : status === 'DP_APPROVED' ? 'DP' : 'IQA';

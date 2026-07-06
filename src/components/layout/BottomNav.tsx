@@ -1,6 +1,6 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useLocation, Link } from 'react-router-dom';
-import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, Database, ScrollText } from 'lucide-react';
+import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, Database, ScrollText, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const trainerItems = [
@@ -28,6 +28,7 @@ const dpItems = [
 const iqaItems = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/iqa/archive', icon: ClipboardList, label: 'Archive' },
+  { to: '/iqa/verifier-packs', icon: ShieldCheck, label: 'Verifiers' },
   { to: '/admin/exports', icon: FileArchive, label: 'Exports' },
   { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
@@ -35,9 +36,9 @@ const iqaItems = [
 const superAdminItems = [
   { to: '/admin/setup', icon: Settings, label: 'Setup' },
   { to: '/admin/users', icon: Users, label: 'Users' },
+  { to: '/iqa/verifier-packs', icon: ShieldCheck, label: 'Verifiers' },
   { to: '/admin/backups', icon: Database, label: 'Backups' },
   { to: '/admin/audit', icon: ScrollText, label: 'Audit' },
-  { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 
 const navMap: Record<UserRole, typeof trainerItems> = {

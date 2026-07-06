@@ -1,57 +1,72 @@
 ## Goal
-Give users a reliable way to re-mirror any document to Google Drive after an initial failure, from anywhere the document appears — not only during the original upload session. Also confirm and clarify the current approval-signing flow.
 
-## 1. Persist Drive sync state per document
+Three related changes: (1) tighten the Google Drive retry button to IQA-only with bulk retry per department, (2) add a per-doc-type toggle to forbid text-only approval fallback, (3) let IQA and Super Admin generate a shareable verification pack per department for external verifiers.
 
-Add tracking columns to `documents` so we know exactly which files failed vs. succeeded and can surface a retry action long after upload:
+---
 
-- `gdrive_sync_status` — enum-like text: `pending | success | failed | skipped`
-- `gdrive_last_error` — text (last failure message)
-- `gdrive_last_attempt_at` — timestamptz
-- `gdrive_attempt_count` — int
+## 1. Retry Drive sync — IQA only, per document + bulk
 
-`gdrive-upload` edge function updates these fields on every attempt (success clears error and sets `success`; failure records the error and `failed`). Existing rows with `gdrive_file_id` set are backfilled to `success`; the rest to `pending`.
+**Component change** (`src/components/common/RetryDriveSyncButton.tsx`)
+- Hide the button entirely unless `syncStatus === 'failed'` AND active role is `IQA` (or `SUPER_ADMIN`).
+- If `syncStatus === 'success'`, render nothing (previously showed "Open in Drive" — move that link into `DocumentCard` details instead so it's still reachable).
 
-## 2. Reusable `RetryDriveSyncButton` component
+**New bulk action** (`src/pages/iqa/ArchiveScreen.tsx`)
+- Add a "Retry failed Drive syncs" button in the department filter bar. Disabled when active role ≠ IQA/SUPER_ADMIN.
+- Queries `documents` where `gdrive_sync_status = 'failed'` and `department = <selected>`; invokes `gdrive-upload` for each with concurrency of 3; shows a progress toast with succeeded/failed counts.
+- Guarded via existing `ActionGuardButton` pattern.
 
-New component `src/components/common/RetryDriveSyncButton.tsx`:
+---
 
-- Props: `documentId`, `syncStatus`, `webViewLink`, `lastError`, optional `size`.
-- Behavior:
-  - If `success` → shows "Open in Drive" link (uses `gdrive_web_view_link`).
-  - If `failed` or `pending` (with a stored file) → shows "Retry Drive sync" button; on click, invokes `gdrive-upload` and toasts success/failure with the specific error message.
-  - Disabled state while in-flight with spinner.
-  - Uses `sonner` toasts and refreshes the parent list via a passed `onSynced` callback (or React Query invalidation where applicable).
-- Wrapped in `ActionGuardButton` so it respects role permissions (owner + HOD/DP/IQA/SUPER_ADMIN, matching the edge function's authorization).
+## 2. Forbid text-only fallback toggle
 
-## 3. Surface the button in the document lists
+**Schema** — add column to `document_type_policy`:
+- `forbid_text_only_fallback boolean not null default false`
 
-Wire the button into the places a document row is shown so users can retry without going back to the upload screen:
+**Enforcement**
+- `src/hooks/useDocuments.ts` `performApproval`: when `mode === 'TEXT_ONLY'` and `policy.forbid_text_only_fallback`, throw `"Text-only approval is disabled for this document type — a signature or stamp image is required."` (in addition to the existing stamp_required check).
+- `supabase/functions/stamp-document/index.ts`: same server-side guard as defence in depth.
 
-- `src/pages/trainer/UploadDocuments.tsx` — in-session tile keeps its existing inline retry, plus the shared button on the "My submissions" list for prior uploads.
-- `src/pages/hod/DepartmentQueue.tsx`, `src/pages/dp/ApprovalQueue.tsx`, `src/pages/iqa/ArchiveScreen.tsx` — one small Drive status chip + retry/open button per row.
-- No changes to approval logic; the button is purely a mirror action.
+**UI** (`src/pages/admin/ApprovalPolicies.tsx`)
+- Add a third switch per row: **"Forbid text-only fallback"** with helper "Approver must have an uploaded signature or stamp — no plain-text approval block."
+- Persist through the existing `saveRow` upsert.
 
-## 4. Feedback + audit
+---
 
-- Success toast: "Mirrored to Google Drive" with an "Open" action linking to `webViewLink`.
-- Failure toast: "Google Drive sync failed — {error}" and the error also persists in `gdrive_last_error` for later inspection.
-- Every attempt already writes an `audit_logs` row via the edge function; failures now log too (`GDRIVE_MIRROR_FAILED` with error + attempt count).
+## 3. Verifier presentation pack per department (IQA + Super Admin)
 
-## 5. Approval-signing flow — clarification (no code change unless you want one)
+**Goal**: IQA/Super Admin picks a department + academic session; the system produces a **shareable link** that lets an external verifier download a ZIP of that department's `ARCHIVED` documents plus an index PDF (cover sheet listing doc type, unit, trainer, approval dates, verification URL).
 
-Current behavior (already implemented in earlier turns):
+**Schema** — new table `verification_packs`:
+- `id`, `department`, `session_year`, `session_term`
+- `token` (opaque, random, unique) — used in the shareable URL
+- `expires_at` (default now() + 30 days), `revoked_at`
+- `created_by`, `created_at`, `download_count`
+- RLS: only IQA/SUPER_ADMIN can insert/select/update; anon can select only by token (via edge function, not client).
+- GRANTs: `authenticated` full, `service_role` all. No `anon` grant — access is only through the edge function using service role.
 
-- Approvers can approve using **either** an uploaded signature **or** an uploaded stamp **or** both, subject to the per-document-type policy in `document_type_policy` (`signature_only_allowed`, `stamp_required`).
-- The `stamp-document` edge function stamps the PDF with whichever assets the approver has and always appends the approver's role, name, and date at the bottom of the page.
-- If a document type has `signature_only_allowed = false` AND `stamp_required = true`, approval is blocked unless a stamp asset exists.
-- If neither asset exists but policy permits, we still write a **text-only approval block** (role + name + date) at the end of the document — so approvals never silently succeed without a visible marker.
+**Edge functions**
+- `create-verification-pack` (JWT-verified, IQA/SUPER_ADMIN only): validates dept+session, inserts row, returns `{ token, url }`.
+- `download-verification-pack` (public, token in query): looks up token, checks `expires_at`/`revoked_at`, streams a ZIP of archived docs for that dept+session with an auto-generated cover PDF, increments `download_count`, logs to `audit_logs`.
 
-If you want the text-only fallback to be togglable per policy (e.g. "always require at least a signature") tell me and I'll add a `text_only_allowed` flag; otherwise this section is informational only.
+**UI**
+- New page `src/pages/iqa/VerifierPacks.tsx` (also linked from Super Admin nav):
+  - Department + session pickers, "Generate link" button.
+  - Table of existing packs with: link (copy), expiry, download count, "Revoke" action.
+- Add route in `App.tsx`, nav entry via existing role-gated nav config.
 
-## Technical details
+---
 
-- Migration: `alter table public.documents add column ... ; update ... set gdrive_sync_status = 'success' where gdrive_file_id is not null;` (no new table, existing GRANTs/RLS cover it).
-- `types.ts` regenerates after migration.
-- Edge function edits are additive (status writes + error capture); the existing SSRF and role guards stay in place.
-- Client uses `supabase.functions.invoke('gdrive-upload', { body: { documentId } })`; no new endpoints.
+## Technical notes
+
+- Bulk retry uses a small async pool (3) instead of `Promise.all` to avoid hammering the edge function.
+- Verification link format: `https://<app>/verify/pack?token=<opaque>` → maps to a lightweight public page that calls `download-verification-pack` and triggers the download; no auth required, no data exposed beyond that pack.
+- Cover PDF is generated in the edge function with `pdf-lib` (already used by `stamp-document`).
+- Existing `VerifyDocument` per-file page is unchanged; the pack is a separate department-level artefact.
+
+---
+
+## Files touched
+
+**New**: `supabase/migrations/<ts>_verification_packs_and_policy.sql`, `supabase/functions/create-verification-pack/index.ts`, `supabase/functions/download-verification-pack/index.ts`, `src/pages/iqa/VerifierPacks.tsx`, `src/pages/VerifyPack.tsx` (public landing).
+
+**Edited**: `src/components/common/RetryDriveSyncButton.tsx`, `src/components/common/DocumentCard.tsx` (move "Open in Drive" link out), `src/pages/iqa/ArchiveScreen.tsx` (bulk retry button), `src/pages/admin/ApprovalPolicies.tsx` (third switch), `src/hooks/useDocuments.ts` (text-only guard), `src/hooks/useDocTypePolicy.ts` (new field in type), `supabase/functions/stamp-document/index.ts` (server-side guard), `src/App.tsx` (routes), nav config.
