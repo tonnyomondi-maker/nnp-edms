@@ -26,6 +26,8 @@ import Reports from "./pages/Reports";
 import ProfileSettings from "./pages/ProfileSettings";
 import Notifications from "./pages/Notifications";
 import VerifyDocument from "./pages/VerifyDocument";
+import VerifyPack from "./pages/VerifyPack";
+import VerifierPacks from "./pages/iqa/VerifierPacks";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
