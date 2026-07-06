@@ -136,6 +136,16 @@ export default function ApprovalPolicies() {
                       onCheckedChange={(v) => saveRow(t, { stamp_required: v })}
                     />
                   </Label>
+                  <Label className="flex items-center justify-between gap-2 border rounded p-2 text-xs cursor-pointer sm:col-span-2">
+                    <div>
+                      <div className="font-medium">Forbid text-only fallback</div>
+                      <div className="text-muted-foreground">Approver must have an uploaded signature or stamp — no plain-text approval block.</div>
+                    </div>
+                    <Switch
+                      checked={row.forbid_text_only_fallback}
+                      onCheckedChange={(v) => saveRow(t, { forbid_text_only_fallback: v })}
+                    />
+                  </Label>
                 </div>
                 <Input
                   placeholder="Notes (optional)"
