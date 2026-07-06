@@ -91,6 +91,7 @@ export type Database = {
       document_type_policy: {
         Row: {
           document_type: Database["public"]["Enums"]["document_type"]
+          forbid_text_only_fallback: boolean
           notes: string | null
           signature_only_allowed: boolean
           stamp_required: boolean
@@ -99,6 +100,7 @@ export type Database = {
         }
         Insert: {
           document_type: Database["public"]["Enums"]["document_type"]
+          forbid_text_only_fallback?: boolean
           notes?: string | null
           signature_only_allowed?: boolean
           stamp_required?: boolean
@@ -107,6 +109,7 @@ export type Database = {
         }
         Update: {
           document_type?: Database["public"]["Enums"]["document_type"]
+          forbid_text_only_fallback?: boolean
           notes?: string | null
           signature_only_allowed?: boolean
           stamp_required?: boolean
@@ -657,6 +660,48 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      verification_packs: {
+        Row: {
+          created_at: string
+          created_by: string
+          department: string
+          download_count: number
+          expires_at: string
+          id: string
+          revoked_at: string | null
+          session_term: string
+          session_year: number
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          department: string
+          download_count?: number
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+          session_term: string
+          session_year: number
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          department?: string
+          download_count?: number
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+          session_term?: string
+          session_year?: number
+          token?: string
+          updated_at?: string
         }
         Relationships: []
       }
