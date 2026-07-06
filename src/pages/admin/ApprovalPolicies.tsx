@@ -71,6 +71,7 @@ export default function ApprovalPolicies() {
       document_type: type,
       signature_only_allowed: row.signature_only_allowed,
       stamp_required: row.stamp_required,
+      forbid_text_only_fallback: row.forbid_text_only_fallback,
       notes: row.notes,
       updated_by: currentUser.id,
     };
