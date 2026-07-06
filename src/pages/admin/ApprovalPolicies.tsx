@@ -43,6 +43,7 @@ export default function ApprovalPolicies() {
         document_type: t,
         signature_only_allowed: false,
         stamp_required: true,
+        forbid_text_only_fallback: false,
         notes: null,
         updated_at: '',
       };
