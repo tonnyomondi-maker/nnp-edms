@@ -28,6 +28,8 @@ import Notifications from "./pages/Notifications";
 import VerifyDocument from "./pages/VerifyDocument";
 import VerifyPack from "./pages/VerifyPack";
 import VerifierPacks from "./pages/iqa/VerifierPacks";
+import Verifiers from "./pages/iqa/Verifiers";
+import PackReviews from "./pages/iqa/PackReviews";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
