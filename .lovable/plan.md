@@ -1,72 +1,116 @@
-## Goal
+# Verifier Packs — Analytics, Composition, Assignment, Review
 
-Three related changes: (1) tighten the Google Drive retry button to IQA-only with bulk retry per department, (2) add a per-doc-type toggle to forbid text-only approval fallback, (3) let IQA and Super Admin generate a shareable verification pack per department for external verifiers.
-
----
-
-## 1. Retry Drive sync — IQA only, per document + bulk
-
-**Component change** (`src/components/common/RetryDriveSyncButton.tsx`)
-- Hide the button entirely unless `syncStatus === 'failed'` AND active role is `IQA` (or `SUPER_ADMIN`).
-- If `syncStatus === 'success'`, render nothing (previously showed "Open in Drive" — move that link into `DocumentCard` details instead so it's still reachable).
-
-**New bulk action** (`src/pages/iqa/ArchiveScreen.tsx`)
-- Add a "Retry failed Drive syncs" button in the department filter bar. Disabled when active role ≠ IQA/SUPER_ADMIN.
-- Queries `documents` where `gdrive_sync_status = 'failed'` and `department = <selected>`; invokes `gdrive-upload` for each with concurrency of 3; shows a progress toast with succeeded/failed counts.
-- Guarded via existing `ActionGuardButton` pattern.
+Four related additions on top of the existing verification-pack system. IQA and Super Admin only, gated per department.
 
 ---
 
-## 2. Forbid text-only fallback toggle
+## 1. Analytics panel (per department)
 
-**Schema** — add column to `document_type_policy`:
-- `forbid_text_only_fallback boolean not null default false`
+**Where**: New card at the top of `src/pages/iqa/VerifierPacks.tsx`, plus a compact summary tile in the IQA `ArchiveScreen`.
 
-**Enforcement**
-- `src/hooks/useDocuments.ts` `performApproval`: when `mode === 'TEXT_ONLY'` and `policy.forbid_text_only_fallback`, throw `"Text-only approval is disabled for this document type — a signature or stamp image is required."` (in addition to the existing stamp_required check).
-- `supabase/functions/stamp-document/index.ts`: same server-side guard as defence in depth.
+**Metrics** (aggregated from `verification_packs` + `audit_logs`):
+- Total packs issued
+- Active / expired / revoked counts
+- Total downloads (sum of `download_count`)
+- Unique verifiers that opened (distinct `verifier_id` from reviews, or user-agent hash from audit logs when anonymous)
+- Days until next expiry
+- "Remaining capacity" — soft budget per department (default 10 active packs, configurable in `system_settings`) with a progress bar so the archivist can throttle requests
 
-**UI** (`src/pages/admin/ApprovalPolicies.tsx`)
-- Add a third switch per row: **"Forbid text-only fallback"** with helper "Approver must have an uploaded signature or stamp — no plain-text approval block."
-- Persist through the existing `saveRow` upsert.
-
----
-
-## 3. Verifier presentation pack per department (IQA + Super Admin)
-
-**Goal**: IQA/Super Admin picks a department + academic session; the system produces a **shareable link** that lets an external verifier download a ZIP of that department's `ARCHIVED` documents plus an index PDF (cover sheet listing doc type, unit, trainer, approval dates, verification URL).
-
-**Schema** — new table `verification_packs`:
-- `id`, `department`, `session_year`, `session_term`
-- `token` (opaque, random, unique) — used in the shareable URL
-- `expires_at` (default now() + 30 days), `revoked_at`
-- `created_by`, `created_at`, `download_count`
-- RLS: only IQA/SUPER_ADMIN can insert/select/update; anon can select only by token (via edge function, not client).
-- GRANTs: `authenticated` full, `service_role` all. No `anon` grant — access is only through the edge function using service role.
-
-**Edge functions**
-- `create-verification-pack` (JWT-verified, IQA/SUPER_ADMIN only): validates dept+session, inserts row, returns `{ token, url }`.
-- `download-verification-pack` (public, token in query): looks up token, checks `expires_at`/`revoked_at`, streams a ZIP of archived docs for that dept+session with an auto-generated cover PDF, increments `download_count`, logs to `audit_logs`.
-
-**UI**
-- New page `src/pages/iqa/VerifierPacks.tsx` (also linked from Super Admin nav):
-  - Department + session pickers, "Generate link" button.
-  - Table of existing packs with: link (copy), expiry, download count, "Revoke" action.
-- Add route in `App.tsx`, nav entry via existing role-gated nav config.
+Grouped by `department` with a filter (defaults to "All"). No new heavy queries — a small RPC `verification_pack_stats(_department text)` returns a single JSON row.
 
 ---
 
-## Technical notes
+## 2. Pack composition rules
 
-- Bulk retry uses a small async pool (3) instead of `Promise.all` to avoid hammering the edge function.
-- Verification link format: `https://<app>/verify/pack?token=<opaque>` → maps to a lightweight public page that calls `download-verification-pack` and triggers the download; no auth required, no data exposed beyond that pack.
-- Cover PDF is generated in the edge function with `pdf-lib` (already used by `stamp-document`).
-- Existing `VerifyDocument` per-file page is unchanged; the pack is a separate department-level artefact.
+**Goal**: When generating a pack, IQA picks which document types are included; text-only-approved documents are auto-excluded when the doc-type policy has `forbid_text_only_fallback = true` (and can be manually excluded for other types).
+
+**Schema** — extend `verification_packs`:
+- `included_document_types text[]` (null = all types)
+- `include_text_only_fallbacks boolean not null default true`
+
+**UI** (`VerifierPacks.tsx` — "Create new pack" card):
+- Multi-select of document types (pre-checked = all). Types whose policy `forbid_text_only_fallback = true` are shown with an "auto-excludes text-only" note.
+- One switch: "Include text-only-approved documents". Disabled + forced OFF if every selected type has `forbid_text_only_fallback = true`.
+
+**Enforcement** — `download-verification-pack` edge function:
+- Filter `documents` query by `included_document_types` when present.
+- When `include_text_only_fallbacks = false`, exclude documents whose `approval_mode = 'TEXT_ONLY'` (or where no stamped file exists). Manifest lists them under an "Excluded" section for transparency.
+
+`create-verification-pack` accepts the two new fields and validates them.
 
 ---
 
-## Files touched
+## 3. Per-department verifier assignments
 
-**New**: `supabase/migrations/<ts>_verification_packs_and_policy.sql`, `supabase/functions/create-verification-pack/index.ts`, `supabase/functions/download-verification-pack/index.ts`, `src/pages/iqa/VerifierPacks.tsx`, `src/pages/VerifyPack.tsx` (public landing).
+**Schema** — two new tables:
 
-**Edited**: `src/components/common/RetryDriveSyncButton.tsx`, `src/components/common/DocumentCard.tsx` (move "Open in Drive" link out), `src/pages/iqa/ArchiveScreen.tsx` (bulk retry button), `src/pages/admin/ApprovalPolicies.tsx` (third switch), `src/hooks/useDocuments.ts` (text-only guard), `src/hooks/useDocTypePolicy.ts` (new field in type), `supabase/functions/stamp-document/index.ts` (server-side guard), `src/App.tsx` (routes), nav config.
+`verifiers`:
+- `id`, `full_name`, `email` (unique), `organisation`, `phone`, `notes`, `created_by`, `created_at`, `updated_at`, `active boolean default true`
+
+`verification_pack_assignees` (join):
+- `id`, `pack_id → verification_packs`, `verifier_id → verifiers`, `assigned_at`, `assigned_by`, `email_sent_at`, `first_opened_at`
+
+RLS: IQA / SUPER_ADMIN full access. GRANTs for `authenticated` + `service_role` only.
+
+**UI**:
+- New page `src/pages/iqa/Verifiers.tsx` — CRUD list of verifiers (name, email, org, active toggle).
+- In `VerifierPacks.tsx`, each pack row gains an "Assign verifiers" button opening a modal that picks from the verifier list, filtered per department (verifiers can be tagged with departments via a text[] column `departments`). Shows who is currently assigned with a "Remove" action.
+- The pack link presented to a verifier now includes `&v=<verifier_id>` so the `download-verification-pack` function can record `first_opened_at` and identify who is doing the review.
+
+Nav entry "Verifiers" added for IQA + SUPER_ADMIN.
+
+---
+
+## 4. Verifier review workflow
+
+**Goal**: When a verifier opens the pack, they can record per-document decisions.
+
+**Schema** — new table `verifier_reviews`:
+- `id`, `pack_id`, `document_id`, `verifier_id` (nullable — anon fallback), `decision` enum `('APPROVED','QUERY','REJECTED')`, `notes text`, `reviewed_at timestamptz default now()`
+- Unique `(pack_id, document_id, verifier_id)`
+
+RLS: IQA / SUPER_ADMIN read all. Inserts go via edge function only (service role). GRANT service_role all; GRANT authenticated select (for IQA read).
+
+**Edge functions**:
+- `verifier-session` — POST `{ token, verifier_id? }` returns a short-lived signed session cookie / JWT with `pack_id` + `verifier_id`; validates pack is active.
+- `verifier-review-submit` — POST `{ session, document_id, decision, notes }` inserts / upserts a `verifier_reviews` row.
+- Existing `download-verification-pack` unchanged; it just streams the ZIP.
+
+**Public UI** — `src/pages/VerifyPack.tsx` upgraded:
+- Instead of an immediate download, shows a landing page listing the pack's documents with a per-row `<select>` for decision + notes textarea and "Save review" button.
+- "Download ZIP" button remains.
+- Verifier identity chip if `&v=` is present.
+
+**IQA view** — In `VerifierPacks.tsx` each pack expands to show a review summary: N/M documents reviewed, breakdown by decision, latest notes. Deep link to a read-only review detail page (`/iqa/packs/:id/reviews`).
+
+---
+
+## Files
+
+**New**:
+- `src/pages/iqa/Verifiers.tsx`
+- `src/pages/iqa/PackReviews.tsx`
+- `src/components/iqa/PackAnalyticsPanel.tsx`
+- `src/components/iqa/AssignVerifiersModal.tsx`
+- `supabase/functions/verifier-session/index.ts`
+- `supabase/functions/verifier-review-submit/index.ts`
+- `supabase/migrations/<ts>_verifier_reviews_and_assignments.sql`
+
+**Edited**:
+- `src/pages/iqa/VerifierPacks.tsx` (analytics + composition + assignment UI + review summary)
+- `src/pages/VerifyPack.tsx` (verifier-facing review workflow)
+- `src/pages/iqa/ArchiveScreen.tsx` (small analytics tile)
+- `src/components/layout/BottomNav.tsx` (Verifiers nav entry)
+- `src/App.tsx` (new routes)
+- `supabase/functions/create-verification-pack/index.ts` (composition fields)
+- `supabase/functions/download-verification-pack/index.ts` (composition filters + record first_opened_at)
+- `supabase/config.toml` (new functions, `verify_jwt = false` for public ones)
+
+---
+
+## Notes
+
+- All new tables scoped by RLS to IQA / SUPER_ADMIN via `has_role`.
+- No `anon` grants anywhere — verifier flow is always service-role via edge function using the opaque token.
+- Analytics uses a single `SECURITY DEFINER` SQL function returning JSON to keep the client query small.
+- Order of implementation: (1) migration, (2) edge functions, (3) IQA screens, (4) public review UI.
