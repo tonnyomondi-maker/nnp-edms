@@ -663,6 +663,51 @@ export type Database = {
         }
         Relationships: []
       }
+      verification_pack_assignees: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          email_sent_at: string | null
+          first_opened_at: string | null
+          id: string
+          pack_id: string
+          verifier_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          email_sent_at?: string | null
+          first_opened_at?: string | null
+          id?: string
+          pack_id: string
+          verifier_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          email_sent_at?: string | null
+          first_opened_at?: string | null
+          id?: string
+          pack_id?: string
+          verifier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_pack_assignees_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "verification_packs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_pack_assignees_verifier_id_fkey"
+            columns: ["verifier_id"]
+            isOneToOne: false
+            referencedRelation: "verifiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       verification_packs: {
         Row: {
           created_at: string
@@ -671,6 +716,8 @@ export type Database = {
           download_count: number
           expires_at: string
           id: string
+          include_text_only_fallbacks: boolean
+          included_document_types: string[] | null
           revoked_at: string | null
           session_term: string
           session_year: number
@@ -684,6 +731,8 @@ export type Database = {
           download_count?: number
           expires_at?: string
           id?: string
+          include_text_only_fallbacks?: boolean
+          included_document_types?: string[] | null
           revoked_at?: string | null
           session_term: string
           session_year: number
@@ -697,10 +746,109 @@ export type Database = {
           download_count?: number
           expires_at?: string
           id?: string
+          include_text_only_fallbacks?: boolean
+          included_document_types?: string[] | null
           revoked_at?: string | null
           session_term?: string
           session_year?: number
           token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      verifier_reviews: {
+        Row: {
+          decision: Database["public"]["Enums"]["verifier_decision"]
+          document_id: string
+          id: string
+          notes: string | null
+          pack_id: string
+          reviewed_at: string
+          updated_at: string
+          verifier_id: string | null
+        }
+        Insert: {
+          decision: Database["public"]["Enums"]["verifier_decision"]
+          document_id: string
+          id?: string
+          notes?: string | null
+          pack_id: string
+          reviewed_at?: string
+          updated_at?: string
+          verifier_id?: string | null
+        }
+        Update: {
+          decision?: Database["public"]["Enums"]["verifier_decision"]
+          document_id?: string
+          id?: string
+          notes?: string | null
+          pack_id?: string
+          reviewed_at?: string
+          updated_at?: string
+          verifier_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verifier_reviews_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verifier_reviews_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "verification_packs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verifier_reviews_verifier_id_fkey"
+            columns: ["verifier_id"]
+            isOneToOne: false
+            referencedRelation: "verifiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      verifiers: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          departments: string[]
+          email: string
+          full_name: string
+          id: string
+          notes: string | null
+          organisation: string | null
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          departments?: string[]
+          email: string
+          full_name: string
+          id?: string
+          notes?: string | null
+          organisation?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          departments?: string[]
+          email?: string
+          full_name?: string
+          id?: string
+          notes?: string | null
+          organisation?: string | null
+          phone?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -718,6 +866,23 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      verification_pack_stats: {
+        Args: { _capacity?: number; _department?: string }
+        Returns: Json
+      }
+      verification_pack_stats_by_dept: {
+        Args: { _capacity?: number }
+        Returns: {
+          active: number
+          department: string
+          expired: number
+          next_expiry: string
+          remaining_capacity: number
+          revoked: number
+          total_downloads: number
+          total_packs: number
+        }[]
       }
     }
     Enums: {
@@ -738,6 +903,7 @@ export type Database = {
         | "Class Attendance"
         | "Course Outline"
       submission_type: "ONE_TIME" | "WEEKLY"
+      verifier_decision: "APPROVED" | "QUERY" | "REJECTED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -884,6 +1050,7 @@ export const Constants = {
         "Course Outline",
       ],
       submission_type: ["ONE_TIME", "WEEKLY"],
+      verifier_decision: ["APPROVED", "QUERY", "REJECTED"],
     },
   },
 } as const
