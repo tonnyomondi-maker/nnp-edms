@@ -1,9 +1,9 @@
-// IQA / Super Admin page — generate shareable verification packs per department.
-// A pack is a signed link (opaque token) an external verifier can use to
-// download a ZIP of that department's archived documents for a given session.
+// IQA / Super Admin — generate shareable verifier packs per department.
+// Also hosts the analytics panel, composition controls, verifier assignments,
+// and per-pack review summary.
 
-import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -13,34 +13,56 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { DEPARTMENTS } from '@/lib/sessions';
-import { Copy, Loader2, ShieldCheck, Link2, Ban } from 'lucide-react';
+import { Copy, Loader2, ShieldCheck, Link2, Ban, Users, MessageSquare } from 'lucide-react';
+import { PackAnalyticsPanel } from '@/components/iqa/PackAnalyticsPanel';
+import { AssignVerifiersModal } from '@/components/iqa/AssignVerifiersModal';
+import { useDocTypePolicies, policyFor } from '@/hooks/useDocTypePolicy';
 
 interface PackRow {
-  id: string;
-  department: string;
-  session_year: number;
-  session_term: string;
-  token: string;
-  expires_at: string;
-  revoked_at: string | null;
-  download_count: number;
-  created_at: string;
+  id: string; department: string; session_year: number; session_term: string;
+  token: string; expires_at: string; revoked_at: string | null;
+  download_count: number; created_at: string;
+  included_document_types: string[] | null;
+  include_text_only_fallbacks: boolean;
 }
 
+interface ReviewCount { pack_id: string; count: number }
+
 const TERMS = ['JAN_APR', 'MAY_AUG', 'SEP_DEC'];
+const DOC_TYPES = [
+  'Learning Plan', 'Personal Timetable', 'Workload Allocation',
+  'Scheme of Work', 'Session Plan', 'Class Attendance', 'Course Outline',
+];
 
 export default function VerifierPacks() {
   const { currentUser, activeRole, loading } = useAuth();
+  const { data: policies } = useDocTypePolicies();
+
   const [dept, setDept] = useState('');
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [term, setTerm] = useState<string>('JAN_APR');
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(DOC_TYPES);
+  const [includeTextOnly, setIncludeTextOnly] = useState(true);
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<PackRow[]>([]);
+  const [reviewCounts, setReviewCounts] = useState<Record<string, number>>({});
   const [loadingRows, setLoadingRows] = useState(false);
+  const [assignModal, setAssignModal] = useState<PackRow | null>(null);
 
   const canUse = !loading && currentUser && (activeRole === 'IQA' || activeRole === 'SUPER_ADMIN');
+
+  // If every selected type forbids text-only fallback, force the switch off + disable.
+  const allSelectedForbidTextOnly = useMemo(() => {
+    if (selectedTypes.length === 0) return false;
+    return selectedTypes.every((t) => policyFor(policies, t).forbid_text_only_fallback);
+  }, [selectedTypes, policies]);
+  useEffect(() => {
+    if (allSelectedForbidTextOnly && includeTextOnly) setIncludeTextOnly(false);
+  }, [allSelectedForbidTextOnly, includeTextOnly]);
 
   const load = async () => {
     setLoadingRows(true);
@@ -48,9 +70,23 @@ export default function VerifierPacks() {
       .from('verification_packs' as never)
       .select('*')
       .order('created_at', { ascending: false });
+    if (error) { toast.error('Failed to load packs', { description: error.message }); setLoadingRows(false); return; }
+    const list = (data as unknown as PackRow[]) || [];
+    setRows(list);
+
+    if (list.length) {
+      // deno-lint-ignore no-explicit-any
+      const { data: rc } = await (supabase as any)
+        .from('verifier_reviews')
+        .select('pack_id')
+        .in('pack_id', list.map((r) => r.id));
+      const counts: Record<string, number> = {};
+      ((rc as { pack_id: string }[] | null) || []).forEach((r) => {
+        counts[r.pack_id] = (counts[r.pack_id] || 0) + 1;
+      });
+      setReviewCounts(counts);
+    }
     setLoadingRows(false);
-    if (error) { toast.error('Failed to load packs', { description: error.message }); return; }
-    setRows((data as unknown as PackRow[]) || []);
   };
 
   useEffect(() => { if (canUse) load(); }, [canUse]);
@@ -61,23 +97,29 @@ export default function VerifierPacks() {
     return <Navigate to="/" replace />;
   }
   if (!canUse) {
-    return (
-      <div className="p-4"><Card><CardContent className="p-4 text-sm text-muted-foreground">
-        Switch to <strong>IQA</strong> or <strong>Super Admin</strong> to manage verifier packs.
-      </CardContent></Card></div>
-    );
+    return <div className="p-4"><Card><CardContent className="p-4 text-sm text-muted-foreground">
+      Switch to <strong>IQA</strong> or <strong>Super Admin</strong> to manage verifier packs.
+    </CardContent></Card></div>;
   }
+
+  const toggleType = (t: string) => {
+    setSelectedTypes((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]);
+  };
 
   const generate = async () => {
     if (!dept || !year || !term) { toast.error('Fill department, year, and term'); return; }
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-verification-pack', {
-        body: { department: dept, session_year: year, session_term: term },
+        body: {
+          department: dept, session_year: year, session_term: term,
+          included_document_types: selectedTypes.length === DOC_TYPES.length ? null : selectedTypes,
+          include_text_only_fallbacks: includeTextOnly,
+        },
       });
       const errMsg = error?.message || (data as { error?: string })?.error;
       if (errMsg) { toast.error('Could not create pack', { description: errMsg }); return; }
-      toast.success('Verifier pack created', { description: 'Share the link with your external verifier.' });
+      toast.success('Verifier pack created');
       load();
     } finally { setBusy(false); }
   };
@@ -102,40 +144,70 @@ export default function VerifierPacks() {
 
   return (
     <div className="space-y-4 pb-8">
-      <PageHeader title="Verifier Packs" subtitle="Generate shareable links for external verifiers, per department and session." />
+      <PageHeader title="Verifier Packs" subtitle="Shareable links for external verifiers, per department and session." />
+
+      <PackAnalyticsPanel />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-primary" /> Create new pack
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid sm:grid-cols-4 gap-3 items-end">
-          <div>
-            <Label className="text-xs">Department</Label>
-            <Select value={dept} onValueChange={setDept}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="Select department" /></SelectTrigger>
-              <SelectContent>
-                {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-              </SelectContent>
-            </Select>
+        <CardContent className="space-y-3">
+          <div className="grid sm:grid-cols-4 gap-3 items-end">
+            <div>
+              <Label className="text-xs">Department</Label>
+              <Select value={dept} onValueChange={setDept}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>{DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Year</Label>
+              <Input type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value, 10))} className="h-9" />
+            </div>
+            <div>
+              <Label className="text-xs">Term</Label>
+              <Select value={term} onValueChange={setTerm}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>{TERMS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <Button onClick={generate} disabled={busy || selectedTypes.length === 0} className="h-9 gap-1">
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+              Generate link
+            </Button>
           </div>
-          <div>
-            <Label className="text-xs">Year</Label>
-            <Input type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value, 10))} className="h-9" />
+
+          <div className="border rounded p-3 space-y-2">
+            <Label className="text-xs">Included document types</Label>
+            <div className="grid sm:grid-cols-2 gap-1">
+              {DOC_TYPES.map((t) => {
+                const forbids = policyFor(policies, t).forbid_text_only_fallback;
+                return (
+                  <label key={t} className="flex items-start gap-2 text-xs">
+                    <Checkbox checked={selectedTypes.includes(t)} onCheckedChange={() => toggleType(t)} />
+                    <span>
+                      {t}
+                      {forbids && <span className="ml-1 text-[10px] text-muted-foreground">(policy: no text-only)</span>}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex items-start gap-2 pt-1">
+              <Switch checked={includeTextOnly} disabled={allSelectedForbidTextOnly} onCheckedChange={setIncludeTextOnly} />
+              <div className="text-xs">
+                <p>Include text-only-approved documents</p>
+                <p className="text-muted-foreground text-[10px]">
+                  {allSelectedForbidTextOnly
+                    ? 'All selected types forbid text-only approvals — this is off automatically.'
+                    : 'Off = only documents with a physical stamp / signature are bundled.'}
+                </p>
+              </div>
+            </div>
           </div>
-          <div>
-            <Label className="text-xs">Term</Label>
-            <Select value={term} onValueChange={setTerm}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {TERMS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={generate} disabled={busy} className="h-9 gap-1">
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-            Generate link
-          </Button>
         </CardContent>
       </Card>
 
@@ -143,13 +215,12 @@ export default function VerifierPacks() {
         <CardHeader><CardTitle className="text-base">Existing packs</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {loadingRows && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
-          {!loadingRows && rows.length === 0 && (
-            <p className="text-xs text-muted-foreground">No packs yet.</p>
-          )}
+          {!loadingRows && rows.length === 0 && <p className="text-xs text-muted-foreground">No packs yet.</p>}
           {rows.map((r) => {
             const expired = new Date(r.expires_at) < new Date();
             const revoked = !!r.revoked_at;
             const active = !expired && !revoked;
+            const revs = reviewCounts[r.id] || 0;
             return (
               <div key={r.id} className="border rounded p-3 text-xs space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -158,12 +229,22 @@ export default function VerifierPacks() {
                   {active && <Badge variant="secondary">Active</Badge>}
                   {revoked && <Badge variant="destructive">Revoked</Badge>}
                   {expired && !revoked && <Badge variant="outline">Expired</Badge>}
-                  <span className="ml-auto text-muted-foreground">Downloads: {r.download_count}</span>
+                  {r.included_document_types && <Badge variant="outline" className="text-[10px]">{r.included_document_types.length} types</Badge>}
+                  {!r.include_text_only_fallbacks && <Badge variant="outline" className="text-[10px]">no text-only</Badge>}
+                  <span className="ml-auto text-muted-foreground">DL {r.download_count} · Reviews {revs}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <code className="text-[10px] truncate max-w-full break-all bg-muted px-2 py-1 rounded flex-1">{linkFor(r.token)}</code>
                   <Button size="sm" variant="outline" onClick={() => copyLink(r.token)} className="h-7 gap-1">
                     <Copy className="w-3 h-3" /> Copy
+                  </Button>
+                  {active && (
+                    <Button size="sm" variant="outline" onClick={() => setAssignModal(r)} className="h-7 gap-1">
+                      <Users className="w-3 h-3" /> Assign
+                    </Button>
+                  )}
+                  <Button asChild size="sm" variant="outline" className="h-7 gap-1">
+                    <Link to={`/iqa/packs/${r.id}/reviews`}><MessageSquare className="w-3 h-3" /> Reviews</Link>
                   </Button>
                   {active && (
                     <Button size="sm" variant="destructive" onClick={() => revoke(r.id)} className="h-7 gap-1">
@@ -180,6 +261,16 @@ export default function VerifierPacks() {
           })}
         </CardContent>
       </Card>
+
+      {assignModal && (
+        <AssignVerifiersModal
+          packId={assignModal.id}
+          packToken={assignModal.token}
+          department={assignModal.department}
+          open={!!assignModal}
+          onClose={() => setAssignModal(null)}
+        />
+      )}
     </div>
   );
 }
