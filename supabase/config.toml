@@ -2,3 +2,6 @@ project_id = "yqxmtxivimuqowxuqumr"
 
 [functions.download-verification-pack]
 verify_jwt = false
+
+[functions.verifier-review-submit]
+verify_jwt = false

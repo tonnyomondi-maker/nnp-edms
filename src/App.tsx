@@ -28,6 +28,8 @@ import Notifications from "./pages/Notifications";
 import VerifyDocument from "./pages/VerifyDocument";
 import VerifyPack from "./pages/VerifyPack";
 import VerifierPacks from "./pages/iqa/VerifierPacks";
+import Verifiers from "./pages/iqa/Verifiers";
+import PackReviews from "./pages/iqa/PackReviews";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -61,6 +63,8 @@ function ProtectedRoutes() {
         <Route path="/dp/queue" element={<ApprovalQueue />} />
         <Route path="/iqa/archive" element={<ArchiveScreen />} />
         <Route path="/iqa/verifier-packs" element={<VerifierPacks />} />
+        <Route path="/iqa/verifiers" element={<Verifiers />} />
+        <Route path="/iqa/packs/:packId/reviews" element={<PackReviews />} />
         <Route path="/admin/users" element={<ManageUsers />} />
         <Route path="/admin/assignments" element={<ManageAssignments />} />
         <Route path="/admin/exports" element={<SessionExports />} />

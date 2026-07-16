@@ -1,7 +1,7 @@
 // Creates a shareable verification pack for an external verifier.
 // Auth: authenticated caller must hold IQA or SUPER_ADMIN role.
-// Body: { department, session_year, session_term }
-// Returns: { id, token, url, expires_at }
+// Body: { department, session_year, session_term, included_document_types?, include_text_only_fallbacks? }
+// Returns: { id, token, expires_at }
 
 import { corsHeaders } from "npm:@supabase/supabase-js@2.95.0/cors";
 import { createClient } from "npm:@supabase/supabase-js@2.95.0";
@@ -46,6 +46,11 @@ Deno.serve(async (req) => {
     const department = typeof body.department === "string" ? body.department.trim() : "";
     const session_year = typeof body.session_year === "number" ? body.session_year : parseInt(body.session_year, 10);
     const session_term = typeof body.session_term === "string" ? body.session_term.trim() : "";
+    const included_document_types = Array.isArray(body.included_document_types) && body.included_document_types.length > 0
+      ? body.included_document_types.filter((t: unknown) => typeof t === "string")
+      : null;
+    const include_text_only_fallbacks = body.include_text_only_fallbacks !== false;
+
     if (!department || !session_year || !["JAN_APR", "MAY_AUG", "SEP_DEC"].includes(session_term)) {
       return json({ error: "Invalid department / session_year / session_term" }, 400);
     }
@@ -55,6 +60,8 @@ Deno.serve(async (req) => {
       .from("verification_packs")
       .insert({
         department, session_year, session_term, token,
+        included_document_types,
+        include_text_only_fallbacks,
         created_by: u.user.id,
       })
       .select("id, token, expires_at")
@@ -64,7 +71,10 @@ Deno.serve(async (req) => {
     await admin.from("audit_logs").insert({
       action: "VERIFICATION_PACK_CREATED",
       performed_by: u.user.id,
-      details: { department, session_year, session_term, pack_id: inserted.id },
+      details: {
+        department, session_year, session_term, pack_id: inserted.id,
+        included_document_types, include_text_only_fallbacks,
+      },
     });
 
     return json({ id: inserted.id, token: inserted.token, expires_at: inserted.expires_at });
