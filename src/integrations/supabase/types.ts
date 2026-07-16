@@ -711,6 +711,7 @@ export type Database = {
     }
     Functions: {
       bootstrap_super_admin: { Args: { target_email: string }; Returns: Json }
+      can_stamp_document_file: { Args: { _path: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
