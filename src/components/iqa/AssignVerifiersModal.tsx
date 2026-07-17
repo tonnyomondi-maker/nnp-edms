@@ -15,7 +15,8 @@ interface Verifier {
   organisation: string | null; departments: string[] | null; active: boolean;
 }
 interface Assignee {
-  id: string; verifier_id: string; first_opened_at: string | null; email_sent_at: string | null;
+  id: string; verifier_id: string; first_opened_at: string | null;
+  email_sent_at: string | null; reminder_sent_at: string | null;
 }
 
 interface Props {
@@ -116,6 +117,11 @@ export function AssignVerifiersModal({ packId, packToken, department, open, onCl
                       {a?.first_opened_at && (
                         <p className="text-[10px] text-muted-foreground">
                           Opened {new Date(a.first_opened_at).toLocaleString()}
+                        </p>
+                      )}
+                      {a?.reminder_sent_at && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Reminder sent {new Date(a.reminder_sent_at).toLocaleString()}
                         </p>
                       )}
                     </div>

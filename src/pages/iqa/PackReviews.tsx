@@ -8,7 +8,8 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle2, AlertCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { DocumentAuditTimeline } from '@/components/iqa/DocumentAuditTimeline';
 
 interface Review {
   id: string; document_id: string; verifier_id: string | null;
@@ -32,6 +33,7 @@ export default function PackReviews() {
   const [docs, setDocs] = useState<Record<string, Doc>>({});
   const [verifiers, setVerifiers] = useState<Record<string, Verifier>>({});
   const [loadingData, setLoadingData] = useState(false);
+  const [openTimeline, setOpenTimeline] = useState<Record<string, boolean>>({});
 
   const canUse = !loading && currentUser && (activeRole === 'IQA' || activeRole === 'SUPER_ADMIN');
 
@@ -100,6 +102,7 @@ export default function PackReviews() {
           {reviews.map((r) => {
             const d = docs[r.document_id];
             const v = r.verifier_id ? verifiers[r.verifier_id] : null;
+            const open = !!openTimeline[r.document_id];
             return (
               <div key={r.id} className="border rounded p-3 text-xs space-y-1">
                 <div className="flex items-center gap-2">
@@ -112,6 +115,18 @@ export default function PackReviews() {
                   Reviewer: {v ? `${v.full_name} (${v.email})` : 'Anonymous'}
                 </p>
                 {r.notes && <p className="italic whitespace-pre-wrap">{r.notes}</p>}
+                <Button
+                  size="sm" variant="ghost" className="h-6 gap-1 text-[10px] px-1"
+                  onClick={() => setOpenTimeline((p) => ({ ...p, [r.document_id]: !open }))}
+                >
+                  {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  {open ? 'Hide timeline' : 'Show audit timeline'}
+                </Button>
+                {open && (
+                  <div className="mt-2 pt-2 border-t">
+                    <DocumentAuditTimeline documentId={r.document_id} />
+                  </div>
+                )}
               </div>
             );
           })}

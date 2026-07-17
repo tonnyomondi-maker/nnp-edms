@@ -17,7 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { DEPARTMENTS } from '@/lib/sessions';
-import { Copy, Loader2, ShieldCheck, Link2, Ban, Users, MessageSquare } from 'lucide-react';
+import { Copy, Loader2, ShieldCheck, Link2, Ban, Users, MessageSquare, Settings2, ListChecks } from 'lucide-react';
 import { PackAnalyticsPanel } from '@/components/iqa/PackAnalyticsPanel';
 import { AssignVerifiersModal } from '@/components/iqa/AssignVerifiersModal';
 import { useDocTypePolicies, policyFor } from '@/hooks/useDocTypePolicy';
