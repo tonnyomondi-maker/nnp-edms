@@ -1,116 +1,123 @@
-# Verifier Packs — Analytics, Composition, Assignment, Review
+# Verifier Packs — Capacity, Bulk Assign, Timeline, Reminders
 
-Four related additions on top of the existing verification-pack system. IQA and Super Admin only, gated per department.
-
----
-
-## 1. Analytics panel (per department)
-
-**Where**: New card at the top of `src/pages/iqa/VerifierPacks.tsx`, plus a compact summary tile in the IQA `ArchiveScreen`.
-
-**Metrics** (aggregated from `verification_packs` + `audit_logs`):
-- Total packs issued
-- Active / expired / revoked counts
-- Total downloads (sum of `download_count`)
-- Unique verifiers that opened (distinct `verifier_id` from reviews, or user-agent hash from audit logs when anonymous)
-- Days until next expiry
-- "Remaining capacity" — soft budget per department (default 10 active packs, configurable in `system_settings`) with a progress bar so the archivist can throttle requests
-
-Grouped by `department` with a filter (defaults to "All"). No new heavy queries — a small RPC `verification_pack_stats(_department text)` returns a single JSON row.
+Four related additions on top of the existing verification-pack system. IQA and Super Admin only.
 
 ---
 
-## 2. Pack composition rules
+## 1. Department pack-capacity settings
 
-**Goal**: When generating a pack, IQA picks which document types are included; text-only-approved documents are auto-excluded when the doc-type policy has `forbid_text_only_fallback = true` (and can be manually excluded for other types).
+**Goal**: Replace the hard-coded default `_capacity = 10` in `verification_pack_stats*` with a per-department, configurable limit.
 
-**Schema** — extend `verification_packs`:
-- `included_document_types text[]` (null = all types)
-- `include_text_only_fallbacks boolean not null default true`
+**Schema**: new table `department_pack_capacity`
+- `department text primary key`
+- `active_pack_limit int not null default 10 check (active_pack_limit between 0 and 200)`
+- `updated_by uuid`, `updated_at timestamptz default now()`
 
-**UI** (`VerifierPacks.tsx` — "Create new pack" card):
-- Multi-select of document types (pre-checked = all). Types whose policy `forbid_text_only_fallback = true` are shown with an "auto-excludes text-only" note.
-- One switch: "Include text-only-approved documents". Disabled + forced OFF if every selected type has `forbid_text_only_fallback = true`.
+RLS: SUPER_ADMIN / IQA read + upsert; authenticated read (needed by analytics panel). GRANTs for `authenticated` + `service_role`.
 
-**Enforcement** — `download-verification-pack` edge function:
-- Filter `documents` query by `included_document_types` when present.
-- When `include_text_only_fallbacks = false`, exclude documents whose `approval_mode = 'TEXT_ONLY'` (or where no stamped file exists). Manifest lists them under an "Excluded" section for transparency.
+**Function updates**:
+- Rewrite `verification_pack_stats(_department)` and `verification_pack_stats_by_dept()` to LEFT JOIN `department_pack_capacity` and fall back to 10 when no row exists. Drop the `_capacity` argument (keep it as a defaulted arg for backward compat, but ignore when a per-dept row exists).
 
-`create-verification-pack` accepts the two new fields and validates them.
+**UI**: new page `src/pages/iqa/PackCapacity.tsx`
+- Grid of departments × current limit + active count + a number input + "Save" per row.
+- Bulk "Reset to 10" action.
+- Linked from `VerifierPacks` header ("Capacity settings") and from `BottomNav` under IQA / Super Admin.
 
----
-
-## 3. Per-department verifier assignments
-
-**Schema** — two new tables:
-
-`verifiers`:
-- `id`, `full_name`, `email` (unique), `organisation`, `phone`, `notes`, `created_by`, `created_at`, `updated_at`, `active boolean default true`
-
-`verification_pack_assignees` (join):
-- `id`, `pack_id → verification_packs`, `verifier_id → verifiers`, `assigned_at`, `assigned_by`, `email_sent_at`, `first_opened_at`
-
-RLS: IQA / SUPER_ADMIN full access. GRANTs for `authenticated` + `service_role` only.
-
-**UI**:
-- New page `src/pages/iqa/Verifiers.tsx` — CRUD list of verifiers (name, email, org, active toggle).
-- In `VerifierPacks.tsx`, each pack row gains an "Assign verifiers" button opening a modal that picks from the verifier list, filtered per department (verifiers can be tagged with departments via a text[] column `departments`). Shows who is currently assigned with a "Remove" action.
-- The pack link presented to a verifier now includes `&v=<verifier_id>` so the `download-verification-pack` function can record `first_opened_at` and identify who is doing the review.
-
-Nav entry "Verifiers" added for IQA + SUPER_ADMIN.
+The `PackAnalyticsPanel` progress bars pick up the new limit automatically.
 
 ---
 
-## 4. Verifier review workflow
+## 2. Bulk verifier assignment
 
-**Goal**: When a verifier opens the pack, they can record per-document decisions.
+**Goal**: Assign the same set of verifiers to many packs in one flow.
 
-**Schema** — new table `verifier_reviews`:
-- `id`, `pack_id`, `document_id`, `verifier_id` (nullable — anon fallback), `decision` enum `('APPROVED','QUERY','REJECTED')`, `notes text`, `reviewed_at timestamptz default now()`
-- Unique `(pack_id, document_id, verifier_id)`
+**UI**: new page `src/pages/iqa/BulkAssign.tsx`
+- Filters: department (default: all the user is allowed to see), session year, term, status (default: Active).
+- Left column: paginated list of packs matching filters with per-row checkbox + "select all filtered".
+- Right column: multi-select of verifiers (reuses the picker from `AssignVerifiersModal`, filtered by department if a single dept is selected).
+- Bottom bar: "Assign N verifiers to M packs" button + summary.
 
-RLS: IQA / SUPER_ADMIN read all. Inserts go via edge function only (service role). GRANT service_role all; GRANT authenticated select (for IQA read).
+**Behaviour**: on submit, upsert `verification_pack_assignees(pack_id, verifier_id)` for every (pack, verifier) pair; unique constraint handles duplicates. Show per-pack success/failure counts in a toast + collapsible report.
 
-**Edge functions**:
-- `verifier-session` — POST `{ token, verifier_id? }` returns a short-lived signed session cookie / JWT with `pack_id` + `verifier_id`; validates pack is active.
-- `verifier-review-submit` — POST `{ session, document_id, decision, notes }` inserts / upserts a `verifier_reviews` row.
-- Existing `download-verification-pack` unchanged; it just streams the ZIP.
+Entry point: button on `VerifierPacks` next to "Create new pack" and a nav item under IQA.
 
-**Public UI** — `src/pages/VerifyPack.tsx` upgraded:
-- Instead of an immediate download, shows a landing page listing the pack's documents with a per-row `<select>` for decision + notes textarea and "Save review" button.
-- "Download ZIP" button remains.
-- Verifier identity chip if `&v=` is present.
+---
 
-**IQA view** — In `VerifierPacks.tsx` each pack expands to show a review summary: N/M documents reviewed, breakdown by decision, latest notes. Deep link to a read-only review detail page (`/iqa/packs/:id/reviews`).
+## 3. Per-document audit timeline
+
+**Goal**: For any document that's part of a pack, show a chronological timeline of pack membership, verifier opens/downloads, and review decisions.
+
+**Data sources** (all existing):
+- `verification_packs` (created_at, expires_at, revoked_at) filtered to packs whose scope matches the document.
+- `verification_pack_assignees` (`first_opened_at`).
+- `audit_logs` rows already emitted: `PACK_DOWNLOADED`, `VERIFIER_REVIEW_SUBMITTED`, plus a new `PACK_OPENED` we'll emit from `download-verification-pack` when a verifier hits the landing page.
+- `verifier_reviews` (reviewed_at, decision, notes, verifier_id).
+
+**RPC**: `document_pack_timeline(_document_id uuid) returns jsonb[]` — SECURITY DEFINER, IQA/SUPER_ADMIN only. Aggregates the four sources into a single time-ordered array of `{ ts, kind, actor, meta }` events.
+
+**UI**: new component `src/components/iqa/DocumentAuditTimeline.tsx`
+- Vertical timeline with icon per kind (pack created / verifier assigned / verifier opened / verifier downloaded / review submitted / pack revoked).
+- Rendered:
+  - inline in `PackReviews.tsx` under each document row (expand/collapse).
+  - as a modal from `ArchiveScreen` on the "History" action for archived documents.
+
+No new tables.
+
+---
+
+## 4. Automatic reminder notifications (24h)
+
+**Goal**: If a verifier opens a pack (recorded via `first_opened_at`) but hasn't submitted any `verifier_reviews` row for the pack within 24 hours, send them one reminder email.
+
+**Schema**: extend `verification_pack_assignees`
+- `reminder_sent_at timestamptz` (null = not sent).
+
+**Edge function**: new `send-verifier-reminders` (verify_jwt = false; runs from cron)
+- Selects assignees where `first_opened_at < now() - interval '24h'` AND `reminder_sent_at is null` AND pack is active AND no `verifier_reviews` exist for `(pack_id, verifier_id)`.
+- For each, fetches the verifier email and sends a Lovable app email (`verifier-review-reminder` template) with the pack link (`&v=<verifier_id>`).
+- Stamps `reminder_sent_at`.
+- Emits `audit_logs` action `VERIFIER_REMINDER_SENT`.
+
+**Email**: new React Email template `_shared/transactional-email-templates/verifier-review-reminder.tsx` (branded, single CTA to open pack). Registered in `registry.ts`.
+
+**Scheduling**: pg_cron job runs the edge function every hour (uses `SUPABASE_ANON_KEY` + service invocation pattern from the existing scheduled-job docs).
+
+**Prerequisites (auto-detected)**:
+- If Lovable Emails infra isn't set up yet, run `email_domain--setup_email_infra` and `email_domain--scaffold_transactional_email` before wiring the function/cron. If no email domain is configured, prompt the user to set one up in that turn.
+
+**IQA visibility**: reminder timestamp shown in `AssignVerifiersModal` and the new timeline (kind `reminder_sent`).
 
 ---
 
 ## Files
 
 **New**:
-- `src/pages/iqa/Verifiers.tsx`
-- `src/pages/iqa/PackReviews.tsx`
-- `src/components/iqa/PackAnalyticsPanel.tsx`
-- `src/components/iqa/AssignVerifiersModal.tsx`
-- `supabase/functions/verifier-session/index.ts`
-- `supabase/functions/verifier-review-submit/index.ts`
-- `supabase/migrations/<ts>_verifier_reviews_and_assignments.sql`
+- `src/pages/iqa/PackCapacity.tsx`
+- `src/pages/iqa/BulkAssign.tsx`
+- `src/components/iqa/DocumentAuditTimeline.tsx`
+- `supabase/functions/send-verifier-reminders/index.ts`
+- `supabase/functions/_shared/transactional-email-templates/verifier-review-reminder.tsx`
+- migration `..._pack_capacity_reminders_timeline.sql`
 
 **Edited**:
-- `src/pages/iqa/VerifierPacks.tsx` (analytics + composition + assignment UI + review summary)
-- `src/pages/VerifyPack.tsx` (verifier-facing review workflow)
-- `src/pages/iqa/ArchiveScreen.tsx` (small analytics tile)
-- `src/components/layout/BottomNav.tsx` (Verifiers nav entry)
 - `src/App.tsx` (new routes)
-- `supabase/functions/create-verification-pack/index.ts` (composition fields)
-- `supabase/functions/download-verification-pack/index.ts` (composition filters + record first_opened_at)
-- `supabase/config.toml` (new functions, `verify_jwt = false` for public ones)
+- `src/components/layout/BottomNav.tsx` (nav entries)
+- `src/pages/iqa/VerifierPacks.tsx` (links to capacity + bulk assign; drop the local capacity constant)
+- `src/pages/iqa/PackReviews.tsx` (embed timeline)
+- `src/pages/iqa/ArchiveScreen.tsx` (history modal)
+- `src/components/iqa/PackAnalyticsPanel.tsx` (use RPC-provided capacity)
+- `src/components/iqa/AssignVerifiersModal.tsx` (show `reminder_sent_at`)
+- `supabase/functions/download-verification-pack/index.ts` (emit `PACK_OPENED` on landing hit; keep download event)
+- `supabase/functions/verifier-review-submit/index.ts` (unchanged event stream)
+- `supabase/config.toml` (new function)
 
 ---
 
-## Notes
+## Notes / order
 
-- All new tables scoped by RLS to IQA / SUPER_ADMIN via `has_role`.
-- No `anon` grants anywhere — verifier flow is always service-role via edge function using the opaque token.
-- Analytics uses a single `SECURITY DEFINER` SQL function returning JSON to keep the client query small.
-- Order of implementation: (1) migration, (2) edge functions, (3) IQA screens, (4) public review UI.
+1. Migration (tables, capacity, RPC, timeline RPC, reminder column).
+2. Email infra + reminder template + edge function + cron.
+3. IQA screens (capacity, bulk assign, timeline, modal wiring).
+4. Nav + routes.
+
+All new tables scoped by RLS to IQA / SUPER_ADMIN via `has_role`. No `anon` grants. Reminder emails obey suppression via Lovable's send function.
