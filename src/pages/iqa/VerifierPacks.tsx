@@ -17,7 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { DEPARTMENTS } from '@/lib/sessions';
-import { Copy, Loader2, ShieldCheck, Link2, Ban, Users, MessageSquare } from 'lucide-react';
+import { Copy, Loader2, ShieldCheck, Link2, Ban, Users, MessageSquare, Settings2, ListChecks } from 'lucide-react';
 import { PackAnalyticsPanel } from '@/components/iqa/PackAnalyticsPanel';
 import { AssignVerifiersModal } from '@/components/iqa/AssignVerifiersModal';
 import { useDocTypePolicies, policyFor } from '@/hooks/useDocTypePolicy';
@@ -145,6 +145,14 @@ export default function VerifierPacks() {
   return (
     <div className="space-y-4 pb-8">
       <PageHeader title="Verifier Packs" subtitle="Shareable links for external verifiers, per department and session." />
+      <div className="flex flex-wrap gap-2">
+        <Button asChild size="sm" variant="outline" className="h-8 gap-1">
+          <Link to="/iqa/pack-capacity"><Settings2 className="w-3 h-3" /> Capacity settings</Link>
+        </Button>
+        <Button asChild size="sm" variant="outline" className="h-8 gap-1">
+          <Link to="/iqa/bulk-assign"><ListChecks className="w-3 h-3" /> Bulk assign</Link>
+        </Button>
+      </div>
 
       <PackAnalyticsPanel />
 

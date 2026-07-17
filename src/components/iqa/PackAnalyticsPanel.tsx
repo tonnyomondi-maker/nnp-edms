@@ -16,12 +16,11 @@ interface DeptStat {
   revoked: number;
   total_downloads: number;
   next_expiry: string | null;
+  capacity: number;
   remaining_capacity: number;
 }
 
-const DEFAULT_CAPACITY = 10;
-
-export function PackAnalyticsPanel({ capacity = DEFAULT_CAPACITY }: { capacity?: number }) {
+export function PackAnalyticsPanel() {
   const [rows, setRows] = useState<DeptStat[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,11 +28,11 @@ export function PackAnalyticsPanel({ capacity = DEFAULT_CAPACITY }: { capacity?:
     (async () => {
       setLoading(true);
       // deno-lint-ignore no-explicit-any
-      const { data, error } = await (supabase as any).rpc('verification_pack_stats_by_dept', { _capacity: capacity });
+      const { data, error } = await (supabase as any).rpc('verification_pack_stats_by_dept', {});
       setLoading(false);
       if (!error && Array.isArray(data)) setRows(data as DeptStat[]);
     })();
-  }, [capacity]);
+  }, []);
 
   const totalDownloads = rows.reduce((s, r) => s + Number(r.total_downloads || 0), 0);
   const totalActive = rows.reduce((s, r) => s + Number(r.active || 0), 0);
@@ -70,8 +69,9 @@ export function PackAnalyticsPanel({ capacity = DEFAULT_CAPACITY }: { capacity?:
             <div className="space-y-2">
               {rows.map((r) => {
                 const active = Number(r.active);
-                const used = Math.min(active, capacity);
-                const pct = Math.round((used / capacity) * 100);
+                const cap = Number(r.capacity) || 10;
+                const used = Math.min(active, cap);
+                const pct = cap > 0 ? Math.round((used / cap) * 100) : 0;
                 return (
                   <div key={r.department} className="border rounded p-2 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap text-xs">
@@ -81,7 +81,7 @@ export function PackAnalyticsPanel({ capacity = DEFAULT_CAPACITY }: { capacity?:
                       {Number(r.expired) > 0 && <Badge variant="outline" className="text-[10px]">{r.expired} expired</Badge>}
                       {Number(r.revoked) > 0 && <Badge variant="destructive" className="text-[10px]">{r.revoked} revoked</Badge>}
                       <span className="ml-auto text-muted-foreground">
-                        {r.remaining_capacity} / {capacity} remaining
+                        {r.remaining_capacity} / {cap} remaining
                       </span>
                     </div>
                     <Progress value={pct} className="h-1.5" />

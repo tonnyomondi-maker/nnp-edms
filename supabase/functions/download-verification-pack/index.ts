@@ -66,10 +66,16 @@ Deno.serve(async (req) => {
         const v: any = (a as any).verifiers;
         if (v) verifier = { id: v.id, full_name: v.full_name, email: v.email };
         if (!a.first_opened_at) {
+          const openedAt = new Date().toISOString();
           await admin
             .from("verification_pack_assignees")
-            .update({ first_opened_at: new Date().toISOString() })
+            .update({ first_opened_at: openedAt })
             .eq("id", a.id);
+          await admin.from("audit_logs").insert({
+            action: "PACK_OPENED",
+            performed_by: null,
+            details: { pack_id: pack.id, verifier_id: verifierId, opened_at: openedAt },
+          });
         }
       }
     }

@@ -88,6 +88,27 @@ export type Database = {
         }
         Relationships: []
       }
+      department_pack_capacity: {
+        Row: {
+          active_pack_limit: number
+          department: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active_pack_limit?: number
+          department: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active_pack_limit?: number
+          department?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       document_type_policy: {
         Row: {
           document_type: Database["public"]["Enums"]["document_type"]
@@ -671,6 +692,7 @@ export type Database = {
           first_opened_at: string | null
           id: string
           pack_id: string
+          reminder_sent_at: string | null
           verifier_id: string
         }
         Insert: {
@@ -680,6 +702,7 @@ export type Database = {
           first_opened_at?: string | null
           id?: string
           pack_id: string
+          reminder_sent_at?: string | null
           verifier_id: string
         }
         Update: {
@@ -689,6 +712,7 @@ export type Database = {
           first_opened_at?: string | null
           id?: string
           pack_id?: string
+          reminder_sent_at?: string | null
           verifier_id?: string
         }
         Relationships: [
@@ -860,6 +884,7 @@ export type Database = {
     Functions: {
       bootstrap_super_admin: { Args: { target_email: string }; Returns: Json }
       can_stamp_document_file: { Args: { _path: string }; Returns: boolean }
+      document_pack_timeline: { Args: { _document_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -875,6 +900,7 @@ export type Database = {
         Args: { _capacity?: number }
         Returns: {
           active: number
+          capacity: number
           department: string
           expired: number
           next_expiry: string

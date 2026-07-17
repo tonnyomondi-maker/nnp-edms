@@ -1,6 +1,6 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useLocation, Link } from 'react-router-dom';
-import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, Database, ScrollText, ShieldCheck, UserCheck } from 'lucide-react';
+import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, Database, ScrollText, ShieldCheck, UserCheck, ListChecks } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const trainerItems = [
@@ -29,8 +29,8 @@ const iqaItems = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/iqa/archive', icon: ClipboardList, label: 'Archive' },
   { to: '/iqa/verifier-packs', icon: ShieldCheck, label: 'Packs' },
+  { to: '/iqa/bulk-assign', icon: ListChecks, label: 'Bulk' },
   { to: '/iqa/verifiers', icon: UserCheck, label: 'Verifiers' },
-  { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 
 const superAdminItems = [

@@ -30,6 +30,8 @@ import VerifyPack from "./pages/VerifyPack";
 import VerifierPacks from "./pages/iqa/VerifierPacks";
 import Verifiers from "./pages/iqa/Verifiers";
 import PackReviews from "./pages/iqa/PackReviews";
+import PackCapacity from "./pages/iqa/PackCapacity";
+import BulkAssign from "./pages/iqa/BulkAssign";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -65,6 +67,8 @@ function ProtectedRoutes() {
         <Route path="/iqa/verifier-packs" element={<VerifierPacks />} />
         <Route path="/iqa/verifiers" element={<Verifiers />} />
         <Route path="/iqa/packs/:packId/reviews" element={<PackReviews />} />
+        <Route path="/iqa/pack-capacity" element={<PackCapacity />} />
+        <Route path="/iqa/bulk-assign" element={<BulkAssign />} />
         <Route path="/admin/users" element={<ManageUsers />} />
         <Route path="/admin/assignments" element={<ManageAssignments />} />
         <Route path="/admin/exports" element={<SessionExports />} />

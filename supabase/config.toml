@@ -5,3 +5,7 @@ verify_jwt = false
 
 [functions.verifier-review-submit]
 verify_jwt = false
+
+[functions.send-verifier-reminders]
+verify_jwt = false
+
