@@ -168,6 +168,8 @@ export type Database = {
           dp_stamp_w: number | null
           dp_stamp_x: number | null
           dp_stamp_y: number | null
+          drive_offloaded_at: string | null
+          drive_offloaded_by: string | null
           exported_at: string | null
           exported_by: string | null
           file_drive_id: string | null
@@ -225,6 +227,7 @@ export type Database = {
           sessions_per_week: number | null
           signed_file_url: string | null
           status: Database["public"]["Enums"]["document_status"]
+          storage_tier: string
           submission_type: Database["public"]["Enums"]["submission_type"]
           submitted_at: string
           term_number: number | null
@@ -263,6 +266,8 @@ export type Database = {
           dp_stamp_w?: number | null
           dp_stamp_x?: number | null
           dp_stamp_y?: number | null
+          drive_offloaded_at?: string | null
+          drive_offloaded_by?: string | null
           exported_at?: string | null
           exported_by?: string | null
           file_drive_id?: string | null
@@ -320,6 +325,7 @@ export type Database = {
           sessions_per_week?: number | null
           signed_file_url?: string | null
           status?: Database["public"]["Enums"]["document_status"]
+          storage_tier?: string
           submission_type: Database["public"]["Enums"]["submission_type"]
           submitted_at?: string
           term_number?: number | null
@@ -358,6 +364,8 @@ export type Database = {
           dp_stamp_w?: number | null
           dp_stamp_x?: number | null
           dp_stamp_y?: number | null
+          drive_offloaded_at?: string | null
+          drive_offloaded_by?: string | null
           exported_at?: string | null
           exported_by?: string | null
           file_drive_id?: string | null
@@ -415,6 +423,7 @@ export type Database = {
           sessions_per_week?: number | null
           signed_file_url?: string | null
           status?: Database["public"]["Enums"]["document_status"]
+          storage_tier?: string
           submission_type?: Database["public"]["Enums"]["submission_type"]
           submitted_at?: string
           term_number?: number | null
