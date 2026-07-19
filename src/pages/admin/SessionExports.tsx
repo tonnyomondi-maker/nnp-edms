@@ -127,7 +127,12 @@ export default function SessionExports() {
           'Content-Type': 'application/json',
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ year, session, deleteAfter }),
+        body: JSON.stringify({
+          year, session, deleteAfter,
+          department: department === 'ALL' ? undefined : department,
+          trainerId: trainerId === 'ALL' ? undefined : trainerId,
+          nested: true,
+        }),
       });
 
       if (!resp.ok) {
@@ -141,7 +146,8 @@ export default function SessionExports() {
       const blob = await resp.blob();
       const dispo = resp.headers.get('Content-Disposition') || '';
       const m = dispo.match(/filename="([^"]+)"/);
-      const filename = m?.[1] || `EDMS_${year}_${session}.zip`;
+      const scope = trainerId !== 'ALL' ? `_${trainerId.slice(0, 6)}` : department !== 'ALL' ? `_${department}` : '';
+      const filename = m?.[1] || `EDMS_${year}_${session}${scope}.zip`;
 
       const a = document.createElement('a');
       const objectUrl = URL.createObjectURL(blob);
@@ -162,21 +168,75 @@ export default function SessionExports() {
     }
   }
 
+  async function offloadToDrive() {
+    if (department === 'ALL') {
+      toast.error('Choose a department to offload');
+      return;
+    }
+    setBusyKey('offload');
+    try {
+      const { data, error } = await supabase.functions.invoke('offload-to-drive', {
+        body: { department, sessionYear: year },
+      });
+      if (error) throw error;
+      toast.success(`Offloaded ${data?.offloaded ?? 0} of ${data?.total ?? 0} document(s) to Google Drive`);
+      refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Offload failed');
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+
   return (
     <div className="space-y-4">
       <PageHeader title="Session Exports" subtitle="Download approved documents per training session" />
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm text-muted-foreground">Academic Year</span>
         <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
           <SelectContent>
             {yearOptions.map((y) => (
               <SelectItem key={y} value={String(y)}>{y}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+
+        <span className="text-sm text-muted-foreground">Department</span>
+        <Select value={department} onValueChange={(v) => { setDepartment(v); setTrainerId('ALL'); }}>
+          <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All departments</SelectItem>
+            {(departments || []).map((d) => (
+              <SelectItem key={d} value={d}>{d}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <span className="text-sm text-muted-foreground">Trainer</span>
+        <Select value={trainerId} onValueChange={setTrainerId} disabled={department === 'ALL'}>
+          <SelectTrigger className="w-56"><SelectValue placeholder="All trainers" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All trainers</SelectItem>
+            {(trainers || []).map((t) => (
+              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <ActionGuardButton
+          action="export"
+          variant="outline"
+          disabled={department === 'ALL' || busyKey === 'offload'}
+          onClick={offloadToDrive}
+        >
+          {busyKey === 'offload' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+          Offload dept. to Google Drive
+        </ActionGuardButton>
       </div>
+
 
       <div className="grid gap-4 md:grid-cols-3">
         {SESSIONS.map((s) => {
