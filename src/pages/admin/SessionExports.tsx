@@ -265,6 +265,12 @@ export default function SessionExports() {
                   <span className="text-muted-foreground">Already exported</span>
                   <span className="font-semibold">{exported}</span>
                 </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Not yet on Drive</span>
+                  <span className={needsMirror > 0 ? 'font-semibold text-amber-600' : 'font-semibold text-emerald-600'}>{needsMirror}</span>
+                </div>
+
+
 
                 <ActionGuardButton
                   action="export"
