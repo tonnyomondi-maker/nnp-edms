@@ -243,8 +243,10 @@ export default function SessionExports() {
           const c = counts?.[s.key];
           const archived = c?.archived ?? 0;
           const exported = c?.exported ?? 0;
+          const needsMirror = c?.needsMirror ?? 0;
           const busyDl = busyKey === `${s.key}-keep`;
           const busyDel = busyKey === `${s.key}-del`;
+
           return (
             <Card key={s.key}>
               <CardHeader>
