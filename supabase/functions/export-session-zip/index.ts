@@ -19,7 +19,13 @@ interface ExportRequest {
   year: number;
   session: Session;
   deleteAfter?: boolean;
+  department?: string;   // filter to one department
+  trainerId?: string;    // filter to one trainer
+  nested?: boolean;      // wrap each trainer's files in a per-trainer sub-ZIP
 }
+
+const GDRIVE_GATEWAY = "https://connector-gateway.lovable.dev/google_drive";
+
 
 const SESSION_LABEL: Record<Session, string> = {
   JAN_APR: "January – April",
@@ -109,7 +115,7 @@ Deno.serve(async (req) => {
     }
 
     const body = (await req.json()) as ExportRequest;
-    const { year, session, deleteAfter } = body || ({} as ExportRequest);
+    const { year, session, deleteAfter, department, trainerId, nested } = body || ({} as ExportRequest);
     if (!year || !["JAN_APR", "MAY_AUG", "SEP_DEC"].includes(session)) {
       return new Response(JSON.stringify({ error: "Invalid year or session" }), {
         status: 400,
@@ -117,10 +123,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    const gdriveKey = Deno.env.get("GOOGLE_DRIVE_API_KEY");
+
     // Query by session_year + session_term (new) — falls back to archived_at window for legacy rows
     const { start, end } = sessionWindow(Number(year), session);
 
-    const { data: docs, error: docErr } = await admin
+    let q = admin
       .from("documents")
       .select("*, teaching_assignments(*)")
       .eq("status", "ARCHIVED")
@@ -128,6 +137,10 @@ Deno.serve(async (req) => {
         `and(session_year.eq.${year},session_term.eq.${session}),and(session_year.is.null,archived_at.gte.${start.toISOString()},archived_at.lt.${end.toISOString()})`,
       )
       .order("department", { ascending: true });
+    if (department) q = q.eq("department", department);
+    if (trainerId) q = q.eq("trainer_id", trainerId);
+    const { data: docs, error: docErr } = await q;
+
 
     if (docErr) throw docErr;
     if (!docs || docs.length === 0) {
