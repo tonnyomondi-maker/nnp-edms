@@ -144,11 +144,23 @@ Deno.serve(async (req) => {
 
     if (docErr) throw docErr;
     if (!docs || docs.length === 0) {
-      return new Response(JSON.stringify({ error: "No archived documents in this session" }), {
+      return new Response(JSON.stringify({ error: "No archived documents match this filter" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Safety: don't allow freeing storage when a doc has no Drive mirror
+    if (deleteAfter) {
+      const missing = (docs as any[]).filter((d) => !d.gdrive_file_id && d.storage_tier !== "drive");
+      if (missing.length) {
+        return new Response(JSON.stringify({
+          error: `Refusing to free storage: ${missing.length} document(s) are not mirrored to Google Drive yet. Run "Retry Google Drive sync" first.`,
+          missingIds: missing.map((d) => d.id).slice(0, 20),
+        }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
+
 
     // Fetch trainer + approver names
     const userIds = new Set<string>();
@@ -197,27 +209,26 @@ Deno.serve(async (req) => {
     let skipped = 0;
 
     for (const doc of docs as any[]) {
+      let buf: Uint8Array | null = null;
       const url = doc.signed_file_url || doc.file_url;
-      if (!url) {
-        skipped++;
-        continue;
+
+      // Prefer Cloud Storage; if the file has been offloaded, pull from Google Drive.
+      const parsed = url ? parseStorageRef(url) : null;
+      if (parsed && doc.storage_tier !== "drive") {
+        const { data: fileData } = await admin.storage.from(parsed.bucket).download(parsed.path);
+        if (fileData) buf = new Uint8Array(await fileData.arrayBuffer());
       }
-      const parsed = parseStorageRef(url);
-      if (!parsed) {
-        skipped++;
-        continue;
+      if (!buf && doc.gdrive_file_id && lovableKey && gdriveKey) {
+        const resp = await fetch(
+          `${GDRIVE_GATEWAY}/drive/v3/files/${doc.gdrive_file_id}?alt=media`,
+          { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
+        );
+        if (resp.ok) buf = new Uint8Array(await resp.arrayBuffer());
       }
-      const { data: fileData, error: dlErr } = await admin.storage
-        .from(parsed.bucket)
-        .download(parsed.path);
-      if (dlErr || !fileData) {
-        skipped++;
-        continue;
-      }
+      if (!buf) { skipped++; continue; }
 
       const trainerName = nameMap.get(doc.trainer_id) || "Unknown_Trainer";
       const ta = doc.teaching_assignments || {};
-      // Prefer denormalized fields on the doc itself, fall back to assignment
       const unitCode = doc.unit_code || ta.unit_code || "UNIT";
       const unitName = doc.unit_name || ta.unit_name || "";
       const classCode = doc.class_code || ta.class_code || "";
@@ -227,15 +238,17 @@ Deno.serve(async (req) => {
       const dtype = safe(doc.document_type || "DOC");
       const wk = doc.week_number ? `_w${doc.week_number}` : "";
       const sIdx = doc.session_index ? `_s${doc.session_index}` : "";
-      const fileInZip = `${dept}/${trainer}/${unit}_${dtype}${wk}${sIdx}_${doc.id.slice(0, 8)}.pdf`;
+      // When nested=true, group per trainer folder (client can re-zip if needed)
+      const fileInZip = nested
+        ? `${dept}/${trainer}/${unit}_${dtype}${wk}${sIdx}_${doc.id.slice(0, 8)}.pdf`
+        : `${dept}/${trainer}/${unit}_${dtype}${wk}${sIdx}_${doc.id.slice(0, 8)}.pdf`;
 
-      const buf = new Uint8Array(await fileData.arrayBuffer());
       await zipWriter.add(fileInZip, new Uint8ArrayReader(buf));
       included++;
       exportedIds.push(doc.id);
 
-      // Track originals to delete
-      if (deleteAfter) {
+      // Track originals to delete (only Cloud-tier files)
+      if (deleteAfter && doc.storage_tier !== "drive") {
         if (doc.signed_file_url) {
           const p = parseStorageRef(doc.signed_file_url);
           if (p) deletePaths.push(p);
@@ -245,6 +258,7 @@ Deno.serve(async (req) => {
           if (p) deletePaths.push(p);
         }
       }
+
 
       csvRows.push(
         [
