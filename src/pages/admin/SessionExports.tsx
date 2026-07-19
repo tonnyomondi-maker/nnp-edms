@@ -39,36 +39,65 @@ export default function SessionExports() {
   const { activeRole } = useAuth();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState<number>(currentYear);
+  const [department, setDepartment] = useState<string>('ALL');
+  const [trainerId, setTrainerId] = useState<string>('ALL');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ session: SessionKey; count: number } | null>(null);
 
-  const allowed = activeRole === 'IQA' || activeRole === 'DP_ACADEMICS';
+  const allowed = activeRole === 'IQA' || activeRole === 'DP_ACADEMICS' || activeRole === 'SUPER_ADMIN';
+
+  const { data: departments } = useQuery({
+    enabled: allowed,
+    queryKey: ['export-departments'],
+    queryFn: async () => {
+      const { data } = await supabase.from('documents').select('department').eq('status', 'ARCHIVED');
+      return Array.from(new Set((data || []).map((d: any) => d.department).filter(Boolean))).sort();
+    },
+  });
+
+  const { data: trainers } = useQuery({
+    enabled: allowed && department !== 'ALL',
+    queryKey: ['export-trainers', department],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('documents')
+        .select('trainer_id, profiles:trainer_id(full_name)')
+        .eq('status', 'ARCHIVED')
+        .eq('department', department);
+      const map = new Map<string, string>();
+      (data || []).forEach((d: any) => {
+        if (d.trainer_id) map.set(d.trainer_id, d.profiles?.full_name || 'Unknown');
+      });
+      return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+    },
+  });
 
   const { data: counts, refetch } = useQuery({
     enabled: allowed,
-    queryKey: ['session-counts', year],
+    queryKey: ['session-counts', year, department, trainerId],
     queryFn: async () => {
-      const result: Record<SessionKey, { archived: number; exported: number }> = {
-        JAN_APR: { archived: 0, exported: 0 },
-        MAY_AUG: { archived: 0, exported: 0 },
-        SEP_DEC: { archived: 0, exported: 0 },
+      const result: Record<SessionKey, { archived: number; exported: number; needsMirror: number }> = {
+        JAN_APR: { archived: 0, exported: 0, needsMirror: 0 },
+        MAY_AUG: { archived: 0, exported: 0, needsMirror: 0 },
+        SEP_DEC: { archived: 0, exported: 0, needsMirror: 0 },
       };
       for (const s of SESSIONS) {
-        const [{ count: aCount }, { count: eCount }] = await Promise.all([
-          supabase
+        const base = () => {
+          let q = supabase
             .from('documents')
             .select('id', { count: 'exact', head: true })
-            .eq('status', 'ARCHIVED')
             .eq('session_year' as never, year as never)
-            .eq('session_term' as never, s.key as never),
-          supabase
-            .from('documents')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'EXPORTED')
-            .eq('session_year' as never, year as never)
-            .eq('session_term' as never, s.key as never),
+            .eq('session_term' as never, s.key as never);
+          if (department !== 'ALL') q = q.eq('department', department);
+          if (trainerId !== 'ALL') q = q.eq('trainer_id', trainerId);
+          return q;
+        };
+        const [{ count: aCount }, { count: eCount }, { count: mCount }] = await Promise.all([
+          base().eq('status', 'ARCHIVED'),
+          base().eq('status', 'EXPORTED'),
+          base().eq('status', 'ARCHIVED').is('gdrive_file_id' as never, null as never),
         ]);
-        result[s.key] = { archived: aCount ?? 0, exported: eCount ?? 0 };
+        result[s.key] = { archived: aCount ?? 0, exported: eCount ?? 0, needsMirror: mCount ?? 0 };
       }
       return result;
     },
@@ -80,6 +109,7 @@ export default function SessionExports() {
   );
 
   if (!allowed) return <Navigate to="/" replace />;
+
 
   async function runExport(session: SessionKey, deleteAfter: boolean) {
     const key = `${session}-${deleteAfter ? 'del' : 'keep'}`;
@@ -97,7 +127,12 @@ export default function SessionExports() {
           'Content-Type': 'application/json',
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ year, session, deleteAfter }),
+        body: JSON.stringify({
+          year, session, deleteAfter,
+          department: department === 'ALL' ? undefined : department,
+          trainerId: trainerId === 'ALL' ? undefined : trainerId,
+          nested: true,
+        }),
       });
 
       if (!resp.ok) {
@@ -111,7 +146,8 @@ export default function SessionExports() {
       const blob = await resp.blob();
       const dispo = resp.headers.get('Content-Disposition') || '';
       const m = dispo.match(/filename="([^"]+)"/);
-      const filename = m?.[1] || `EDMS_${year}_${session}.zip`;
+      const scope = trainerId !== 'ALL' ? `_${trainerId.slice(0, 6)}` : department !== 'ALL' ? `_${department}` : '';
+      const filename = m?.[1] || `EDMS_${year}_${session}${scope}.zip`;
 
       const a = document.createElement('a');
       const objectUrl = URL.createObjectURL(blob);
@@ -132,29 +168,85 @@ export default function SessionExports() {
     }
   }
 
+  async function offloadToDrive() {
+    if (department === 'ALL') {
+      toast.error('Choose a department to offload');
+      return;
+    }
+    setBusyKey('offload');
+    try {
+      const { data, error } = await supabase.functions.invoke('offload-to-drive', {
+        body: { department, sessionYear: year },
+      });
+      if (error) throw error;
+      toast.success(`Offloaded ${data?.offloaded ?? 0} of ${data?.total ?? 0} document(s) to Google Drive`);
+      refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Offload failed');
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+
   return (
     <div className="space-y-4">
       <PageHeader title="Session Exports" subtitle="Download approved documents per training session" />
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm text-muted-foreground">Academic Year</span>
         <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-          <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
           <SelectContent>
             {yearOptions.map((y) => (
               <SelectItem key={y} value={String(y)}>{y}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+
+        <span className="text-sm text-muted-foreground">Department</span>
+        <Select value={department} onValueChange={(v) => { setDepartment(v); setTrainerId('ALL'); }}>
+          <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All departments</SelectItem>
+            {(departments || []).map((d) => (
+              <SelectItem key={d} value={d}>{d}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <span className="text-sm text-muted-foreground">Trainer</span>
+        <Select value={trainerId} onValueChange={setTrainerId} disabled={department === 'ALL'}>
+          <SelectTrigger className="w-56"><SelectValue placeholder="All trainers" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All trainers</SelectItem>
+            {(trainers || []).map((t) => (
+              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <ActionGuardButton
+          action="export"
+          variant="outline"
+          disabled={department === 'ALL' || busyKey === 'offload'}
+          onClick={offloadToDrive}
+        >
+          {busyKey === 'offload' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+          Offload dept. to Google Drive
+        </ActionGuardButton>
       </div>
+
 
       <div className="grid gap-4 md:grid-cols-3">
         {SESSIONS.map((s) => {
           const c = counts?.[s.key];
           const archived = c?.archived ?? 0;
           const exported = c?.exported ?? 0;
+          const needsMirror = c?.needsMirror ?? 0;
           const busyDl = busyKey === `${s.key}-keep`;
           const busyDel = busyKey === `${s.key}-del`;
+
           return (
             <Card key={s.key}>
               <CardHeader>
@@ -173,6 +265,12 @@ export default function SessionExports() {
                   <span className="text-muted-foreground">Already exported</span>
                   <span className="font-semibold">{exported}</span>
                 </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Not yet on Drive</span>
+                  <span className={needsMirror > 0 ? 'font-semibold text-amber-600' : 'font-semibold text-emerald-600'}>{needsMirror}</span>
+                </div>
+
+
 
                 <ActionGuardButton
                   action="export"
