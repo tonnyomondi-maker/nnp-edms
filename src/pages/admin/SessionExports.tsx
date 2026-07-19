@@ -39,36 +39,65 @@ export default function SessionExports() {
   const { activeRole } = useAuth();
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState<number>(currentYear);
+  const [department, setDepartment] = useState<string>('ALL');
+  const [trainerId, setTrainerId] = useState<string>('ALL');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ session: SessionKey; count: number } | null>(null);
 
-  const allowed = activeRole === 'IQA' || activeRole === 'DP_ACADEMICS';
+  const allowed = activeRole === 'IQA' || activeRole === 'DP_ACADEMICS' || activeRole === 'SUPER_ADMIN';
+
+  const { data: departments } = useQuery({
+    enabled: allowed,
+    queryKey: ['export-departments'],
+    queryFn: async () => {
+      const { data } = await supabase.from('documents').select('department').eq('status', 'ARCHIVED');
+      return Array.from(new Set((data || []).map((d: any) => d.department).filter(Boolean))).sort();
+    },
+  });
+
+  const { data: trainers } = useQuery({
+    enabled: allowed && department !== 'ALL',
+    queryKey: ['export-trainers', department],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('documents')
+        .select('trainer_id, profiles:trainer_id(full_name)')
+        .eq('status', 'ARCHIVED')
+        .eq('department', department);
+      const map = new Map<string, string>();
+      (data || []).forEach((d: any) => {
+        if (d.trainer_id) map.set(d.trainer_id, d.profiles?.full_name || 'Unknown');
+      });
+      return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+    },
+  });
 
   const { data: counts, refetch } = useQuery({
     enabled: allowed,
-    queryKey: ['session-counts', year],
+    queryKey: ['session-counts', year, department, trainerId],
     queryFn: async () => {
-      const result: Record<SessionKey, { archived: number; exported: number }> = {
-        JAN_APR: { archived: 0, exported: 0 },
-        MAY_AUG: { archived: 0, exported: 0 },
-        SEP_DEC: { archived: 0, exported: 0 },
+      const result: Record<SessionKey, { archived: number; exported: number; needsMirror: number }> = {
+        JAN_APR: { archived: 0, exported: 0, needsMirror: 0 },
+        MAY_AUG: { archived: 0, exported: 0, needsMirror: 0 },
+        SEP_DEC: { archived: 0, exported: 0, needsMirror: 0 },
       };
       for (const s of SESSIONS) {
-        const [{ count: aCount }, { count: eCount }] = await Promise.all([
-          supabase
+        const base = () => {
+          let q = supabase
             .from('documents')
             .select('id', { count: 'exact', head: true })
-            .eq('status', 'ARCHIVED')
             .eq('session_year' as never, year as never)
-            .eq('session_term' as never, s.key as never),
-          supabase
-            .from('documents')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'EXPORTED')
-            .eq('session_year' as never, year as never)
-            .eq('session_term' as never, s.key as never),
+            .eq('session_term' as never, s.key as never);
+          if (department !== 'ALL') q = q.eq('department', department);
+          if (trainerId !== 'ALL') q = q.eq('trainer_id', trainerId);
+          return q;
+        };
+        const [{ count: aCount }, { count: eCount }, { count: mCount }] = await Promise.all([
+          base().eq('status', 'ARCHIVED'),
+          base().eq('status', 'EXPORTED'),
+          base().eq('status', 'ARCHIVED').is('gdrive_file_id' as never, null as never),
         ]);
-        result[s.key] = { archived: aCount ?? 0, exported: eCount ?? 0 };
+        result[s.key] = { archived: aCount ?? 0, exported: eCount ?? 0, needsMirror: mCount ?? 0 };
       }
       return result;
     },
@@ -80,6 +109,7 @@ export default function SessionExports() {
   );
 
   if (!allowed) return <Navigate to="/" replace />;
+
 
   async function runExport(session: SessionKey, deleteAfter: boolean) {
     const key = `${session}-${deleteAfter ? 'del' : 'keep'}`;
