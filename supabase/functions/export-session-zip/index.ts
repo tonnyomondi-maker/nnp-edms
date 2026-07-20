@@ -432,6 +432,16 @@ Deno.serve(async (req) => {
       console.error("audit log insert failed", auditErr);
     }
 
+    await progress?.update({
+      phase: "success",
+      processed: included,
+      skipped,
+      retries,
+      total: docs.length,
+      message: `Completed — ${included} included, ${skipped} skipped, ${retries} retries`,
+      finished_at: new Date().toISOString(),
+    });
+
     const filename = `EDMS_${year}_${session}_${included}docs.zip`;
     return new Response(zipBlob, {
       status: 200,
@@ -441,8 +451,20 @@ Deno.serve(async (req) => {
         "Content-Disposition": `attachment; filename="${filename}"`,
         "X-Included": String(included),
         "X-Skipped": String(skipped),
+        "X-Retries": String(retries),
       },
     });
+  } catch (e) {
+    console.error("export-session-zip error", e);
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+});
   } catch (e) {
     console.error("export-session-zip error", e);
     return new Response(
