@@ -40,13 +40,15 @@ export function ExportProgressPanel({ jobIds }: { jobIds: string[] }) {
     })();
 
     const channel = supabase
-      .channel(`export-progress-${jobIds.join(',')}`)
+      .channel(`export-progress-${jobIds.join('-')}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'export_progress', filter: `job_id=in.(${jobIds.join(',')})` },
+        { event: '*', schema: 'public', table: 'export_progress' },
         (payload) => {
-          const r = payload.new as ProgressRow;
-          if (r?.job_id) setRows((prev) => ({ ...prev, [r.job_id]: r }));
+          const r = (payload.new || payload.old) as ProgressRow;
+          if (r?.job_id && jobIds.includes(r.job_id)) {
+            setRows((prev) => ({ ...prev, [r.job_id]: r }));
+          }
         },
       )
       .subscribe();
