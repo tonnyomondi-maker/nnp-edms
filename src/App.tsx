@@ -78,6 +78,8 @@ function ProtectedRoutes() {
         <Route path="/admin/backups" element={<SystemBackups />} />
         <Route path="/admin/policies" element={<ApprovalPolicies />} />
         <Route path="/admin/audit" element={<AuditLog />} />
+        <Route path="/admin/offload-schedules" element={<OffloadSchedules />} />
+        <Route path="/admin/storage-audit" element={<StorageAudit />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/profile" element={<ProfileSettings />} />
         <Route path="/notifications" element={<Notifications />} />
