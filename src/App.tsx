@@ -22,6 +22,8 @@ import SystemSetup from "./pages/admin/SystemSetup";
 import SystemBackups from "./pages/admin/SystemBackups";
 import ApprovalPolicies from "./pages/admin/ApprovalPolicies";
 import AuditLog from "./pages/admin/AuditLog";
+import OffloadSchedules from "./pages/admin/OffloadSchedules";
+import StorageAudit from "./pages/admin/StorageAudit";
 import Reports from "./pages/Reports";
 import ProfileSettings from "./pages/ProfileSettings";
 import Notifications from "./pages/Notifications";
