@@ -444,6 +444,108 @@ export type Database = {
           },
         ]
       }
+      export_progress: {
+        Row: {
+          actor: string | null
+          department: string | null
+          finished_at: string | null
+          id: string
+          job_id: string
+          kind: string
+          message: string | null
+          phase: string
+          processed: number
+          retries: number
+          session_term: string | null
+          session_year: number | null
+          skipped: number
+          started_at: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          actor?: string | null
+          department?: string | null
+          finished_at?: string | null
+          id?: string
+          job_id: string
+          kind: string
+          message?: string | null
+          phase?: string
+          processed?: number
+          retries?: number
+          session_term?: string | null
+          session_year?: number | null
+          skipped?: number
+          started_at?: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          actor?: string | null
+          department?: string | null
+          finished_at?: string | null
+          id?: string
+          job_id?: string
+          kind?: string
+          message?: string | null
+          phase?: string
+          processed?: number
+          retries?: number
+          session_term?: string | null
+          session_year?: number | null
+          skipped?: number
+          started_at?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      offload_schedules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          cron_schedule: string
+          department: string
+          enabled: boolean
+          id: string
+          last_result: Json | null
+          last_run_at: string | null
+          max_files_per_run: number
+          min_age_days: number
+          only_tier: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          cron_schedule?: string
+          department: string
+          enabled?: boolean
+          id?: string
+          last_result?: Json | null
+          last_run_at?: string | null
+          max_files_per_run?: number
+          min_age_days?: number
+          only_tier?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          cron_schedule?: string
+          department?: string
+          enabled?: boolean
+          id?: string
+          last_result?: Json | null
+          last_run_at?: string | null
+          max_files_per_run?: number
+          min_age_days?: number
+          only_tier?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
