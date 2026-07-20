@@ -116,6 +116,8 @@ export default function SessionExports() {
   async function runExport(session: SessionKey, deleteAfter: boolean) {
     const key = `${session}-${deleteAfter ? 'del' : 'keep'}`;
     setBusyKey(key);
+    const jobId = `exp_${session}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    setJobIds((prev) => [jobId, ...prev].slice(0, 6));
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
@@ -134,11 +136,16 @@ export default function SessionExports() {
           department: department === 'ALL' ? undefined : department,
           trainerId: trainerId === 'ALL' ? undefined : trainerId,
           nested: true,
+          jobId,
         }),
       });
 
       if (!resp.ok) {
         const txt = await resp.text();
+        let msg = txt;
+        try { msg = JSON.parse(txt).error || txt; } catch { /* not JSON */ }
+        throw new Error(msg || `Export failed (${resp.status})`);
+      }
         let msg = txt;
         try { msg = JSON.parse(txt).error || txt; } catch { /* not JSON */ }
         throw new Error(msg || `Export failed (${resp.status})`);
