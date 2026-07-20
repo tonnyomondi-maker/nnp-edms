@@ -44,6 +44,7 @@ export default function SessionExports() {
   const [trainerId, setTrainerId] = useState<string>('ALL');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ session: SessionKey; count: number } | null>(null);
+  const [jobIds, setJobIds] = useState<string[]>([]);
 
   const allowed = activeRole === 'IQA' || activeRole === 'DP_ACADEMICS' || activeRole === 'SUPER_ADMIN';
 
