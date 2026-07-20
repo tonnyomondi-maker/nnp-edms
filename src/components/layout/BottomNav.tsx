@@ -36,8 +36,8 @@ const iqaItems = [
 const superAdminItems = [
   { to: '/admin/setup', icon: Settings, label: 'Setup' },
   { to: '/admin/users', icon: Users, label: 'Users' },
-  { to: '/iqa/verifier-packs', icon: ShieldCheck, label: 'Packs' },
-  { to: '/iqa/verifiers', icon: UserCheck, label: 'Verifiers' },
+  { to: '/admin/exports', icon: FileArchive, label: 'Exports' },
+  { to: '/admin/storage-audit', icon: Database, label: 'Storage' },
   { to: '/admin/audit', icon: ScrollText, label: 'Audit' },
 ];
 
