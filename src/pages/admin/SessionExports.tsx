@@ -240,7 +240,16 @@ export default function SessionExports() {
           {busyKey === 'offload' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
           Offload dept. to Google Drive
         </ActionGuardButton>
+
+        <Button asChild variant="ghost" size="sm" className="ml-auto">
+          <Link to="/admin/offload-schedules">Auto-offload settings</Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/admin/storage-audit">Storage audit</Link>
+        </Button>
       </div>
+
+      <ExportProgressPanel jobIds={jobIds} />
 
 
       <div className="grid gap-4 md:grid-cols-3">
