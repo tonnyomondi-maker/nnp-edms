@@ -19,7 +19,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Download, Archive, Loader2, FileArchive } from 'lucide-react';
 import { toast } from 'sonner';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
+import { ExportProgressPanel } from '@/components/admin/ExportProgressPanel';
 
 type SessionKey = 'JAN_APR' | 'MAY_AUG' | 'SEP_DEC';
 
@@ -43,6 +44,7 @@ export default function SessionExports() {
   const [trainerId, setTrainerId] = useState<string>('ALL');
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ session: SessionKey; count: number } | null>(null);
+  const [jobIds, setJobIds] = useState<string[]>([]);
 
   const allowed = activeRole === 'IQA' || activeRole === 'DP_ACADEMICS' || activeRole === 'SUPER_ADMIN';
 
@@ -114,6 +116,8 @@ export default function SessionExports() {
   async function runExport(session: SessionKey, deleteAfter: boolean) {
     const key = `${session}-${deleteAfter ? 'del' : 'keep'}`;
     setBusyKey(key);
+    const jobId = `exp_${session}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    setJobIds((prev) => [jobId, ...prev].slice(0, 6));
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
@@ -132,6 +136,7 @@ export default function SessionExports() {
           department: department === 'ALL' ? undefined : department,
           trainerId: trainerId === 'ALL' ? undefined : trainerId,
           nested: true,
+          jobId,
         }),
       });
 
@@ -235,7 +240,16 @@ export default function SessionExports() {
           {busyKey === 'offload' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
           Offload dept. to Google Drive
         </ActionGuardButton>
+
+        <Button asChild variant="ghost" size="sm" className="ml-auto">
+          <Link to="/admin/offload-schedules">Auto-offload settings</Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/admin/storage-audit">Storage audit</Link>
+        </Button>
       </div>
+
+      <ExportProgressPanel jobIds={jobIds} />
 
 
       <div className="grid gap-4 md:grid-cols-3">
