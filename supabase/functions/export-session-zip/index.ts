@@ -304,6 +304,7 @@ Deno.serve(async (req) => {
       await zipWriter.add(fileInZip, new Uint8ArrayReader(buf));
       included++;
       exportedIds.push(doc.id);
+      await progress?.update({ processed: included, skipped, retries, message: `Added ${fileInZip}` });
 
       // Track originals to delete (only Cloud-tier files)
       if (deleteAfter && doc.storage_tier !== "drive") {
