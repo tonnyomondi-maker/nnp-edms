@@ -146,10 +146,6 @@ export default function SessionExports() {
         try { msg = JSON.parse(txt).error || txt; } catch { /* not JSON */ }
         throw new Error(msg || `Export failed (${resp.status})`);
       }
-        let msg = txt;
-        try { msg = JSON.parse(txt).error || txt; } catch { /* not JSON */ }
-        throw new Error(msg || `Export failed (${resp.status})`);
-      }
 
       const included = resp.headers.get('X-Included') || '?';
       const blob = await resp.blob();
