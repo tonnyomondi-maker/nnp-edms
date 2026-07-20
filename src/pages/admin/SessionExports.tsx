@@ -19,7 +19,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Download, Archive, Loader2, FileArchive } from 'lucide-react';
 import { toast } from 'sonner';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
+import { ExportProgressPanel } from '@/components/admin/ExportProgressPanel';
 
 type SessionKey = 'JAN_APR' | 'MAY_AUG' | 'SEP_DEC';
 
