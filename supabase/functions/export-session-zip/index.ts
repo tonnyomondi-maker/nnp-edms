@@ -207,25 +207,83 @@ Deno.serve(async (req) => {
     const deletePaths: { bucket: string; path: string }[] = [];
     let included = 0;
     let skipped = 0;
+    let retries = 0;
+
+    // Optional progress row for real-time UI updates
+    const jobId = (body as any)?.jobId as string | undefined;
+    const progress = jobId
+      ? {
+          async update(fields: Record<string, unknown>) {
+            try {
+              await admin.from("export_progress").upsert(
+                {
+                  job_id: jobId,
+                  actor: userId,
+                  kind: "session_export",
+                  department: department ?? null,
+                  session_year: year,
+                  session_term: session,
+                  ...fields,
+                },
+                { onConflict: "job_id" },
+              );
+            } catch (e) { console.error("progress update failed", e); }
+          },
+        }
+      : null;
+
+    await progress?.update({ phase: "running", total: docs.length, processed: 0, skipped: 0, retries: 0, message: "Fetching documents…" });
+
+    async function fetchWithRetry(fetcher: () => Promise<Uint8Array | null>, maxAttempts = 3): Promise<Uint8Array | null> {
+      let lastErr: unknown = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const buf = await fetcher();
+          if (buf) return buf;
+        } catch (e) { lastErr = e; }
+        if (attempt < maxAttempts) {
+          retries++;
+          await new Promise((r) => setTimeout(r, 400 * attempt));
+        }
+      }
+      if (lastErr) console.error("fetchWithRetry exhausted", lastErr);
+      return null;
+    }
+
+    async function downloadFromStorage(parsed: { bucket: string; path: string }) {
+      const { data: fileData, error } = await admin.storage.from(parsed.bucket).download(parsed.path);
+      if (error) throw error;
+      return fileData ? new Uint8Array(await fileData.arrayBuffer()) : null;
+    }
+    async function downloadFromDrive(fileId: string) {
+      if (!lovableKey || !gdriveKey) return null;
+      const resp = await fetch(
+        `${GDRIVE_GATEWAY}/drive/v3/files/${fileId}?alt=media`,
+        { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
+      );
+      if (!resp.ok) throw new Error(`Drive HTTP ${resp.status}`);
+      return new Uint8Array(await resp.arrayBuffer());
+    }
 
     for (const doc of docs as any[]) {
       let buf: Uint8Array | null = null;
       const url = doc.signed_file_url || doc.file_url;
-
-      // Prefer Cloud Storage; if the file has been offloaded, pull from Google Drive.
       const parsed = url ? parseStorageRef(url) : null;
-      if (parsed && doc.storage_tier !== "drive") {
-        const { data: fileData } = await admin.storage.from(parsed.bucket).download(parsed.path);
-        if (fileData) buf = new Uint8Array(await fileData.arrayBuffer());
+
+      // Preferred source: Drive when offloaded, otherwise Cloud Storage. Fallback to the other.
+      const preferDrive = doc.storage_tier === "drive";
+      if (preferDrive && doc.gdrive_file_id) {
+        buf = await fetchWithRetry(() => downloadFromDrive(doc.gdrive_file_id));
+        if (!buf && parsed) buf = await fetchWithRetry(() => downloadFromStorage(parsed));
+      } else {
+        if (parsed) buf = await fetchWithRetry(() => downloadFromStorage(parsed));
+        if (!buf && doc.gdrive_file_id) buf = await fetchWithRetry(() => downloadFromDrive(doc.gdrive_file_id));
       }
-      if (!buf && doc.gdrive_file_id && lovableKey && gdriveKey) {
-        const resp = await fetch(
-          `${GDRIVE_GATEWAY}/drive/v3/files/${doc.gdrive_file_id}?alt=media`,
-          { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
-        );
-        if (resp.ok) buf = new Uint8Array(await resp.arrayBuffer());
+      if (!buf) {
+        skipped++;
+        await progress?.update({ processed: included, skipped, retries, message: `Skipped ${doc.id.slice(0,8)} (source unavailable)` });
+        continue;
       }
-      if (!buf) { skipped++; continue; }
 
       const trainerName = nameMap.get(doc.trainer_id) || "Unknown_Trainer";
       const ta = doc.teaching_assignments || {};
