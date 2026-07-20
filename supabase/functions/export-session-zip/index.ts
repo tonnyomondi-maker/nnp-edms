@@ -456,6 +456,16 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("export-session-zip error", e);
+    try {
+      const body2 = await req.clone().json().catch(() => ({}));
+      if (body2?.jobId) {
+        const admin2 = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+        await admin2.from("export_progress").upsert(
+          { job_id: body2.jobId, phase: "error", message: e instanceof Error ? e.message : String(e), finished_at: new Date().toISOString() },
+          { onConflict: "job_id" },
+        );
+      }
+    } catch { /* ignore */ }
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
       {
