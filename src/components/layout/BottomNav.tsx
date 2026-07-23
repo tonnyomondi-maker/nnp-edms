@@ -1,6 +1,6 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useLocation, Link } from 'react-router-dom';
-import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, Database, ScrollText, ShieldCheck, UserCheck, ListChecks } from 'lucide-react';
+import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, Database, ScrollText, ShieldCheck, UserCheck, ListChecks, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const trainerItems = [
@@ -36,7 +36,7 @@ const iqaItems = [
 const superAdminItems = [
   { to: '/admin/setup', icon: Settings, label: 'Setup' },
   { to: '/admin/users', icon: Users, label: 'Users' },
-  { to: '/admin/exports', icon: FileArchive, label: 'Exports' },
+  { to: '/admin/integration-health', icon: Activity, label: 'Health' },
   { to: '/admin/storage-audit', icon: Database, label: 'Storage' },
   { to: '/admin/audit', icon: ScrollText, label: 'Audit' },
 ];
