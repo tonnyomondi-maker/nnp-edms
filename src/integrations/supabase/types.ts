@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      academic_sessions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_current: boolean
+          late_grace_days: number
+          notes: string | null
+          session_term: string
+          session_year: number
+          status: string
+          submission_closes_at: string | null
+          submission_opens_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_current?: boolean
+          late_grace_days?: number
+          notes?: string | null
+          session_term: string
+          session_year: number
+          status?: string
+          submission_closes_at?: string | null
+          submission_opens_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_current?: boolean
+          late_grace_days?: number
+          notes?: string | null
+          session_term?: string
+          session_year?: number
+          status?: string
+          submission_closes_at?: string | null
+          submission_opens_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -106,6 +151,54 @@ export type Database = {
           department?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      document_templates: {
+        Row: {
+          created_at: string
+          department: string | null
+          description: string | null
+          document_type: string
+          file_name: string | null
+          file_path: string
+          id: string
+          is_active: boolean
+          source_document_id: string | null
+          title: string
+          updated_at: string
+          uploaded_by: string | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          department?: string | null
+          description?: string | null
+          document_type: string
+          file_name?: string | null
+          file_path: string
+          id?: string
+          is_active?: boolean
+          source_document_id?: string | null
+          title: string
+          updated_at?: string
+          uploaded_by?: string | null
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          department?: string | null
+          description?: string | null
+          document_type?: string
+          file_name?: string | null
+          file_path?: string
+          id?: string
+          is_active?: boolean
+          source_document_id?: string | null
+          title?: string
+          updated_at?: string
+          uploaded_by?: string | null
+          version?: number
         }
         Relationships: []
       }
@@ -221,6 +314,9 @@ export type Database = {
           iqa_stamp_y: number | null
           module_number: number | null
           rejection_reason: string | null
+          return_note: string | null
+          returned_at: string | null
+          returned_by: string | null
           session_index: number | null
           session_term: string | null
           session_year: number | null
@@ -319,6 +415,9 @@ export type Database = {
           iqa_stamp_y?: number | null
           module_number?: number | null
           rejection_reason?: string | null
+          return_note?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
           session_index?: number | null
           session_term?: string | null
           session_year?: number | null
@@ -417,6 +516,9 @@ export type Database = {
           iqa_stamp_y?: number | null
           module_number?: number | null
           rejection_reason?: string | null
+          return_note?: string | null
+          returned_at?: string | null
+          returned_by?: string | null
           session_index?: number | null
           session_term?: string | null
           session_year?: number | null
