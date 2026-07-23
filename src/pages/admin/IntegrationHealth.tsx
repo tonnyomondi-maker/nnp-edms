@@ -42,7 +42,7 @@ export default function IntegrationHealth() {
       supabase.from('integration_health_runs').select('*').order('started_at', { ascending: false }).limit(20),
       supabase.from('drive_folder_map').select('*').order('scope').order('department'),
     ]);
-    setRuns((r ?? []) as Run[]);
+    setRuns(((r ?? []) as unknown) as Run[]);
     setFolders((f ?? []) as FolderRow[]);
   }
 
