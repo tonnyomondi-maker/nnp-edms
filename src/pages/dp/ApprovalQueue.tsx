@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
+import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
 import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
+
 
 export default function ApprovalQueue() {
   const { currentUser, activeRole } = useAuth();
@@ -24,9 +26,11 @@ export default function ApprovalQueue() {
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
+  const [returnDocId, setReturnDocId] = useState<string | null>(null);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'HOD_APPROVED' });
+
 
   const baseDocs = useMemo(() => queue || [], [queue]);
   useEffect(() => {
@@ -145,6 +149,8 @@ export default function ApprovalQueue() {
                 selectable={showActions}
                 selected={selected.has(doc.id)}
                 onSelectChange={(c) => toggleOne(doc.id, c)}
+                showAiReview={canAct && doc.status === 'HOD_APPROVED'}
+                onReturnRequest={canAct && doc.status === 'HOD_APPROVED' ? () => setReturnDocId(doc.id) : undefined}
                 actions={showActions ? (
                   <>
                     <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'APPROVED BY DP ACADEMICS' with name & date">
@@ -159,6 +165,7 @@ export default function ApprovalQueue() {
                   </>
                 ) : undefined}
               />
+
             );
           })
         ) : (
@@ -176,6 +183,10 @@ export default function ApprovalQueue() {
           onConfirm={performApproveWithPlacement}
         />
       )}
+      {returnDocId && (
+        <ReturnStageDialog open={!!returnDocId} onOpenChange={(o) => { if (!o) setReturnDocId(null); }} docId={returnDocId} fromStage="DP" />
+      )}
     </div>
   );
 }
+

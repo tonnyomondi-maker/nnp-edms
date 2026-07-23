@@ -3,13 +3,17 @@ import { Tables } from '@/integrations/supabase/types';
 import { StatusBadge } from './StatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileText, Calendar, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { FileText, Calendar, ShieldCheck, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Link } from 'react-router-dom';
 import { DocPreviewLink } from './DocPreviewLink';
 import { DocStatusTimeline } from './DocStatusTimeline';
 import { AuditTrailButton } from './AuditTrailButton';
 import { RetryDriveSyncButton } from './RetryDriveSyncButton';
+import { ProgressTracker } from './ProgressTracker';
+import { AiSummaryButton } from './AiSummaryButton';
+
 
 type DocumentRow = Tables<'documents'> & {
   hod_signature_url?: string | null;
@@ -35,7 +39,14 @@ interface DocumentCardProps {
   selectable?: boolean;
   selected?: boolean;
   onSelectChange?: (checked: boolean) => void;
+  /** Show an AI-review button for approvers/admin */
+  showAiReview?: boolean;
+  /** Callback to open a "Return to previous stage" dialog (DP/IQA) */
+  onReturnRequest?: () => void;
+  /** Hide the built-in progress tracker (e.g. compact contexts) */
+  hideProgress?: boolean;
 }
+
 
 function ApprovalThumb({ label, sig, stamp }: { label: string; sig?: string | null; stamp?: string | null }) {
   if (!sig && !stamp) return null;
@@ -67,13 +78,12 @@ function ApprovalThumb({ label, sig, stamp }: { label: string; sig?: string | nu
   );
 }
 
-export function DocumentCard({ doc, showTrainer = false, actions, selectable, selected, onSelectChange }: DocumentCardProps) {
+export function DocumentCard({ doc, showTrainer = false, actions, selectable, selected, onSelectChange, showAiReview, onReturnRequest, hideProgress }: DocumentCardProps) {
   const [showTimeline, setShowTimeline] = useState(false);
-  // Prefer denormalized fields on the document itself; fall back to legacy assignment join
   const unitCode = doc.unit_code || doc.teaching_assignments?.unit_code || '';
   const className = doc.class_code || doc.teaching_assignments?.class_code || '';
-  // Always prefer the latest stamped version when available
   const fileRef = doc.signed_file_url || doc.file_url;
+
 
   return (
     <Card className="animate-slide-up">
@@ -152,13 +162,25 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
           </div>
           <StatusBadge status={doc.status} />
         </div>
+        {!hideProgress && <ProgressTracker doc={doc} />}
         {showTimeline && (
           <div className="mt-3 pt-3 border-t border-border">
             <DocStatusTimeline doc={doc} compact />
           </div>
         )}
-        {actions && <div className="mt-3 flex gap-2">{actions}</div>}
+        {(actions || showAiReview || onReturnRequest) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {actions}
+            {showAiReview && <AiSummaryButton documentId={doc.id} />}
+            {onReturnRequest && (
+              <Button size="sm" variant="outline" onClick={onReturnRequest} className="gap-1">
+                <RotateCcw className="w-3.5 h-3.5" /> Return
+              </Button>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
+

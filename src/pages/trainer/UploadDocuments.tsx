@@ -15,6 +15,9 @@ import { useSystemLock } from '@/hooks/useSystemLock';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useUploadResume } from '@/hooks/useUploadResume';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
+import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
+import { checkSubmissionWindow } from '@/hooks/useAcademicSession';
+
 import { supabase } from '@/integrations/supabase/client';
 import {
   DEPARTMENTS,
@@ -272,8 +275,14 @@ export default function UploadDocuments() {
     }
     const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
     try {
+      const window = await checkSubmissionWindow(sessionYear, sessionTerm);
+      if (!window.allowed) {
+        setStage(entry.id, { stage: 'failed', stageMessage: window.reason || 'Session closed' });
+        return { ok: false, error: window.reason || 'Session closed' };
+      }
       setStage(entry.id, { stage: 'compressing', stageMessage: 'Compressing…' });
       const { file: optimised, originalSize, finalSize } = await compressForUpload(entry.file);
+
       if (finalSize < originalSize) {
         toast({ title: 'Optimised', description: `${entry.file.name}: ${formatBytes(originalSize)} → ${formatBytes(finalSize)}` });
       }
@@ -406,8 +415,10 @@ export default function UploadDocuments() {
         </div>
       )}
 
+      <TemplateLibraryPanel department={department || undefined} />
 
       <Card className="mb-4">
+
         <CardContent className="p-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>

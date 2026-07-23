@@ -5,6 +5,8 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
+import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
+
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { Button } from '@/components/ui/button';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
@@ -37,6 +39,8 @@ export default function ArchiveScreen() {
   const [termInitialized, setTermInitialized] = useState(false);
   const [deptFilter, setDeptFilter] = useState<string>('');
   const [bulkRetrying, setBulkRetrying] = useState(false);
+  const [returnDocId, setReturnDocId] = useState<string | null>(null);
+
 
   const allPending = useMemo(() => pendingDocs || [], [pendingDocs]);
   const allArchived = useMemo(() => archivedDocs || [], [archivedDocs]);
@@ -281,12 +285,15 @@ export default function ArchiveScreen() {
                 selectable
                 selected={selected.has(doc.id)}
                 onSelectChange={(c) => toggleOne(doc.id, c)}
+                showAiReview
+                onReturnRequest={() => setReturnDocId(doc.id)}
                 actions={
                   <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
                     <Archive className="w-4 h-4" /> Archive
                   </ActionGuardButton>
                 }
               />
+
             ))
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No documents pending archive</p>
@@ -387,6 +394,10 @@ export default function ArchiveScreen() {
           onConfirm={performArchiveWithPlacement}
         />
       )}
+      {returnDocId && (
+        <ReturnStageDialog open={!!returnDocId} onOpenChange={(o) => { if (!o) setReturnDocId(null); }} docId={returnDocId} fromStage="IQA" />
+      )}
+
     </div>
   );
 }
