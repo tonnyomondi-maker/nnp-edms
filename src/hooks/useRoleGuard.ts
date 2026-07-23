@@ -83,6 +83,14 @@ export function useRoleGuard() {
     return 'You do not have permission for this action in your current role.';
   }
 
+  const canReturnToPreviousStage = (doc?: Doc | null): boolean => {
+    if (writesBlocked) return false;
+    if (!doc) return isActive('DP_ACADEMICS') || isActive('IQA');
+    if (isActive('DP_ACADEMICS') && has('DP_ACADEMICS') && doc.status === 'HOD_APPROVED') return true;
+    if (isActive('IQA') && has('IQA') && doc.status === 'DP_APPROVED') return true;
+    return false;
+  };
+
   return {
     activeRole,
     lockActive: lock_active,
@@ -90,6 +98,9 @@ export function useRoleGuard() {
     isSuperAdmin: has('SUPER_ADMIN'),
     canActOn,
     reasonFor,
+    canManageSessions: () => isActive('SUPER_ADMIN') && has('SUPER_ADMIN'),
+    canManageTemplates: () => isActive('SUPER_ADMIN') && has('SUPER_ADMIN'),
+    canReturnToPreviousStage,
     // Back-compat short forms kept for existing callers:
     canVerifyAsHOD: (doc?: Doc | null) => canActOn('approve', doc) && isActive('HOD'),
     canApproveAsDP: (doc?: Doc | null) => canActOn('approve', doc) && isActive('DP_ACADEMICS'),
@@ -98,6 +109,7 @@ export function useRoleGuard() {
     canManageUsers: () => isActive('SUPER_ADMIN') && has('SUPER_ADMIN'),
   };
 }
+
 
 
 export function roleLabel(r: UserRole): string {
