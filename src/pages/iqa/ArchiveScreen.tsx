@@ -394,6 +394,10 @@ export default function ArchiveScreen() {
           onConfirm={performArchiveWithPlacement}
         />
       )}
+      {returnDocId && (
+        <ReturnStageDialog open={!!returnDocId} onOpenChange={(o) => { if (!o) setReturnDocId(null); }} docId={returnDocId} fromStage="IQA" />
+      )}
+
     </div>
   );
 }
