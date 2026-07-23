@@ -1,123 +1,59 @@
-# Verifier Packs — Capacity, Bulk Assign, Timeline, Reminders
 
-Four related additions on top of the existing verification-pack system. IQA and Super Admin only.
+# Google Drive Integration Health & Recovery
 
----
+Adds a Super Admin screen to verify the Drive integration end-to-end after the workspace move, plus tooling to re-map department folders. Trainer uploads stay Supabase-only; Drive remains the backup/offload target.
 
-## 1. Department pack-capacity settings
+## 1. New page: `/admin/integration-health`
 
-**Goal**: Replace the hard-coded default `_capacity = 10` in `verification_pack_stats*` with a per-department, configurable limit.
+Super Admin only. Sections:
 
-**Schema**: new table `department_pack_capacity`
-- `department text primary key`
-- `active_pack_limit int not null default 10 check (active_pack_limit between 0 and 200)`
-- `updated_by uuid`, `updated_at timestamptz default now()`
+- **Environment check** — verifies presence (never values) of `LOVABLE_API_KEY`, `GOOGLE_DRIVE_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`. Green/red pill per var.
+- **Drive API status** — calls new `drive-healthcheck` edge function which hits `/drive/v3/about?fields=user,storageQuota` through the gateway. Shows connected account email, quota used/limit, latency.
+- **Folder map** — lists the EDMS root folder + one row per department (from `profiles.department` distinct list). For each: folder name, Drive folder ID, "verify" result (exists / writable / missing), last checked time. Pulled from a new `drive_folder_map` table.
+- **Last smoke test result** — timestamp, pass/fail per step (upload → list → download-via-export → cleanup), duration, error text if any. Persisted in `integration_health_runs` table so the panel survives refresh.
+- **Actions bar**: `Run health check`, `Run smoke test`, `Re-link Drive folders`. All gated by `ActionGuardButton` (Super Admin only).
 
-RLS: SUPER_ADMIN / IQA read + upsert; authenticated read (needed by analytics panel). GRANTs for `authenticated` + `service_role`.
+## 2. New edge function: `drive-healthcheck`
 
-**Function updates**:
-- Rewrite `verification_pack_stats(_department)` and `verification_pack_stats_by_dept()` to LEFT JOIN `department_pack_capacity` and fall back to 10 when no row exists. Drop the `_capacity` argument (keep it as a defaulted arg for backward compat, but ignore when a per-dept row exists).
+- Auth: Super Admin only (verify JWT + `has_role`).
+- Steps: env-var presence → `GET /drive/v3/about` → for each folder in `drive_folder_map`, `GET /drive/v3/files/{id}?fields=id,name,capabilities(canAddChildren,canEdit),trashed`.
+- Writes one row to `integration_health_runs` with per-step JSON results.
 
-**UI**: new page `src/pages/iqa/PackCapacity.tsx`
-- Grid of departments × current limit + active count + a number input + "Save" per row.
-- Bulk "Reset to 10" action.
-- Linked from `VerifierPacks` header ("Capacity settings") and from `BottomNav` under IQA / Super Admin.
+## 3. New edge function: `drive-smoke-test`
 
-The `PackAnalyticsPanel` progress bars pick up the new limit automatically.
+- Auth: Super Admin only.
+- Generates a tiny in-memory PDF (1 page, "EDMS smoke test <timestamp>").
+- Uploads it via the existing gateway multipart endpoint into the EDMS root folder → captures `fileId`.
+- Inserts a temporary `documents` row (status `ARCHIVED`, `storage_tier='drive'`, `gdrive_file_id=fileId`, department `__SMOKE__`, session flagged) so `export-session-zip` fallback path is exercised.
+- Invokes `export-session-zip` with the smoke session filter; asserts the returned ZIP contains the sample PDF (byte-length match).
+- Cleanup: deletes the Drive file, the temp document row, and any audit rows tagged `smoke_test:true`.
+- Result row written to `integration_health_runs` with each step's outcome.
 
----
+## 4. New edge function: `drive-relink-folders`
 
-## 2. Bulk verifier assignment
+- Auth: Super Admin only.
+- Input: `{ mode: 'discover' | 'create', rootFolderName?: string }`.
+- `discover`: searches Drive for a folder named "EDMS" (or provided name) at root and for `EDMS/<Department>` children; returns candidate IDs without writing.
+- `create`: idempotently creates the root + one subfolder per distinct `profiles.department`, then upserts rows into `drive_folder_map`.
+- Returns the resulting map so the UI can preview before persisting when in discover mode.
 
-**Goal**: Assign the same set of verifiers to many packs in one flow.
+## 5. Database
 
-**UI**: new page `src/pages/iqa/BulkAssign.tsx`
-- Filters: department (default: all the user is allowed to see), session year, term, status (default: Active).
-- Left column: paginated list of packs matching filters with per-row checkbox + "select all filtered".
-- Right column: multi-select of verifiers (reuses the picker from `AssignVerifiersModal`, filtered by department if a single dept is selected).
-- Bottom bar: "Assign N verifiers to M packs" button + summary.
+New migration:
 
-**Behaviour**: on submit, upsert `verification_pack_assignees(pack_id, verifier_id)` for every (pack, verifier) pair; unique constraint handles duplicates. Show per-pack success/failure counts in a toast + collapsible report.
+- `drive_folder_map(id, scope text check in ('root','department'), department text null, folder_id text not null, folder_name text, updated_at, updated_by)`
+- `integration_health_runs(id, kind text check in ('healthcheck','smoke_test'), status text, started_at, finished_at, actor uuid, steps jsonb, error text)`
+- GRANTs: `authenticated` SELECT/INSERT/UPDATE only via edge functions; RLS policies restrict all client access to `has_role(auth.uid(),'SUPER_ADMIN')`. `service_role` full access.
 
-Entry point: button on `VerifierPacks` next to "Create new pack" and a nav item under IQA.
+## 6. Wiring / non-goals
 
----
+- Route added in `App.tsx`; nav entry in Super Admin section of `BottomNav`.
+- `gdrive-upload` (trainer path) is **not** invoked from upload flow — confirmed current `UploadDocuments` already uploads to Supabase Storage only; Drive mirroring happens through `offload-to-drive` and `run-offload-schedules`. No change to trainer behaviour.
+- Existing `export-session-zip` unchanged except that the smoke test passes a synthetic session filter it already supports.
 
-## 3. Per-document audit timeline
+## Technical notes
 
-**Goal**: For any document that's part of a pack, show a chronological timeline of pack membership, verifier opens/downloads, and review decisions.
-
-**Data sources** (all existing):
-- `verification_packs` (created_at, expires_at, revoked_at) filtered to packs whose scope matches the document.
-- `verification_pack_assignees` (`first_opened_at`).
-- `audit_logs` rows already emitted: `PACK_DOWNLOADED`, `VERIFIER_REVIEW_SUBMITTED`, plus a new `PACK_OPENED` we'll emit from `download-verification-pack` when a verifier hits the landing page.
-- `verifier_reviews` (reviewed_at, decision, notes, verifier_id).
-
-**RPC**: `document_pack_timeline(_document_id uuid) returns jsonb[]` — SECURITY DEFINER, IQA/SUPER_ADMIN only. Aggregates the four sources into a single time-ordered array of `{ ts, kind, actor, meta }` events.
-
-**UI**: new component `src/components/iqa/DocumentAuditTimeline.tsx`
-- Vertical timeline with icon per kind (pack created / verifier assigned / verifier opened / verifier downloaded / review submitted / pack revoked).
-- Rendered:
-  - inline in `PackReviews.tsx` under each document row (expand/collapse).
-  - as a modal from `ArchiveScreen` on the "History" action for archived documents.
-
-No new tables.
-
----
-
-## 4. Automatic reminder notifications (24h)
-
-**Goal**: If a verifier opens a pack (recorded via `first_opened_at`) but hasn't submitted any `verifier_reviews` row for the pack within 24 hours, send them one reminder email.
-
-**Schema**: extend `verification_pack_assignees`
-- `reminder_sent_at timestamptz` (null = not sent).
-
-**Edge function**: new `send-verifier-reminders` (verify_jwt = false; runs from cron)
-- Selects assignees where `first_opened_at < now() - interval '24h'` AND `reminder_sent_at is null` AND pack is active AND no `verifier_reviews` exist for `(pack_id, verifier_id)`.
-- For each, fetches the verifier email and sends a Lovable app email (`verifier-review-reminder` template) with the pack link (`&v=<verifier_id>`).
-- Stamps `reminder_sent_at`.
-- Emits `audit_logs` action `VERIFIER_REMINDER_SENT`.
-
-**Email**: new React Email template `_shared/transactional-email-templates/verifier-review-reminder.tsx` (branded, single CTA to open pack). Registered in `registry.ts`.
-
-**Scheduling**: pg_cron job runs the edge function every hour (uses `SUPABASE_ANON_KEY` + service invocation pattern from the existing scheduled-job docs).
-
-**Prerequisites (auto-detected)**:
-- If Lovable Emails infra isn't set up yet, run `email_domain--setup_email_infra` and `email_domain--scaffold_transactional_email` before wiring the function/cron. If no email domain is configured, prompt the user to set one up in that turn.
-
-**IQA visibility**: reminder timestamp shown in `AssignVerifiersModal` and the new timeline (kind `reminder_sent`).
-
----
-
-## Files
-
-**New**:
-- `src/pages/iqa/PackCapacity.tsx`
-- `src/pages/iqa/BulkAssign.tsx`
-- `src/components/iqa/DocumentAuditTimeline.tsx`
-- `supabase/functions/send-verifier-reminders/index.ts`
-- `supabase/functions/_shared/transactional-email-templates/verifier-review-reminder.tsx`
-- migration `..._pack_capacity_reminders_timeline.sql`
-
-**Edited**:
-- `src/App.tsx` (new routes)
-- `src/components/layout/BottomNav.tsx` (nav entries)
-- `src/pages/iqa/VerifierPacks.tsx` (links to capacity + bulk assign; drop the local capacity constant)
-- `src/pages/iqa/PackReviews.tsx` (embed timeline)
-- `src/pages/iqa/ArchiveScreen.tsx` (history modal)
-- `src/components/iqa/PackAnalyticsPanel.tsx` (use RPC-provided capacity)
-- `src/components/iqa/AssignVerifiersModal.tsx` (show `reminder_sent_at`)
-- `supabase/functions/download-verification-pack/index.ts` (emit `PACK_OPENED` on landing hit; keep download event)
-- `supabase/functions/verifier-review-submit/index.ts` (unchanged event stream)
-- `supabase/config.toml` (new function)
-
----
-
-## Notes / order
-
-1. Migration (tables, capacity, RPC, timeline RPC, reminder column).
-2. Email infra + reminder template + edge function + cron.
-3. IQA screens (capacity, bulk assign, timeline, modal wiring).
-4. Nav + routes.
-
-All new tables scoped by RLS to IQA / SUPER_ADMIN via `has_role`. No `anon` grants. Reminder emails obey suppression via Lovable's send function.
+- Health/smoke functions use `verify_jwt = true` (default) and re-check `SUPER_ADMIN` role server-side.
+- Gateway calls use `Authorization: Bearer ${LOVABLE_API_KEY}` + `X-Connection-Api-Key: ${GOOGLE_DRIVE_API_KEY}` per existing pattern in `export-session-zip`.
+- Smoke test writes are wrapped in try/finally so cleanup always runs even on failure.
+- All destructive re-link operations require typed confirmation in the UI, similar to `SystemResetCard`.

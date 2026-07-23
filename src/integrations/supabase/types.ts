@@ -444,6 +444,36 @@ export type Database = {
           },
         ]
       }
+      drive_folder_map: {
+        Row: {
+          department: string | null
+          folder_id: string
+          folder_name: string | null
+          id: string
+          scope: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          department?: string | null
+          folder_id: string
+          folder_name?: string | null
+          id?: string
+          scope: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          department?: string | null
+          folder_id?: string
+          folder_name?: string | null
+          id?: string
+          scope?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       export_progress: {
         Row: {
           actor: string | null
@@ -498,6 +528,39 @@ export type Database = {
           started_at?: string
           total?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      integration_health_runs: {
+        Row: {
+          actor: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          started_at: string
+          status: string
+          steps: Json
+        }
+        Insert: {
+          actor?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          kind: string
+          started_at?: string
+          status: string
+          steps?: Json
+        }
+        Update: {
+          actor?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          started_at?: string
+          status?: string
+          steps?: Json
         }
         Relationships: []
       }

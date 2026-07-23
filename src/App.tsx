@@ -24,6 +24,7 @@ import ApprovalPolicies from "./pages/admin/ApprovalPolicies";
 import AuditLog from "./pages/admin/AuditLog";
 import OffloadSchedules from "./pages/admin/OffloadSchedules";
 import StorageAudit from "./pages/admin/StorageAudit";
+import IntegrationHealth from "./pages/admin/IntegrationHealth";
 import Reports from "./pages/Reports";
 import ProfileSettings from "./pages/ProfileSettings";
 import Notifications from "./pages/Notifications";
@@ -80,6 +81,7 @@ function ProtectedRoutes() {
         <Route path="/admin/audit" element={<AuditLog />} />
         <Route path="/admin/offload-schedules" element={<OffloadSchedules />} />
         <Route path="/admin/storage-audit" element={<StorageAudit />} />
+        <Route path="/admin/integration-health" element={<IntegrationHealth />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/profile" element={<ProfileSettings />} />
         <Route path="/notifications" element={<Notifications />} />
