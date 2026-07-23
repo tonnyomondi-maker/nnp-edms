@@ -1,59 +1,124 @@
+## 1. Approval workflow review (Trainer → HOD → DP Academics → IQA)
 
-# Google Drive Integration Health & Recovery
+Current flow, as implemented today:
 
-Adds a Super Admin screen to verify the Drive integration end-to-end after the workspace move, plus tooling to re-map department folders. Trainer uploads stay Supabase-only; Drive remains the backup/offload target.
+```text
+Trainer                HOD                    DP Academics            IQA
+-------                ---                    ------------            ---
+UploadDocuments  ->  DepartmentQueue    ->   ApprovalQueue      ->   ArchiveScreen
+status=SUBMITTED     status=HOD_APPROVED     status=DP_APPROVED      status=ARCHIVED
+                     (own dept only)         (all depts)             (+ Early Access,
+                                                                      Verifier Packs)
+```
 
-## 1. New page: `/admin/integration-health`
+What is working well:
 
-Super Admin only. Sections:
+- `guard_document_update` trigger enforces valid transitions and blocks self-approval and payload tampering by approvers.
+- Each stage supports **Quick Verify** (text-only stamp) and **Sign & Approve** (PDF placement of signature + stamp) — governed per document type by `document_type_policy` (`stamp_required`, `signature_only_allowed`, `forbid_text_only_fallback`).
+- `stamp-document` edge function embeds the signature/stamp and returns a `signed_file_url` that becomes the source for the next stage.
+- Bulk approve/reject at every stage, with `ActionGuardButton` disabling actions when the active role can't act.
+- Rejection returns the doc to the trainer with a reason; the trainer resubmits from `MySubmissions`.
+- IQA has Early Access (with DPA-2019-logged reason) and Verifier Packs.
 
-- **Environment check** — verifies presence (never values) of `LOVABLE_API_KEY`, `GOOGLE_DRIVE_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`. Green/red pill per var.
-- **Drive API status** — calls new `drive-healthcheck` edge function which hits `/drive/v3/about?fields=user,storageQuota` through the gateway. Shows connected account email, quota used/limit, latency.
-- **Folder map** — lists the EDMS root folder + one row per department (from `profiles.department` distinct list). For each: folder name, Drive folder ID, "verify" result (exists / writable / missing), last checked time. Pulled from a new `drive_folder_map` table.
-- **Last smoke test result** — timestamp, pass/fail per step (upload → list → download-via-export → cleanup), duration, error text if any. Persisted in `integration_health_runs` table so the panel survives refresh.
-- **Actions bar**: `Run health check`, `Run smoke test`, `Re-link Drive folders`. All gated by `ActionGuardButton` (Super Admin only).
+Confirmed gaps to fix in this plan:
 
-## 2. New edge function: `drive-healthcheck`
+- **No "return to previous stage"** — DP can only approve, reject-to-trainer, or leave pending; same for IQA. A minor-fix path back to HOD would prevent full rejections for trivial issues.
+- **No visible SLA / age indicators** on queue cards — stale items are invisible until someone scrolls.
+- **No trainer-facing progress tracker** — `MySubmissions` shows status badges but not a visual HOD → DP → IQA pipeline per doc.
+- **No sample/template library** — trainers re-invent formats each term.
+- **Session config is per-trainer only** (`unit_session_config`) — there is no institution-wide "current session / open window" that Admin controls.
+- **No AI assistance** anywhere in the pipeline.
 
-- Auth: Super Admin only (verify JWT + `has_role`).
-- Steps: env-var presence → `GET /drive/v3/about` → for each folder in `drive_folder_map`, `GET /drive/v3/files/{id}?fields=id,name,capabilities(canAddChildren,canEdit),trashed`.
-- Writes one row to `integration_health_runs` with per-step JSON results.
+## 2. What this plan builds
 
-## 3. New edge function: `drive-smoke-test`
+### A. Admin-controlled academic session (institution-wide)
 
-- Auth: Super Admin only.
-- Generates a tiny in-memory PDF (1 page, "EDMS smoke test <timestamp>").
-- Uploads it via the existing gateway multipart endpoint into the EDMS root folder → captures `fileId`.
-- Inserts a temporary `documents` row (status `ARCHIVED`, `storage_tier='drive'`, `gdrive_file_id=fileId`, department `__SMOKE__`, session flagged) so `export-session-zip` fallback path is exercised.
-- Invokes `export-session-zip` with the smoke session filter; asserts the returned ZIP contains the sample PDF (byte-length match).
-- Cleanup: deletes the Drive file, the temp document row, and any audit rows tagged `smoke_test:true`.
-- Result row written to `integration_health_runs` with each step's outcome.
+New table `academic_sessions` (Super Admin managed):
 
-## 4. New edge function: `drive-relink-folders`
+- `session_year`, `session_term` (JAN_APR / MAY_AUG / SEP_DEC)
+- `status`: `PLANNED | OPEN | LOCKED | CLOSED`
+- `submission_opens_at`, `submission_closes_at`
+- `late_submission_grace_days`
+- `is_current` (only one true)
 
-- Auth: Super Admin only.
-- Input: `{ mode: 'discover' | 'create', rootFolderName?: string }`.
-- `discover`: searches Drive for a folder named "EDMS" (or provided name) at root and for `EDMS/<Department>` children; returns candidate IDs without writing.
-- `create`: idempotently creates the root + one subfolder per distinct `profiles.department`, then upserts rows into `drive_folder_map`.
-- Returns the resulting map so the UI can preview before persisting when in discover mode.
+Enforcement:
 
-## 5. Database
+- Trainer `UploadDocuments` reads the current `OPEN` session and pre-selects year/term; other sessions become read-only.
+- `useSubmitDocument` checks the session status; blocks inserts when `CLOSED` or outside window (except Super Admin override).
+- New Admin page `/admin/session-config` to create/open/lock/close sessions and set the current one.
+- Existing per-trainer `unit_session_config` stays for sessions-per-week / course type — only the *window* is centralized.
 
-New migration:
+### B. Sample templates library for trainers
 
-- `drive_folder_map(id, scope text check in ('root','department'), department text null, folder_id text not null, folder_name text, updated_at, updated_by)`
-- `integration_health_runs(id, kind text check in ('healthcheck','smoke_test'), status text, started_at, finished_at, actor uuid, steps jsonb, error text)`
-- GRANTs: `authenticated` SELECT/INSERT/UPDATE only via edge functions; RLS policies restrict all client access to `has_role(auth.uid(),'SUPER_ADMIN')`. `service_role` full access.
+New table `document_templates` (Super Admin uploads, all trainers download):
 
-## 6. Wiring / non-goals
+- `document_type`, `title`, `description`, `department` (nullable = all), `file_path` (storage), `is_active`, `version`.
+- Storage: new **private** `templates` bucket. RLS: `SELECT` for `authenticated`; `INSERT/UPDATE/DELETE` for Super Admin only.
 
-- Route added in `App.tsx`; nav entry in Super Admin section of `BottomNav`.
-- `gdrive-upload` (trainer path) is **not** invoked from upload flow — confirmed current `UploadDocuments` already uploads to Supabase Storage only; Drive mirroring happens through `offload-to-drive` and `run-offload-schedules`. No change to trainer behaviour.
-- Existing `export-session-zip` unchanged except that the smoke test passes a synthetic session filter it already supports.
+UI:
+
+- New `/admin/templates` page for Super Admin to upload/replace/retire samples of approved documents (Scheme of Work, Session Plan, Course Outline, Learning Plan, Class Attendance, etc.). Also let the admin to be able to select from the system to transfer to templates
+- New "Sample templates" panel on trainer `UploadDocuments` — filters by department + document type, shows version and download link with signed URL.
+- Empty-state hint in `MySubmissions` links to the library.
+
+### C. Workflow efficiency improvements
+
+1. **Trainer progress tracker** — Small horizontal pipeline (Submitted → HOD → DP → IQA) rendered on each `DocumentCard` in `MySubmissions`, using existing timestamps (`hod_approved_at`, `dp_approved_at`, `archived_at`).
+2. **Queue age badges** — Add "N days pending" pill to `DocumentCard` when `showTrainer` is on and status is a queue status; red when > SLA (default 3 days, configurable in `system_settings`).
+3. **Return-for-minor-fix** — Add a `RETURNED_TO_HOD` soft path: DP/IQA can send back with a note to the previous stage instead of rejecting to the trainer. Implemented as a new `documents.return_note` + status transitions in the `guard_document_update` trigger. New button "Return to previous stage" on DP/IQA cards. Purely additive — trainers never see it as a rejection.
+4. **Digest notifications** — Extend `notifications` (already present) with a daily per-role digest ("You have 12 items awaiting HOD verification") via a cron on `send-verifier-reminders` sibling function.
+
+### D. AI integration (Lovable AI Gateway — `google/gemini-3.6-flash`)
+
+Four focused, high-value uses, each an edge function:
+
+1. `**ai-approval-summary` (HOD / DP / IQA)**
+  - One-click "Summarise for review" button on `DocumentCard` at approver stages.
+  - Returns: 3-line summary, list of detected sections, any missing CBET/CDACC-required items, and a suggested verdict (approve / return / reject with reason). Approver still clicks the actual action.
+2. `**ai-rejection-drafter` (all approver stages)**
+  - When approver clicks Reject, opens a dialog with an AI-drafted rejection reason built from the checklist. Approver edits and confirms.
+3. `**ai-verifier-brief` (IQA verifier packs)**
+  - When generating a verifier pack, attach a Gemini-generated cover note per document summarising what the verifier should look at. Written to the ZIP as `README.md`.
+
+All calls guarded by `useRoleGuard` on the client and role checks in the edge function. `LOVABLE_API_KEY` is already provisioned.
+
+### E. Small retrieval improvements
+
+- Add full-text search on `documents.file_name`, `unit_code`, `unit_name`, trainer name (via `profiles`) to `MySubmissions` and IQA `ArchiveScreen`.
+- Add "Copy sharable archive link" (already-signed URL, IQA only) on archived docs.
 
 ## Technical notes
 
-- Health/smoke functions use `verify_jwt = true` (default) and re-check `SUPER_ADMIN` role server-side.
-- Gateway calls use `Authorization: Bearer ${LOVABLE_API_KEY}` + `X-Connection-Api-Key: ${GOOGLE_DRIVE_API_KEY}` per existing pattern in `export-session-zip`.
-- Smoke test writes are wrapped in try/finally so cleanup always runs even on failure.
-- All destructive re-link operations require typed confirmation in the UI, similar to `SystemResetCard`.
+Schema (single migration, follows GRANT rules):
+
+- `academic_sessions` — Super Admin write, authenticated read; trigger to keep only one `is_current = true`.
+- `document_templates` — Super Admin write, authenticated read.
+- `documents`: add `return_note text`, `returned_at timestamptz`, `returned_by uuid`.
+- Extend `guard_document_update` trigger with `DP_APPROVED -> HOD_APPROVED` (return) and `ARCHIVED -> DP_APPROVED` (return) allowed for DP/IQA respectively when `return_note` is set.
+- New `templates` storage bucket (private) via `supabase--storage_create_bucket`; RLS on `storage.objects` for Super Admin write, authenticated read.
+
+Edge functions (all use Lovable AI Gateway helper already in `_shared/ai-gateway.ts`):
+
+- `ai-document-check`, `ai-approval-summary`, `ai-rejection-drafter`, `ai-verifier-brief`.
+
+Frontend:
+
+- New pages: `/admin/session-config`, `/admin/templates`.
+- New components: `<ProgressTracker doc={...}/>`, `<AgePill submittedAt=... status=.../>`, `<TemplateLibraryPanel/>`, `<AiCheckPanel/>`, `<AiSummaryButton/>`, `<ReturnToPreviousDialog/>`.
+- Extend `useRoleGuard` with `canManageSessions`, `canManageTemplates`, `canReturnToPreviousStage`.
+- Extend `useSubmitDocument` to consult `academic_sessions` before insert.
+
+Rollout is additive — no existing screen is removed and every new capability is behind a role guard or a policy flag.
+
+## Out of scope for this plan
+
+- Rebuilding the placement/stamp UI.
+- Replacing the Google Drive backup path.
+- Verifier pack schema changes (only the AI brief is added).
+
+## Open questions before build
+
+1. For the AI checks — do you want AI to be able to **block submission** when a required CDACC section is missing, or always advisory only? No. And wont this  be credit intensive?
+2. Templates library: department-scoped only, or should Super Admin also be able to publish per-course templates?department-scoped only
+3. For the "return to previous stage" path — should the trainer see it at all in their timeline, or should it be invisible to trainers (approver-side only)?trainer see it at all in their timeline
+4. can we have verified by HOD and Approved by D/P academics emebeded at the final stage
