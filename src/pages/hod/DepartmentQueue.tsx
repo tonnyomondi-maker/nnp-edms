@@ -169,6 +169,7 @@ export default function DepartmentQueue() {
                     selectable={showActions}
                     selected={selected.has(doc.id)}
                     onSelectChange={(c) => toggleOne(doc.id, c)}
+                    showAiReview={showActions}
                     actions={showActions ? (
                       <>
                         <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'VERIFIED BY HOD' with name & date">
@@ -183,6 +184,7 @@ export default function DepartmentQueue() {
                       </>
                     ) : undefined}
                   />
+
                 );
               })
             ) : (
