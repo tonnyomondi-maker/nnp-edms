@@ -5,6 +5,8 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
+import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
+
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { Button } from '@/components/ui/button';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
@@ -37,6 +39,8 @@ export default function ArchiveScreen() {
   const [termInitialized, setTermInitialized] = useState(false);
   const [deptFilter, setDeptFilter] = useState<string>('');
   const [bulkRetrying, setBulkRetrying] = useState(false);
+  const [returnDocId, setReturnDocId] = useState<string | null>(null);
+
 
   const allPending = useMemo(() => pendingDocs || [], [pendingDocs]);
   const allArchived = useMemo(() => archivedDocs || [], [archivedDocs]);
