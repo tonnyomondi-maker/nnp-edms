@@ -1,6 +1,6 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useLocation, Link } from 'react-router-dom';
-import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, ScrollText, ShieldCheck, UserCheck, ListChecks, CalendarClock, FileStack, Activity } from 'lucide-react';
+import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, ScrollText, ShieldCheck, UserCheck, ListChecks, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const trainerItems = [
