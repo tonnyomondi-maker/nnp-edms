@@ -18,9 +18,23 @@ interface DocStatusTimelineProps {
     | 'archived_at'
     | 'iqa_archived_by'
     | 'rejection_reason'
+    | 'returned_at'
+    | 'returned_by'
+    | 'return_note'
   >;
   /** Smaller layout for inline use inside cards */
   compact?: boolean;
+}
+
+function durationBetween(a: string | null | undefined, b: string | null | undefined): string | null {
+  if (!a || !b) return null;
+  const ms = new Date(b).getTime() - new Date(a).getTime();
+  if (ms < 0) return null;
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = mins / 60;
+  if (hrs < 48) return `${hrs.toFixed(1)}h`;
+  return `${(hrs / 24).toFixed(1)}d`;
 }
 
 type Approver = { full_name: string | null; pf_number: string | null };
