@@ -27,6 +27,7 @@ import StorageAudit from "./pages/admin/StorageAudit";
 import IntegrationHealth from "./pages/admin/IntegrationHealth";
 import SessionConfig from "./pages/admin/SessionConfig";
 import Templates from "./pages/admin/Templates";
+import EfficiencyDashboard from "./pages/admin/EfficiencyDashboard";
 
 import Reports from "./pages/Reports";
 import ProfileSettings from "./pages/ProfileSettings";
@@ -87,6 +88,7 @@ function ProtectedRoutes() {
         <Route path="/admin/integration-health" element={<IntegrationHealth />} />
         <Route path="/admin/session-config" element={<SessionConfig />} />
         <Route path="/admin/templates" element={<Templates />} />
+        <Route path="/admin/efficiency" element={<EfficiencyDashboard />} />
 
         <Route path="/reports" element={<Reports />} />
         <Route path="/profile" element={<ProfileSettings />} />

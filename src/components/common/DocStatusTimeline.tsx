@@ -18,9 +18,23 @@ interface DocStatusTimelineProps {
     | 'archived_at'
     | 'iqa_archived_by'
     | 'rejection_reason'
+    | 'returned_at'
+    | 'returned_by'
+    | 'return_note'
   >;
   /** Smaller layout for inline use inside cards */
   compact?: boolean;
+}
+
+function durationBetween(a: string | null | undefined, b: string | null | undefined): string | null {
+  if (!a || !b) return null;
+  const ms = new Date(b).getTime() - new Date(a).getTime();
+  if (ms < 0) return null;
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hrs = mins / 60;
+  if (hrs < 48) return `${hrs.toFixed(1)}h`;
+  return `${(hrs / 24).toFixed(1)}d`;
 }
 
 type Approver = { full_name: string | null; pf_number: string | null };
@@ -124,6 +138,8 @@ export function DocStatusTimeline({ doc, compact = false }: DocStatusTimelinePro
           : s.done
             ? 'bg-primary/15 text-primary'
             : 'bg-muted text-muted-foreground';
+        const prev = idx > 0 ? steps[idx - 1] : null;
+        const dur = s.done && prev?.at ? durationBetween(prev.at, s.at) : null;
 
         return (
           <li key={s.key} className="flex items-start gap-2">
@@ -162,6 +178,7 @@ export function DocStatusTimeline({ doc, compact = false }: DocStatusTimelinePro
                 <p className={`${subSize} text-muted-foreground truncate`}>
                   by {approver.full_name}
                   {approver.pf_number ? ` • PF ${approver.pf_number}` : ''}
+                  {dur && <span className="ml-1 opacity-80">· took {dur}</span>}
                 </p>
               )}
               {!s.done && !showAsRejected && (
@@ -179,6 +196,15 @@ export function DocStatusTimeline({ doc, compact = false }: DocStatusTimelinePro
           </li>
         );
       })}
+      {doc.returned_at && doc.return_note && (
+        <li className={`${subSize} mt-1 px-2 py-1.5 rounded bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-500/30`}>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-semibold">Returned to previous stage</span>
+            <span className="opacity-80 whitespace-nowrap">{fmt(doc.returned_at)}</span>
+          </div>
+          <p className="mt-0.5">{doc.return_note}</p>
+        </li>
+      )}
     </ol>
   );
 }
