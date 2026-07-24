@@ -138,6 +138,8 @@ export function DocStatusTimeline({ doc, compact = false }: DocStatusTimelinePro
           : s.done
             ? 'bg-primary/15 text-primary'
             : 'bg-muted text-muted-foreground';
+        const prev = idx > 0 ? steps[idx - 1] : null;
+        const dur = s.done && prev?.at ? durationBetween(prev.at, s.at) : null;
 
         return (
           <li key={s.key} className="flex items-start gap-2">
@@ -176,6 +178,7 @@ export function DocStatusTimeline({ doc, compact = false }: DocStatusTimelinePro
                 <p className={`${subSize} text-muted-foreground truncate`}>
                   by {approver.full_name}
                   {approver.pf_number ? ` • PF ${approver.pf_number}` : ''}
+                  {dur && <span className="ml-1 opacity-80">· took {dur}</span>}
                 </p>
               )}
               {!s.done && !showAsRejected && (
@@ -193,6 +196,15 @@ export function DocStatusTimeline({ doc, compact = false }: DocStatusTimelinePro
           </li>
         );
       })}
+      {doc.returned_at && doc.return_note && (
+        <li className={`${subSize} mt-1 px-2 py-1.5 rounded bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-500/30`}>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="font-semibold">Returned to previous stage</span>
+            <span className="opacity-80 whitespace-nowrap">{fmt(doc.returned_at)}</span>
+          </div>
+          <p className="mt-0.5">{doc.return_note}</p>
+        </li>
+      )}
     </ol>
   );
 }
