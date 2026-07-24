@@ -27,6 +27,7 @@ import StorageAudit from "./pages/admin/StorageAudit";
 import IntegrationHealth from "./pages/admin/IntegrationHealth";
 import SessionConfig from "./pages/admin/SessionConfig";
 import Templates from "./pages/admin/Templates";
+import EfficiencyDashboard from "./pages/admin/EfficiencyDashboard";
 
 import Reports from "./pages/Reports";
 import ProfileSettings from "./pages/ProfileSettings";
