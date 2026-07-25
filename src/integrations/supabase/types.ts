@@ -822,6 +822,39 @@ export type Database = {
         }
         Relationships: []
       }
+      sla_targets: {
+        Row: {
+          created_at: string
+          document_type: Database["public"]["Enums"]["document_type"]
+          id: string
+          notes: string | null
+          stage: string
+          target_hours: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_type: Database["public"]["Enums"]["document_type"]
+          id?: string
+          notes?: string | null
+          stage: string
+          target_hours: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_type?: Database["public"]["Enums"]["document_type"]
+          id?: string
+          notes?: string | null
+          stage?: string
+          target_hours?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       system_settings: {
         Row: {
           id: number
