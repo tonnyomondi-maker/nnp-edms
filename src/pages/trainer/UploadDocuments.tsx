@@ -19,6 +19,7 @@ import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
 import { checkSubmissionWindow } from '@/hooks/useAcademicSession';
 
 import { supabase } from '@/integrations/supabase/client';
+import { useSearchParams } from 'react-router-dom';
 import {
   DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
