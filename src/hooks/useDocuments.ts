@@ -213,6 +213,7 @@ async function performApproval(
     } catch { /* keep msg */ }
     throw new Error(msg);
   }
+  const signedFileUrl = (stampResp as { signedFileUrl?: string })?.signedFileUrl;
   if (signedFileUrl) {
     updates.signed_file_url = signedFileUrl;
     clearSignedUrlCache(signedFileUrl);
