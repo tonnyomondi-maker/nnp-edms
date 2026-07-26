@@ -184,7 +184,7 @@ export default function DepartmentQueue() {
                         <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
                           <CheckCircle2 className="w-4 h-4" /> Sign & Approve
                         </ActionGuardButton>
-                        <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                        <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => openReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
                           <XCircle className="w-4 h-4" /> Reject
                         </ActionGuardButton>
                       </>
@@ -217,6 +217,16 @@ export default function DepartmentQueue() {
           stampUrl={placementDoc.stampUrl}
           stage="HOD"
           onConfirm={performApproveWithPlacement}
+        />
+      )}
+      {rejectDoc && (
+        <RejectDialog
+          open={!!rejectDoc}
+          onOpenChange={(o) => { if (!o) setRejectDoc(null); }}
+          docLabel={rejectDoc.label}
+          stage="HOD"
+          onConfirm={confirmReject}
+          isPending={updateStatus.isPending}
         />
       )}
     </div>
