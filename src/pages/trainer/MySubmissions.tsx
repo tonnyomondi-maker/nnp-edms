@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
+import { RejectedResubmitButton } from '@/components/common/RejectedResubmitButton';
 
 export default function MySubmissions() {
   const { data: docs, isLoading } = useMyDocuments();
@@ -39,6 +40,7 @@ export default function MySubmissions() {
               {d.rejection_reason && (
                 <p className="text-xs text-destructive mt-1 ml-1">Reason: {d.rejection_reason}</p>
               )}
+              <RejectedResubmitButton docId={d.id} />
             </div>
           ))}
           {rejected.length === 0 && <EmptyState text="No rejected documents" />}
