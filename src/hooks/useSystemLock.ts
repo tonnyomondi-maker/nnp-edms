@@ -18,12 +18,23 @@ export function useSystemLock() {
     enabled: !!user,
     refetchInterval: 8000, // poll so users notice within 8s of a lock
     queryFn: async () => {
-      const { data } = await supabase
-        .from('system_settings' as never)
-        .select('lock_active,lock_reason,locked_at,locked_by_email')
-        .eq('id' as never, 1 as never)
-        .maybeSingle();
-      return ((data as never) as SystemLockState) ?? EMPTY;
+      // Super Admins can read the full row (incl. locked_by_email); everyone
+      // else uses a SECURITY DEFINER RPC that exposes only safe lock fields.
+      const isSuper = activeRole === 'SUPER_ADMIN' && !!currentUser?.roles.includes('SUPER_ADMIN');
+      if (isSuper) {
+        const { data } = await supabase
+          .from('system_settings' as never)
+          .select('lock_active,lock_reason,locked_at,locked_by_email')
+          .eq('id' as never, 1 as never)
+          .maybeSingle();
+        return ((data as never) as SystemLockState) ?? EMPTY;
+      }
+      // deno-lint-ignore no-explicit-any
+      const { data } = await (supabase as any).rpc('get_system_lock_public');
+      const row = Array.isArray(data) ? data[0] : data;
+      return row
+        ? { lock_active: !!row.lock_active, lock_reason: row.lock_reason ?? null, locked_at: row.locked_at ?? null, locked_by_email: null }
+        : EMPTY;
     },
   });
 
