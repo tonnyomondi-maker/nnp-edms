@@ -199,7 +199,20 @@ async function performApproval(
       mode,
     },
   });
-  if (stampErr) throw new Error(stampErr.message || 'Failed to stamp document');
+  if (stampErr || (stampResp as { error?: string } | null)?.error) {
+    // Try to extract the real server error body so approvers see the actual reason
+    // (e.g. "Policy requires an embedded stamp for this document type.")
+    let msg = (stampResp as { error?: string } | null)?.error || stampErr?.message || 'Failed to stamp document';
+    try {
+      const ctx = (stampErr as unknown as { context?: { body?: ReadableStream | Response } })?.context;
+      const body = ctx?.body as unknown as { text?: () => Promise<string> } | undefined;
+      if (body?.text) {
+        const text = await body.text();
+        try { const parsed = JSON.parse(text); if (parsed?.error) msg = parsed.error; } catch { if (text) msg = text; }
+      }
+    } catch { /* keep msg */ }
+    throw new Error(msg);
+  }
   const signedFileUrl = (stampResp as { signedFileUrl?: string })?.signedFileUrl;
   if (signedFileUrl) {
     updates.signed_file_url = signedFileUrl;
@@ -444,5 +457,17 @@ export function useMyDocumentsBySession(year: number, term: 'JAN_APR' | 'MAY_AUG
       return data;
     },
     enabled: !!user,
+  });
+}
+
+export function useRejectedDocument(docId: string | null) {
+  return useQuery({
+    queryKey: ['documents', 'rejected-detail', docId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('documents').select('*').eq('id', docId!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!docId,
   });
 }

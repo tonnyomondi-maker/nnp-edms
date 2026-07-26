@@ -7,6 +7,7 @@ import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
 import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
+import { RejectDialog } from '@/components/common/RejectDialog';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ export default function ApprovalQueue() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
   const [returnDocId, setReturnDocId] = useState<string | null>(null);
+  const [rejectDoc, setRejectDoc] = useState<{ id: string; label: string } | null>(null);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'HOD_APPROVED' });
@@ -103,11 +105,15 @@ export default function ApprovalQueue() {
     });
   };
 
-  const handleReject = (docId: string) => {
-    updateStatus.mutate({ docId, status: 'REJECTED', rejectionReason: 'Does not meet standards' }, {
-      onSuccess: () => toast({ title: 'Document Rejected', variant: 'destructive' }),
-      onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
-    });
+  const openReject = (docId: string) => {
+    const doc = docs.find((d) => d.id === docId);
+    setRejectDoc({ id: docId, label: doc ? `${doc.document_type}${doc.unit_code ? ' • ' + doc.unit_code : ''}` : '' });
+  };
+  const confirmReject = async (reason: string) => {
+    if (!rejectDoc) return;
+    await updateStatus.mutateAsync({ docId: rejectDoc.id, status: 'REJECTED', rejectionReason: reason });
+    setRejectDoc(null);
+    toast({ title: 'Document Rejected', description: 'Comment sent to trainer for revision.', variant: 'destructive' });
   };
 
   if (isLoading) {
@@ -159,7 +165,7 @@ export default function ApprovalQueue() {
                     <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
                       <CheckCircle2 className="w-4 h-4" /> Sign & Approve
                     </ActionGuardButton>
-                    <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => handleReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                    <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => openReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
                       <XCircle className="w-4 h-4" /> Reject
                     </ActionGuardButton>
                   </>
@@ -185,6 +191,16 @@ export default function ApprovalQueue() {
       )}
       {returnDocId && (
         <ReturnStageDialog open={!!returnDocId} onOpenChange={(o) => { if (!o) setReturnDocId(null); }} docId={returnDocId} fromStage="DP" />
+      )}
+      {rejectDoc && (
+        <RejectDialog
+          open={!!rejectDoc}
+          onOpenChange={(o) => { if (!o) setRejectDoc(null); }}
+          docLabel={rejectDoc.label}
+          stage="DP"
+          onConfirm={confirmReject}
+          isPending={updateStatus.isPending}
+        />
       )}
     </div>
   );

@@ -54,8 +54,11 @@ async function downloadFromStorage(
   return await data.arrayBuffer();
 }
 
-async function fetchAsArrayBuffer(url: string): Promise<{ buffer: ArrayBuffer; contentType: string | null }> {
-  // SSRF guard: only allow fetching images from our own Supabase storage.
+async function fetchImageAsset(
+  supabase: ReturnType<typeof createClient>,
+  url: string,
+): Promise<{ buffer: ArrayBuffer; contentType: string | null }> {
+  // SSRF guard: only allow images from our own Supabase Storage.
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   let parsed: URL;
   try { parsed = new URL(url); } catch { throw new Error("Invalid image URL"); }
@@ -63,10 +66,13 @@ async function fetchAsArrayBuffer(url: string): Promise<{ buffer: ArrayBuffer; c
   if (parsed.origin !== expectedOrigin || !parsed.pathname.startsWith("/storage/v1/object/")) {
     throw new Error("Image URL must point to this project's Supabase Storage");
   }
-  const res = await fetch(parsed.toString());
-  if (!res.ok) throw new Error(`Fetch failed (${res.status}) for ${url.slice(0, 80)}…`);
-  const buffer = await res.arrayBuffer();
-  return { buffer, contentType: res.headers.get("content-type") };
+  // Use service-role storage download so private buckets (signatures, stamps) work.
+  const ref = parseStorageRef(url, "signatures");
+  if (!ref) throw new Error("Could not parse storage reference for image");
+  const { data, error } = await supabase.storage.from(ref.bucket).download(ref.path);
+  if (error || !data) throw new Error(`Storage download failed for ${ref.bucket}/${ref.path}: ${error?.message || "unknown"}`);
+  const buffer = await data.arrayBuffer();
+  return { buffer, contentType: data.type || null };
 }
 
 
@@ -243,8 +249,8 @@ Deno.serve(async (req) => {
 
     // Signature is mandatory in IMAGE mode; stamp is optional (signature-only
     // approvals are supported when the approver has no stamp configured).
-    const sig = await fetchAsArrayBuffer(signatureUrl!);
-    const stamp = stampUrl ? await fetchAsArrayBuffer(stampUrl) : null;
+    const sig = await fetchImageAsset(supabase, signatureUrl!);
+    const stamp = stampUrl ? await fetchImageAsset(supabase, stampUrl) : null;
 
     const embedImage = async (bytes: ArrayBuffer, contentType: string | null) => {
       const isPng = (contentType || "").includes("png") || new Uint8Array(bytes)[0] === 0x89;

@@ -19,6 +19,7 @@ import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
 import { checkSubmissionWindow } from '@/hooks/useAcademicSession';
 
 import { supabase } from '@/integrations/supabase/client';
+import { useSearchParams } from 'react-router-dom';
 import {
   DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
@@ -118,6 +119,48 @@ export default function UploadDocuments() {
       toast({ title: 'Resumed previous upload session', description: 'Re-attach pending files to continue, or retry Drive mirrors for already-stored files.' });
     }
   }, [resume]);
+
+  // --- Resubmit prefill: /trainer/upload?resubmit=<docId> ---
+  const [searchParams] = useSearchParams();
+  const resubmitId = searchParams.get('resubmit');
+  const resubmitLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!resubmitId || resubmitLoadedRef.current) return;
+    resubmitLoadedRef.current = true;
+    (async () => {
+      const { data, error } = await supabase.from('documents').select('*').eq('id', resubmitId).single();
+      if (error || !data) {
+        toast({ title: 'Could not load rejected document', description: error?.message, variant: 'destructive' });
+        return;
+      }
+      if (data.department) setDepartment(data.department);
+      if (data.unit_code) setUnitCode(data.unit_code);
+      if (data.unit_name) setUnitName(data.unit_name);
+      if (data.class_code) setClassCode(data.class_code);
+      if (data.session_year) setSessionYear(data.session_year);
+      if (data.session_term) setSessionTerm(data.session_term as SessionTerm);
+      if (data.sessions_per_week) setSessionsPerWeek(data.sessions_per_week);
+      if (data.course_type) setCourseType(data.course_type as CourseType);
+      if (data.term_number) setTermNumber(data.term_number);
+      if (data.module_number) setModuleNumber(data.module_number);
+      setFiles([{
+        id: `resubmit-${data.id}`,
+        file: undefined,
+        fileName: data.file_name || 'attach-updated-file.pdf',
+        documentType: data.document_type as DocumentType,
+        weekNumber: data.week_number ?? undefined,
+        sessionIndex: data.session_index ?? undefined,
+        originalSize: 0,
+        eligibility: 'OK',
+        stage: 'idle',
+        needsReattach: true,
+      }]);
+      toast({
+        title: 'Editing rejected submission',
+        description: `Rejection reason: ${data.rejection_reason || '—'}. Re-attach the corrected PDF and submit — a new SUBMITTED version will be created.`,
+      });
+    })();
+  }, [resubmitId]);
 
 
   const { data: existingDocs = [] } = useMyDocumentsBySession(sessionYear, sessionTerm);
@@ -247,6 +290,28 @@ export default function UploadDocuments() {
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
   const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
   const canSubmit = headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked;
+
+  const submitReasons = useMemo(() => {
+    const r: string[] = [];
+    if (!canUpload) r.push('Your active role can\'t upload documents. Switch to Trainer.');
+    if (writesBlocked) r.push(`System is locked${lock_reason ? `: ${lock_reason}` : ''}. Writes are disabled.`);
+    if (!headerValid) {
+      const missing: string[] = [];
+      if (!department) missing.push('department');
+      if (!unitCode) missing.push('unit code');
+      if (!classCode) missing.push('class code');
+      if (hasWeeklyType && sessionsPerWeek < 1) missing.push('sessions per week');
+      r.push(`Fill required header fields: ${missing.join(', ')}.`);
+    }
+    if (files.length === 0) r.push('Add at least one PDF file.');
+    fileErrors.filter((e) => e.error).forEach((e) => {
+      const f = files.find((x) => x.id === e.id);
+      r.push(`${f?.fileName || 'File'}: ${e.error}`);
+    });
+    if (anyInFlight) r.push('Wait for in-flight uploads to finish.');
+    if (submitDoc.isPending) r.push('Submission in progress…');
+    return r;
+  }, [canUpload, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
 
   function setStage(id: string, patch: Partial<FileEntry>) {
     setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
@@ -726,6 +791,14 @@ export default function UploadDocuments() {
         {submitDoc.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
         Submit {files.length > 0 ? `${files.length} Document${files.length > 1 ? 's' : ''}` : ''}
       </ActionGuardButton>
+      {!canSubmit && submitReasons.length > 0 && (
+        <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs">
+          <p className="font-medium mb-1 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Can't submit yet:</p>
+          <ul className="list-disc pl-5 space-y-0.5">
+            {submitReasons.slice(0, 8).map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
