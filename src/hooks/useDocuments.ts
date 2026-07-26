@@ -459,3 +459,15 @@ export function useMyDocumentsBySession(year: number, term: 'JAN_APR' | 'MAY_AUG
     enabled: !!user,
   });
 }
+
+export function useRejectedDocument(docId: string | null) {
+  return useQuery({
+    queryKey: ['documents', 'rejected-detail', docId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('documents').select('*').eq('id', docId!).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!docId,
+  });
+}
