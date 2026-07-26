@@ -748,6 +748,14 @@ export default function UploadDocuments() {
         {submitDoc.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
         Submit {files.length > 0 ? `${files.length} Document${files.length > 1 ? 's' : ''}` : ''}
       </ActionGuardButton>
+      {!canSubmit && submitReasons.length > 0 && (
+        <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs">
+          <p className="font-medium mb-1 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> Can't submit yet:</p>
+          <ul className="list-disc pl-5 space-y-0.5">
+            {submitReasons.slice(0, 8).map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
