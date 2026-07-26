@@ -199,8 +199,20 @@ async function performApproval(
       mode,
     },
   });
-  if (stampErr) throw new Error(stampErr.message || 'Failed to stamp document');
-  const signedFileUrl = (stampResp as { signedFileUrl?: string })?.signedFileUrl;
+  if (stampErr || (stampResp as { error?: string } | null)?.error) {
+    // Try to extract the real server error body so approvers see the actual reason
+    // (e.g. "Policy requires an embedded stamp for this document type.")
+    let msg = (stampResp as { error?: string } | null)?.error || stampErr?.message || 'Failed to stamp document';
+    try {
+      const ctx = (stampErr as unknown as { context?: { body?: ReadableStream | Response } })?.context;
+      const body = ctx?.body as unknown as { text?: () => Promise<string> } | undefined;
+      if (body?.text) {
+        const text = await body.text();
+        try { const parsed = JSON.parse(text); if (parsed?.error) msg = parsed.error; } catch { if (text) msg = text; }
+      }
+    } catch { /* keep msg */ }
+    throw new Error(msg);
+  }
   if (signedFileUrl) {
     updates.signed_file_url = signedFileUrl;
     clearSignedUrlCache(signedFileUrl);
