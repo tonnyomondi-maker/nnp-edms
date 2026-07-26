@@ -120,6 +120,48 @@ export default function UploadDocuments() {
     }
   }, [resume]);
 
+  // --- Resubmit prefill: /trainer/upload?resubmit=<docId> ---
+  const [searchParams] = useSearchParams();
+  const resubmitId = searchParams.get('resubmit');
+  const resubmitLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!resubmitId || resubmitLoadedRef.current) return;
+    resubmitLoadedRef.current = true;
+    (async () => {
+      const { data, error } = await supabase.from('documents').select('*').eq('id', resubmitId).single();
+      if (error || !data) {
+        toast({ title: 'Could not load rejected document', description: error?.message, variant: 'destructive' });
+        return;
+      }
+      if (data.department) setDepartment(data.department);
+      if (data.unit_code) setUnitCode(data.unit_code);
+      if (data.unit_name) setUnitName(data.unit_name);
+      if (data.class_code) setClassCode(data.class_code);
+      if (data.session_year) setSessionYear(data.session_year);
+      if (data.session_term) setSessionTerm(data.session_term as SessionTerm);
+      if (data.sessions_per_week) setSessionsPerWeek(data.sessions_per_week);
+      if (data.course_type) setCourseType(data.course_type as CourseType);
+      if (data.term_number) setTermNumber(data.term_number);
+      if (data.module_number) setModuleNumber(data.module_number);
+      setFiles([{
+        id: `resubmit-${data.id}`,
+        file: undefined,
+        fileName: data.file_name || 'attach-updated-file.pdf',
+        documentType: data.document_type as DocumentType,
+        weekNumber: data.week_number ?? undefined,
+        sessionIndex: data.session_index ?? undefined,
+        originalSize: 0,
+        eligibility: 'OK',
+        stage: 'idle',
+        needsReattach: true,
+      }]);
+      toast({
+        title: 'Editing rejected submission',
+        description: `Rejection reason: ${data.rejection_reason || '—'}. Re-attach the corrected PDF and submit — a new SUBMITTED version will be created.`,
+      });
+    })();
+  }, [resubmitId]);
+
 
   const { data: existingDocs = [] } = useMyDocumentsBySession(sessionYear, sessionTerm);
   const { data: configs = [] } = useMyUnitConfigs(sessionYear, sessionTerm);
