@@ -248,6 +248,28 @@ export default function UploadDocuments() {
   const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
   const canSubmit = headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked;
 
+  const submitReasons = useMemo(() => {
+    const r: string[] = [];
+    if (!canUpload) r.push('Your active role can\'t upload documents. Switch to Trainer.');
+    if (writesBlocked) r.push(`System is locked${lock_reason ? `: ${lock_reason}` : ''}. Writes are disabled.`);
+    if (!headerValid) {
+      const missing: string[] = [];
+      if (!department) missing.push('department');
+      if (!unitCode) missing.push('unit code');
+      if (!classCode) missing.push('class code');
+      if (hasWeeklyType && sessionsPerWeek < 1) missing.push('sessions per week');
+      r.push(`Fill required header fields: ${missing.join(', ')}.`);
+    }
+    if (files.length === 0) r.push('Add at least one PDF file.');
+    fileErrors.filter((e) => e.error).forEach((e) => {
+      const f = files.find((x) => x.id === e.id);
+      r.push(`${f?.fileName || 'File'}: ${e.error}`);
+    });
+    if (anyInFlight) r.push('Wait for in-flight uploads to finish.');
+    if (submitDoc.isPending) r.push('Submission in progress…');
+    return r;
+  }, [canUpload, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
+
   function setStage(id: string, patch: Partial<FileEntry>) {
     setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
   }
