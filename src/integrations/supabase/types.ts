@@ -1194,6 +1194,14 @@ export type Database = {
       bootstrap_super_admin: { Args: { target_email: string }; Returns: Json }
       can_stamp_document_file: { Args: { _path: string }; Returns: boolean }
       document_pack_timeline: { Args: { _document_id: string }; Returns: Json }
+      get_system_lock_public: {
+        Args: never
+        Returns: {
+          lock_active: boolean
+          lock_reason: string
+          locked_at: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
