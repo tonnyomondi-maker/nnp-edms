@@ -249,8 +249,8 @@ Deno.serve(async (req) => {
 
     // Signature is mandatory in IMAGE mode; stamp is optional (signature-only
     // approvals are supported when the approver has no stamp configured).
-    const sig = await fetchAsArrayBuffer(signatureUrl!);
-    const stamp = stampUrl ? await fetchAsArrayBuffer(stampUrl) : null;
+    const sig = await fetchImageAsset(supabase, signatureUrl!);
+    const stamp = stampUrl ? await fetchImageAsset(supabase, stampUrl) : null;
 
     const embedImage = async (bytes: ArrayBuffer, contentType: string | null) => {
       const isPng = (contentType || "").includes("png") || new Uint8Array(bytes)[0] === 0x89;
