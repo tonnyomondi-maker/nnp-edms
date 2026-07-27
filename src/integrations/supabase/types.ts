@@ -1049,6 +1049,7 @@ export type Database = {
           download_count: number
           expires_at: string
           id: string
+          include_dp_approved: boolean
           include_text_only_fallbacks: boolean
           included_document_types: string[] | null
           revoked_at: string | null
@@ -1064,6 +1065,7 @@ export type Database = {
           download_count?: number
           expires_at?: string
           id?: string
+          include_dp_approved?: boolean
           include_text_only_fallbacks?: boolean
           included_document_types?: string[] | null
           revoked_at?: string | null
@@ -1079,6 +1081,7 @@ export type Database = {
           download_count?: number
           expires_at?: string
           id?: string
+          include_dp_approved?: boolean
           include_text_only_fallbacks?: boolean
           included_document_types?: string[] | null
           revoked_at?: string | null
