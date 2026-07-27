@@ -19,12 +19,16 @@ interface DocRow {
   id: string; file_name: string | null; signed_file_url: string | null; file_url: string | null;
   document_type: string; unit_code: string | null; unit_name: string | null;
   trainer_id: string | null; hod_approved_at: string | null; dp_approved_at: string | null;
-  archived_at: string | null;
+  archived_at: string | null; status: string;
   hod_stamp_url: string | null; dp_stamp_url: string | null; iqa_stamp_url: string | null;
 }
 
 function isTextOnly(d: DocRow): boolean {
   return !d.hod_stamp_url && !d.dp_stamp_url && !d.iqa_stamp_url;
+}
+
+function safeSeg(name: string): string {
+  return (name || "unknown").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 80);
 }
 
 Deno.serve(async (req) => {
