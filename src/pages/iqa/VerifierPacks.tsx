@@ -47,13 +47,39 @@ export default function VerifierPacks() {
   const [term, setTerm] = useState<string>('JAN_APR');
   const [selectedTypes, setSelectedTypes] = useState<string[]>(DOC_TYPES);
   const [includeTextOnly, setIncludeTextOnly] = useState(true);
+  const [includeDpApproved, setIncludeDpApproved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<PackRow[]>([]);
   const [reviewCounts, setReviewCounts] = useState<Record<string, number>>({});
   const [loadingRows, setLoadingRows] = useState(false);
   const [assignModal, setAssignModal] = useState<PackRow | null>(null);
+  const [eligible, setEligible] = useState<{ archived: number; dpApproved: number } | null>(null);
 
   const canUse = !loading && currentUser && (activeRole === 'IQA' || activeRole === 'SUPER_ADMIN');
+  const canGenerate = !!dept && !!year && !!term && selectedTypes.length > 0 && !busy;
+
+  // Live eligibility preview — counts documents that would land in the pack.
+  useEffect(() => {
+    if (!canUse || !dept || !year || !term) { setEligible(null); return; }
+    let cancelled = false;
+    (async () => {
+      let q = supabase.from('documents')
+        .select('status', { count: 'exact', head: false })
+        .eq('department', dept)
+        .eq('session_year', year)
+        .eq('session_term', term)
+        .in('status', ['ARCHIVED', 'DP_APPROVED']);
+      if (selectedTypes.length < DOC_TYPES.length) q = q.in('document_type', selectedTypes as never);
+      const { data } = await q;
+      if (cancelled) return;
+      const rows = (data as { status: string }[] | null) || [];
+      setEligible({
+        archived: rows.filter((r) => r.status === 'ARCHIVED').length,
+        dpApproved: rows.filter((r) => r.status === 'DP_APPROVED').length,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [canUse, dept, year, term, selectedTypes]);
 
   // If every selected type forbids text-only fallback, force the switch off + disable.
   const allSelectedForbidTextOnly = useMemo(() => {
