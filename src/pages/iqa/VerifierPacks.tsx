@@ -133,7 +133,7 @@ export default function VerifierPacks() {
   };
 
   const generate = async () => {
-    if (!dept || !year || !term) { toast.error('Fill department, year, and term'); return; }
+    if (!canGenerate) { toast.error('Pick department, year, term, and at least one type'); return; }
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-verification-pack', {
@@ -141,10 +141,14 @@ export default function VerifierPacks() {
           department: dept, session_year: year, session_term: term,
           included_document_types: selectedTypes.length === DOC_TYPES.length ? null : selectedTypes,
           include_text_only_fallbacks: includeTextOnly,
+          include_dp_approved: includeDpApproved,
         },
       });
-      const errMsg = error?.message || (data as { error?: string })?.error;
-      if (errMsg) { toast.error('Could not create pack', { description: errMsg }); return; }
+      // Surface both invoke error and function-level error body
+      // deno-lint-ignore no-explicit-any
+      const ctxBody = (error as any)?.context?.body;
+      const errMsg = (data as { error?: string })?.error || ctxBody || error?.message;
+      if (errMsg) { toast.error('Could not create pack', { description: String(errMsg) }); return; }
       toast.success('Verifier pack created');
       load();
     } finally { setBusy(false); }
