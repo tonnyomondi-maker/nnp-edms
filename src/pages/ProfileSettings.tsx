@@ -30,6 +30,19 @@ export default function ProfileSettings() {
 
   const isApprover = currentUser?.roles.some(r => r === 'HOD' || r === 'DP_ACADEMICS' || r === 'IQA');
 
+  const resolvePreview = async (value: string | null): Promise<string | null> => {
+    if (!value) return null;
+    // Legacy public URL — use as-is
+    if (/^https?:\/\//i.test(value) && value.includes('/storage/v1/object/public/')) return value;
+    // Extract bare path from any signed/legacy URL, or treat value as bare path
+    let path = value;
+    const m = value.match(/\/storage\/v1\/object\/(?:public\/|sign\/)?signatures\/(.+?)(?:\?|$)/);
+    if (m) path = decodeURIComponent(m[1]);
+    else if (/^https?:\/\//i.test(value)) return value; // unknown URL, best-effort
+    const { data } = await supabase.storage.from('signatures').createSignedUrl(path, 3600);
+    return data?.signedUrl || null;
+  };
+
   useEffect(() => {
     if (!currentUser) return;
     const fetchProfile = async () => {
@@ -43,8 +56,8 @@ export default function ProfileSettings() {
         setFullName((d.full_name as string) || '');
         setPfNumber((d.pf_number as string) || '');
         setDepartment((d.department as string) || '');
-        setSignatureUrl((d.signature_url as string) || null);
-        setStampUrl((d.stamp_url as string) || null);
+        setSignatureUrl(await resolvePreview((d.signature_url as string) || null));
+        setStampUrl(await resolvePreview((d.stamp_url as string) || null));
         setStampRequired(d.stamp_required !== false);
       }
       setInitialLoading(false);
