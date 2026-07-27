@@ -174,9 +174,20 @@ Deno.serve(async (req) => {
       `Generated: ${new Date().toISOString()}`,
       `Included document types: ${pack.included_document_types ? (pack.included_document_types as string[]).join(", ") : "ALL"}`,
       `Text-only fallback documents included: ${pack.include_text_only_fallbacks ? "Yes" : "No"}`,
+      `Includes DP-approved (pre-archival): ${pack.include_dp_approved ? "Yes" : "No"}`,
       `Documents: ${included.length}`,
       ``,
     ];
+
+    // Per-trainer counts summary
+    const perTrainer = new Map<string, number>();
+    for (const d of included) {
+      const key = d.trainer_id ? (nameMap.get(d.trainer_id) || "Unknown") : "Unknown";
+      perTrainer.set(key, (perTrainer.get(key) || 0) + 1);
+    }
+    indexLines.push(`Per-trainer counts:`);
+    Array.from(perTrainer.entries()).sort().forEach(([n, c]) => indexLines.push(`  ${n}: ${c}`));
+    indexLines.push(``);
 
     for (const d of included) {
       const ref = (d.signed_file_url || d.file_url || "") as string;
@@ -194,12 +205,15 @@ Deno.serve(async (req) => {
         continue;
       }
       const bytes = new Uint8Array(await blob.arrayBuffer());
-      const safeName = `${d.unit_code || "unit"}_${d.document_type.replace(/\s+/g, "_")}_${d.id.slice(0, 8)}.pdf`;
-      zip.file(safeName, bytes);
+      const trainerLabel = d.trainer_id ? (nameMap.get(d.trainer_id) || "Unknown_Trainer") : "Unknown_Trainer";
+      const fileName = `${d.unit_code || "unit"}_${d.document_type.replace(/\s+/g, "_")}_${d.id.slice(0, 8)}.pdf`;
+      const zipPath = `${safeSeg(pack.department)}/${safeSeg(trainerLabel)}/${safeSeg(fileName)}`;
+      zip.file(zipPath, bytes);
       indexLines.push(
-        `- ${safeName}` +
+        `- ${zipPath}` +
         `\n    Type: ${d.document_type}` +
         `\n    Unit: ${d.unit_code}${d.unit_name ? ` — ${d.unit_name}` : ""}` +
+        `\n    Status: ${d.status}` +
         `\n    HOD approved: ${d.hod_approved_at ?? "—"}` +
         `\n    DP approved:  ${d.dp_approved_at ?? "—"}` +
         `\n    Archived:     ${d.archived_at ?? "—"}` +
