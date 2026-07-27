@@ -47,13 +47,39 @@ export default function VerifierPacks() {
   const [term, setTerm] = useState<string>('JAN_APR');
   const [selectedTypes, setSelectedTypes] = useState<string[]>(DOC_TYPES);
   const [includeTextOnly, setIncludeTextOnly] = useState(true);
+  const [includeDpApproved, setIncludeDpApproved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<PackRow[]>([]);
   const [reviewCounts, setReviewCounts] = useState<Record<string, number>>({});
   const [loadingRows, setLoadingRows] = useState(false);
   const [assignModal, setAssignModal] = useState<PackRow | null>(null);
+  const [eligible, setEligible] = useState<{ archived: number; dpApproved: number } | null>(null);
 
   const canUse = !loading && currentUser && (activeRole === 'IQA' || activeRole === 'SUPER_ADMIN');
+  const canGenerate = !!dept && !!year && !!term && selectedTypes.length > 0 && !busy;
+
+  // Live eligibility preview — counts documents that would land in the pack.
+  useEffect(() => {
+    if (!canUse || !dept || !year || !term) { setEligible(null); return; }
+    let cancelled = false;
+    (async () => {
+      let q = supabase.from('documents')
+        .select('status', { count: 'exact', head: false })
+        .eq('department', dept)
+        .eq('session_year', year)
+        .eq('session_term', term)
+        .in('status', ['ARCHIVED', 'DP_APPROVED']);
+      if (selectedTypes.length < DOC_TYPES.length) q = q.in('document_type', selectedTypes as never);
+      const { data } = await q;
+      if (cancelled) return;
+      const rows = (data as { status: string }[] | null) || [];
+      setEligible({
+        archived: rows.filter((r) => r.status === 'ARCHIVED').length,
+        dpApproved: rows.filter((r) => r.status === 'DP_APPROVED').length,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [canUse, dept, year, term, selectedTypes]);
 
   // If every selected type forbids text-only fallback, force the switch off + disable.
   const allSelectedForbidTextOnly = useMemo(() => {
@@ -107,7 +133,7 @@ export default function VerifierPacks() {
   };
 
   const generate = async () => {
-    if (!dept || !year || !term) { toast.error('Fill department, year, and term'); return; }
+    if (!canGenerate) { toast.error('Pick department, year, term, and at least one type'); return; }
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-verification-pack', {
@@ -115,10 +141,14 @@ export default function VerifierPacks() {
           department: dept, session_year: year, session_term: term,
           included_document_types: selectedTypes.length === DOC_TYPES.length ? null : selectedTypes,
           include_text_only_fallbacks: includeTextOnly,
+          include_dp_approved: includeDpApproved,
         },
       });
-      const errMsg = error?.message || (data as { error?: string })?.error;
-      if (errMsg) { toast.error('Could not create pack', { description: errMsg }); return; }
+      // Surface both invoke error and function-level error body
+      // deno-lint-ignore no-explicit-any
+      const ctxBody = (error as any)?.context?.body;
+      const errMsg = (data as { error?: string })?.error || ctxBody || error?.message;
+      if (errMsg) { toast.error('Could not create pack', { description: String(errMsg) }); return; }
       toast.success('Verifier pack created');
       load();
     } finally { setBusy(false); }
@@ -182,11 +212,35 @@ export default function VerifierPacks() {
                 <SelectContent>{TERMS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <Button onClick={generate} disabled={busy || selectedTypes.length === 0} className="h-9 gap-1">
+            <Button onClick={generate} disabled={!canGenerate} className="h-9 gap-1">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
               Generate link
             </Button>
           </div>
+
+          {eligible && (
+            <div className={`text-xs rounded border p-2 ${eligible.archived + (includeDpApproved ? eligible.dpApproved : 0) === 0 ? 'border-amber-500/40 bg-amber-500/10' : 'border-border bg-muted/30'}`}>
+              <p><strong>Eligible now:</strong> {eligible.archived} archived
+                {includeDpApproved ? ` + ${eligible.dpApproved} DP-approved` : ''} document(s).</p>
+              {eligible.archived + (includeDpApproved ? eligible.dpApproved : 0) === 0 && (
+                <p className="mt-1">
+                  No documents match — <Link to="/iqa/archive" className="underline">archive DP-approved docs</Link> first,
+                  or enable "Include DP-approved" below.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-start gap-2 border rounded p-3">
+            <Switch checked={includeDpApproved} onCheckedChange={setIncludeDpApproved} />
+            <div className="text-xs">
+              <p>Include DP-approved (not yet archived)</p>
+              <p className="text-muted-foreground text-[10px]">
+                Lets external verifiers review documents before final IQA archival. Off = only fully archived docs.
+              </p>
+            </div>
+          </div>
+
 
           <div className="border rounded p-3 space-y-2">
             <Label className="text-xs">Included document types</Label>

@@ -19,12 +19,16 @@ interface DocRow {
   id: string; file_name: string | null; signed_file_url: string | null; file_url: string | null;
   document_type: string; unit_code: string | null; unit_name: string | null;
   trainer_id: string | null; hod_approved_at: string | null; dp_approved_at: string | null;
-  archived_at: string | null;
+  archived_at: string | null; status: string;
   hod_stamp_url: string | null; dp_stamp_url: string | null; iqa_stamp_url: string | null;
 }
 
 function isTextOnly(d: DocRow): boolean {
   return !d.hod_stamp_url && !d.dp_stamp_url && !d.iqa_stamp_url;
+}
+
+function safeSeg(name: string): string {
+  return (name || "unknown").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 80);
 }
 
 Deno.serve(async (req) => {
@@ -80,14 +84,18 @@ Deno.serve(async (req) => {
       }
     }
 
+    const allowedStatuses = pack.include_dp_approved
+      ? ["ARCHIVED", "DP_APPROVED"]
+      : ["ARCHIVED"];
+
     let dq = admin
       .from("documents")
-      .select("id, file_name, signed_file_url, file_url, document_type, unit_code, unit_name, trainer_id, hod_approved_at, dp_approved_at, archived_at, hod_stamp_url, dp_stamp_url, iqa_stamp_url")
+      .select("id, file_name, signed_file_url, file_url, document_type, unit_code, unit_name, trainer_id, hod_approved_at, dp_approved_at, archived_at, status, hod_stamp_url, dp_stamp_url, iqa_stamp_url")
       .eq("department", pack.department)
       .eq("session_year", pack.session_year)
       .eq("session_term", pack.session_term)
-      .eq("status", "ARCHIVED")
-      .order("archived_at", { ascending: true });
+      .in("status", allowedStatuses)
+      .order("trainer_id", { ascending: true });
 
     if (pack.included_document_types && Array.isArray(pack.included_document_types) && pack.included_document_types.length > 0) {
       dq = dq.in("document_type", pack.included_document_types);
@@ -102,6 +110,20 @@ Deno.serve(async (req) => {
     for (const d of allDocs) {
       if (!pack.include_text_only_fallbacks && isTextOnly(d)) excluded.push(d);
       else included.push(d);
+    }
+
+    // Resolve trainer names for nested layout
+    const trainerIds = Array.from(new Set(included.map((d) => d.trainer_id).filter(Boolean))) as string[];
+    const nameMap = new Map<string, string>();
+    if (trainerIds.length) {
+      const { data: profs } = await admin
+        .from("profiles")
+        .select("user_id, full_name, pf_number")
+        .in("user_id", trainerIds);
+      (profs || []).forEach((p: { user_id: string; full_name: string | null; pf_number: string | null }) => {
+        const label = p.pf_number ? `${p.full_name || "Unknown"} (${p.pf_number})` : (p.full_name || "Unknown");
+        nameMap.set(p.user_id, label);
+      });
     }
 
     if (wantMeta) {
@@ -152,9 +174,20 @@ Deno.serve(async (req) => {
       `Generated: ${new Date().toISOString()}`,
       `Included document types: ${pack.included_document_types ? (pack.included_document_types as string[]).join(", ") : "ALL"}`,
       `Text-only fallback documents included: ${pack.include_text_only_fallbacks ? "Yes" : "No"}`,
+      `Includes DP-approved (pre-archival): ${pack.include_dp_approved ? "Yes" : "No"}`,
       `Documents: ${included.length}`,
       ``,
     ];
+
+    // Per-trainer counts summary
+    const perTrainer = new Map<string, number>();
+    for (const d of included) {
+      const key = d.trainer_id ? (nameMap.get(d.trainer_id) || "Unknown") : "Unknown";
+      perTrainer.set(key, (perTrainer.get(key) || 0) + 1);
+    }
+    indexLines.push(`Per-trainer counts:`);
+    Array.from(perTrainer.entries()).sort().forEach(([n, c]) => indexLines.push(`  ${n}: ${c}`));
+    indexLines.push(``);
 
     for (const d of included) {
       const ref = (d.signed_file_url || d.file_url || "") as string;
@@ -172,12 +205,15 @@ Deno.serve(async (req) => {
         continue;
       }
       const bytes = new Uint8Array(await blob.arrayBuffer());
-      const safeName = `${d.unit_code || "unit"}_${d.document_type.replace(/\s+/g, "_")}_${d.id.slice(0, 8)}.pdf`;
-      zip.file(safeName, bytes);
+      const trainerLabel = d.trainer_id ? (nameMap.get(d.trainer_id) || "Unknown_Trainer") : "Unknown_Trainer";
+      const fileName = `${d.unit_code || "unit"}_${d.document_type.replace(/\s+/g, "_")}_${d.id.slice(0, 8)}.pdf`;
+      const zipPath = `${safeSeg(pack.department)}/${safeSeg(trainerLabel)}/${safeSeg(fileName)}`;
+      zip.file(zipPath, bytes);
       indexLines.push(
-        `- ${safeName}` +
+        `- ${zipPath}` +
         `\n    Type: ${d.document_type}` +
         `\n    Unit: ${d.unit_code}${d.unit_name ? ` — ${d.unit_name}` : ""}` +
+        `\n    Status: ${d.status}` +
         `\n    HOD approved: ${d.hod_approved_at ?? "—"}` +
         `\n    DP approved:  ${d.dp_approved_at ?? "—"}` +
         `\n    Archived:     ${d.archived_at ?? "—"}` +

@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
       ? body.included_document_types.filter((t: unknown) => typeof t === "string")
       : null;
     const include_text_only_fallbacks = body.include_text_only_fallbacks !== false;
+    const include_dp_approved = body.include_dp_approved === true;
 
     if (!department || !session_year || !["JAN_APR", "MAY_AUG", "SEP_DEC"].includes(session_term)) {
       return json({ error: "Invalid department / session_year / session_term" }, 400);
@@ -62,6 +63,7 @@ Deno.serve(async (req) => {
         department, session_year, session_term, token,
         included_document_types,
         include_text_only_fallbacks,
+        include_dp_approved,
         created_by: u.user.id,
       })
       .select("id, token, expires_at")
@@ -73,7 +75,7 @@ Deno.serve(async (req) => {
       performed_by: u.user.id,
       details: {
         department, session_year, session_term, pack_id: inserted.id,
-        included_document_types, include_text_only_fallbacks,
+        included_document_types, include_text_only_fallbacks, include_dp_approved,
       },
     });
 

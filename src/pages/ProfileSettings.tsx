@@ -30,6 +30,19 @@ export default function ProfileSettings() {
 
   const isApprover = currentUser?.roles.some(r => r === 'HOD' || r === 'DP_ACADEMICS' || r === 'IQA');
 
+  const resolvePreview = async (value: string | null): Promise<string | null> => {
+    if (!value) return null;
+    // Legacy public URL — use as-is
+    if (/^https?:\/\//i.test(value) && value.includes('/storage/v1/object/public/')) return value;
+    // Extract bare path from any signed/legacy URL, or treat value as bare path
+    let path = value;
+    const m = value.match(/\/storage\/v1\/object\/(?:public\/|sign\/)?signatures\/(.+?)(?:\?|$)/);
+    if (m) path = decodeURIComponent(m[1]);
+    else if (/^https?:\/\//i.test(value)) return value; // unknown URL, best-effort
+    const { data } = await supabase.storage.from('signatures').createSignedUrl(path, 3600);
+    return data?.signedUrl || null;
+  };
+
   useEffect(() => {
     if (!currentUser) return;
     const fetchProfile = async () => {
@@ -43,8 +56,8 @@ export default function ProfileSettings() {
         setFullName((d.full_name as string) || '');
         setPfNumber((d.pf_number as string) || '');
         setDepartment((d.department as string) || '');
-        setSignatureUrl((d.signature_url as string) || null);
-        setStampUrl((d.stamp_url as string) || null);
+        setSignatureUrl(await resolvePreview((d.signature_url as string) || null));
+        setStampUrl(await resolvePreview((d.stamp_url as string) || null));
         setStampRequired(d.stamp_required !== false);
       }
       setInitialLoading(false);
@@ -54,21 +67,23 @@ export default function ProfileSettings() {
 
   const persistAsset = async (kind: 'signature' | 'stamp', blob: Blob, ext = 'png', contentType = 'image/png') => {
     if (!currentUser) return null;
+    // Bucket is PRIVATE — store only the bare storage path. Previews use signed URLs.
     const path = `${currentUser.id}/${kind}.${ext}`;
     const { error: upErr } = await supabase.storage
       .from('signatures')
       .upload(path, blob, { upsert: true, contentType });
     if (upErr) throw upErr;
-    const { data: urlData } = supabase.storage.from('signatures').getPublicUrl(path);
     const updates = kind === 'signature'
-      ? { signature_url: urlData.publicUrl }
-      : { stamp_url: urlData.publicUrl };
+      ? { signature_url: path }
+      : { stamp_url: path };
     const { error: dbErr } = await supabase
       .from('profiles')
       .update(updates)
       .eq('user_id', currentUser.id);
     if (dbErr) throw dbErr;
-    return `${urlData.publicUrl}?t=${Date.now()}`;
+    // Return a signed URL for immediate on-page preview.
+    const { data: signed } = await supabase.storage.from('signatures').createSignedUrl(path, 3600);
+    return signed?.signedUrl ? `${signed.signedUrl}&t=${Date.now()}` : path;
   };
 
   const handleUploadAsset = async (kind: 'signature' | 'stamp', file: File) => {
