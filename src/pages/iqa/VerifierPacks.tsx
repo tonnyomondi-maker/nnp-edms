@@ -212,11 +212,35 @@ export default function VerifierPacks() {
                 <SelectContent>{TERMS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <Button onClick={generate} disabled={busy || selectedTypes.length === 0} className="h-9 gap-1">
+            <Button onClick={generate} disabled={!canGenerate} className="h-9 gap-1">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
               Generate link
             </Button>
           </div>
+
+          {eligible && (
+            <div className={`text-xs rounded border p-2 ${eligible.archived + (includeDpApproved ? eligible.dpApproved : 0) === 0 ? 'border-amber-500/40 bg-amber-500/10' : 'border-border bg-muted/30'}`}>
+              <p><strong>Eligible now:</strong> {eligible.archived} archived
+                {includeDpApproved ? ` + ${eligible.dpApproved} DP-approved` : ''} document(s).</p>
+              {eligible.archived + (includeDpApproved ? eligible.dpApproved : 0) === 0 && (
+                <p className="mt-1">
+                  No documents match — <Link to="/iqa/archive" className="underline">archive DP-approved docs</Link> first,
+                  or enable "Include DP-approved" below.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-start gap-2 border rounded p-3">
+            <Switch checked={includeDpApproved} onCheckedChange={setIncludeDpApproved} />
+            <div className="text-xs">
+              <p>Include DP-approved (not yet archived)</p>
+              <p className="text-muted-foreground text-[10px]">
+                Lets external verifiers review documents before final IQA archival. Off = only fully archived docs.
+              </p>
+            </div>
+          </div>
+
 
           <div className="border rounded p-3 space-y-2">
             <Label className="text-xs">Included document types</Label>
