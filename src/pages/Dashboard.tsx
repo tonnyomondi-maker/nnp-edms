@@ -53,10 +53,19 @@ export default function Dashboard() {
       ) : (
         <>
           <div className="grid grid-cols-3 gap-3 mb-6">
-            <StatCard icon={<Clock className="w-4 h-4 text-primary" />} label="Pending" value={submitted} />
-            <StatCard icon={<CheckCircle2 className="w-4 h-4 text-primary" />} label="Approved" value={approved} />
-            <StatCard icon={<XCircle className="w-4 h-4 text-destructive" />} label="Rejected" value={rejected} />
+            <StatCard icon={<Clock className="w-4 h-4 text-primary" />} label="My Pending" value={submitted} />
+            <StatCard icon={<CheckCircle2 className="w-4 h-4 text-primary" />} label="My Approved" value={approved} />
+            <StatCard icon={<XCircle className="w-4 h-4 text-destructive" />} label="My Rejected" value={rejected} />
           </div>
+
+          {/* Role-aware live widgets */}
+          {activeRole === 'HOD' && currentUser.department && (
+            <div className="mb-6"><HodBlock department={currentUser.department} /></div>
+          )}
+          {activeRole === 'DP_ACADEMICS' && <div className="mb-6"><DpBlock /></div>}
+          {activeRole === 'IQA' && <div className="mb-6"><IqaBlock /></div>}
+          {activeRole === 'SUPER_ADMIN' && <div className="mb-6"><SuperAdminBlock /></div>}
+
 
           {activeRole === 'TRAINER' && (
             <div className="mb-6">
