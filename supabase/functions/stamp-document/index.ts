@@ -58,15 +58,18 @@ async function fetchImageAsset(
   supabase: ReturnType<typeof createClient>,
   url: string,
 ): Promise<{ buffer: ArrayBuffer; contentType: string | null }> {
-  // SSRF guard: only allow images from our own Supabase Storage.
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  let parsed: URL;
-  try { parsed = new URL(url); } catch { throw new Error("Invalid image URL"); }
-  const expectedOrigin = new URL(supabaseUrl).origin;
-  if (parsed.origin !== expectedOrigin || !parsed.pathname.startsWith("/storage/v1/object/")) {
-    throw new Error("Image URL must point to this project's Supabase Storage");
+  // Accept either a full Supabase Storage URL (public or signed) OR a bare path
+  // (which we assume lives in the private 'signatures' bucket).
+  // For URLs we still enforce SSRF: origin must match our project's storage.
+  if (/^https?:\/\//i.test(url)) {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    let parsed: URL;
+    try { parsed = new URL(url); } catch { throw new Error("Invalid image URL"); }
+    const expectedOrigin = new URL(supabaseUrl).origin;
+    if (parsed.origin !== expectedOrigin || !parsed.pathname.startsWith("/storage/v1/object/")) {
+      throw new Error("Image URL must point to this project's Supabase Storage");
+    }
   }
-  // Use service-role storage download so private buckets (signatures, stamps) work.
   const ref = parseStorageRef(url, "signatures");
   if (!ref) throw new Error("Could not parse storage reference for image");
   const { data, error } = await supabase.storage.from(ref.bucket).download(ref.path);
