@@ -9,12 +9,13 @@ import { PlacementModal } from '@/components/common/PlacementModal';
 import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
 import { RejectDialog } from '@/components/common/RejectDialog';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
+import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { Button } from '@/components/ui/button';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
+import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl';
 import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
 
 
@@ -32,6 +33,7 @@ export default function ApprovalQueue() {
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'HOD_APPROVED' });
+  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
 
 
   const baseDocs = useMemo(() => queue || [], [queue]);
@@ -83,8 +85,12 @@ export default function ApprovalQueue() {
       return;
     }
     try {
-      const pdfUrl = await getCachedSignedUrl(doc.signed_file_url || doc.file_url || '');
-      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profAny.signature_url, stampUrl: profAny.stamp_url || '' });
+      const [pdfUrl, sigUrl, stampUrl] = await Promise.all([
+        getCachedSignedUrl(doc.signed_file_url || doc.file_url || ''),
+        resolveSignatureUrl(profAny.signature_url),
+        resolveSignatureUrl(profAny.stamp_url),
+      ]);
+      setPlacementDoc({ id: docId, pdfUrl, sigUrl, stampUrl });
     } catch (e) {
       toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
     }
@@ -128,7 +134,8 @@ export default function ApprovalQueue() {
           You are viewing as <strong>{activeRole}</strong>. Switch to <strong>DP Academics</strong> in the top bar to approve documents.
         </div>
       )}
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex justify-end gap-2">
+        <GroupByControl value={groupBy} onChange={setGroupBy} />
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
       <QueueFilterBar value={filter} onChange={setFilter} docs={baseDocs} />
@@ -145,35 +152,38 @@ export default function ApprovalQueue() {
       />
       <div className="space-y-3 mt-3">
         {docs.length > 0 ? (
-          docs.map(doc => {
-            const showActions = canActOn(doc.status) && canAct;
-            return (
-              <DocumentCard
-                key={doc.id}
-                doc={doc}
-                showTrainer
-                selectable={showActions}
-                selected={selected.has(doc.id)}
-                onSelectChange={(c) => toggleOne(doc.id, c)}
-                showAiReview={canAct && doc.status === 'HOD_APPROVED'}
-                onReturnRequest={canAct && doc.status === 'HOD_APPROVED' ? () => setReturnDocId(doc.id) : undefined}
-                actions={showActions ? (
-                  <>
-                    <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'APPROVED BY DP ACADEMICS' with name & date">
-                      <Zap className="w-4 h-4" /> Quick Approve
-                    </ActionGuardButton>
-                    <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
-                      <CheckCircle2 className="w-4 h-4" /> Sign & Approve
-                    </ActionGuardButton>
-                    <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => openReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
-                      <XCircle className="w-4 h-4" /> Reject
-                    </ActionGuardButton>
-                  </>
-                ) : undefined}
-              />
-
-            );
-          })
+          groupDocs(docs, groupBy).map((group) => (
+            <GroupSection key={group.key} label={group.label} count={group.docs.length}>
+              {group.docs.map(doc => {
+                const showActions = canActOn(doc.status) && canAct;
+                return (
+                  <DocumentCard
+                    key={doc.id}
+                    doc={doc}
+                    showTrainer
+                    selectable={showActions}
+                    selected={selected.has(doc.id)}
+                    onSelectChange={(c) => toggleOne(doc.id, c)}
+                    showAiReview={canAct && doc.status === 'HOD_APPROVED'}
+                    onReturnRequest={canAct && doc.status === 'HOD_APPROVED' ? () => setReturnDocId(doc.id) : undefined}
+                    actions={showActions ? (
+                      <>
+                        <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'APPROVED BY DP ACADEMICS' with name & date">
+                          <Zap className="w-4 h-4" /> Quick Approve
+                        </ActionGuardButton>
+                        <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
+                          <CheckCircle2 className="w-4 h-4" /> Sign & Approve
+                        </ActionGuardButton>
+                        <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => openReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                          <XCircle className="w-4 h-4" /> Reject
+                        </ActionGuardButton>
+                      </>
+                    ) : undefined}
+                  />
+                );
+              })}
+            </GroupSection>
+          ))
         ) : (
           <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
         )}

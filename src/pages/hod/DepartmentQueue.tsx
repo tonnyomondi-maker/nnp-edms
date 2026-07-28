@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
+import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl';
 import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
 
 export default function DepartmentQueue() {
@@ -95,8 +95,12 @@ export default function DepartmentQueue() {
       return;
     }
     try {
-      const pdfUrl = await getCachedSignedUrl(doc.signed_file_url || doc.file_url || '');
-      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profAny.signature_url, stampUrl: profAny.stamp_url || '' });
+      const [pdfUrl, sigUrl, stampUrl] = await Promise.all([
+        getCachedSignedUrl(doc.signed_file_url || doc.file_url || ''),
+        resolveSignatureUrl(profAny.signature_url),
+        resolveSignatureUrl(profAny.stamp_url),
+      ]);
+      setPlacementDoc({ id: docId, pdfUrl, sigUrl, stampUrl });
     } catch (e) {
       toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
     }

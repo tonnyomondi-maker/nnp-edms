@@ -8,6 +8,7 @@ import { PlacementModal } from '@/components/common/PlacementModal';
 import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
 
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
+import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
 import { Button } from '@/components/ui/button';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
+import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl';
 import { Archive, Loader2, Download, ShieldAlert, RotateCw, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -40,6 +41,8 @@ export default function ArchiveScreen() {
   const [deptFilter, setDeptFilter] = useState<string>('');
   const [bulkRetrying, setBulkRetrying] = useState(false);
   const [returnDocId, setReturnDocId] = useState<string | null>(null);
+  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
+  const [downloadingZip, setDownloadingZip] = useState(false);
 
 
   const allPending = useMemo(() => pendingDocs || [], [pendingDocs]);
@@ -133,8 +136,12 @@ export default function ArchiveScreen() {
       return;
     }
     try {
-      const pdfUrl = await getCachedSignedUrl(doc.signed_file_url || doc.file_url || '');
-      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profAny.signature_url, stampUrl: profAny.stamp_url || '' });
+      const [pdfUrl, sigUrl, stampUrl] = await Promise.all([
+        getCachedSignedUrl(doc.signed_file_url || doc.file_url || ''),
+        resolveSignatureUrl(profAny.signature_url),
+        resolveSignatureUrl(profAny.stamp_url),
+      ]);
+      setPlacementDoc({ id: docId, pdfUrl, sigUrl, stampUrl });
     } catch (e) {
       toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
     }
@@ -224,6 +231,41 @@ export default function ArchiveScreen() {
     }
   };
 
+  // Download an archived-set ZIP nested per Department/Trainer, matching verification pack layout.
+  const handleDownloadArchivedZip = async () => {
+    setDownloadingZip(true);
+    try {
+      // Derive year+session from currently visible archived docs (fall back to newest)
+      const source = archived.length ? archived : allArchived;
+      if (!source.length) {
+        toast({ title: 'Nothing to download', description: 'No archived documents match the current filter.', variant: 'destructive' });
+        return;
+      }
+      const sample = source[0];
+      const year = sample.session_year || new Date().getFullYear();
+      const session = (sample.session_term as string) || 'JAN_APR';
+      const { data, error } = await supabase.functions.invoke('export-session-zip', {
+        body: {
+          year,
+          session,
+          nested: true,
+          department: deptFilter || undefined,
+        },
+      });
+      if (error) throw error;
+      const zipUrl = (data as { zipUrl?: string })?.zipUrl;
+      if (!zipUrl) throw new Error('Export did not return a download URL');
+      const a = document.createElement('a');
+      a.href = zipUrl; a.download = `archived_${year}_${session}${deptFilter ? '_' + deptFilter : ''}.zip`;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast({ title: 'Download started', description: 'ZIP is organised per Department / Trainer.' });
+    } catch (e) {
+      toast({ title: 'Download failed', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
+    } finally {
+      setDownloadingZip(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
@@ -255,6 +297,19 @@ export default function ArchiveScreen() {
           {bulkRetrying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
           Retry failed Drive syncs
         </ActionGuardButton>
+        <ActionGuardButton
+          action="export"
+          size="sm"
+          variant="outline"
+          onClick={handleDownloadArchivedZip}
+          disabled={downloadingZip}
+          className="gap-1 h-8"
+          title="Download archived ZIP, nested per Department / Trainer"
+        >
+          {downloadingZip ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          Download archived ZIP
+        </ActionGuardButton>
+        <GroupByControl value={groupBy} onChange={setGroupBy} />
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
       <Tabs defaultValue="pending">
@@ -277,23 +332,26 @@ export default function ArchiveScreen() {
             isPending={bulkUpdate.isPending}
           />
           {pending.length > 0 ? (
-            pending.map(doc => (
-              <DocumentCard
-                key={doc.id}
-                doc={doc}
-                showTrainer
-                selectable
-                selected={selected.has(doc.id)}
-                onSelectChange={(c) => toggleOne(doc.id, c)}
-                showAiReview
-                onReturnRequest={() => setReturnDocId(doc.id)}
-                actions={
-                  <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
-                    <Archive className="w-4 h-4" /> Archive
-                  </ActionGuardButton>
-                }
-              />
-
+            groupDocs(pending, groupBy).map((group) => (
+              <GroupSection key={group.key} label={group.label} count={group.docs.length}>
+                {group.docs.map(doc => (
+                  <DocumentCard
+                    key={doc.id}
+                    doc={doc}
+                    showTrainer
+                    selectable
+                    selected={selected.has(doc.id)}
+                    onSelectChange={(c) => toggleOne(doc.id, c)}
+                    showAiReview
+                    onReturnRequest={() => setReturnDocId(doc.id)}
+                    actions={
+                      <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
+                        <Archive className="w-4 h-4" /> Archive
+                      </ActionGuardButton>
+                    }
+                  />
+                ))}
+              </GroupSection>
             ))
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No documents pending archive</p>
@@ -301,7 +359,11 @@ export default function ArchiveScreen() {
         </TabsContent>
         <TabsContent value="archived" className="space-y-3">
           {archived.length > 0 ? (
-            archived.map(doc => <DocumentCard key={doc.id} doc={doc} showTrainer />)
+            groupDocs(archived, groupBy).map((group) => (
+              <GroupSection key={group.key} label={group.label} count={group.docs.length}>
+                {group.docs.map(doc => <DocumentCard key={doc.id} doc={doc} showTrainer />)}
+              </GroupSection>
+            ))
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No archived documents</p>
           )}

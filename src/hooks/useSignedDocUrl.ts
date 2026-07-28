@@ -122,6 +122,24 @@ export function useSignedDocUrl(
   return { url, loading, error, reload };
 }
 
+/**
+ * Resolve a signature/stamp value (either a legacy public URL or a bare
+ * path in the private `signatures` bucket) into an image URL usable in
+ * `<img src>`. Returns empty string if input is empty.
+ */
+export async function resolveSignatureUrl(
+  value: string | null | undefined,
+  expiresIn = 3600,
+): Promise<string> {
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value) && value.includes('/storage/v1/object/public/')) return value;
+  const ref = parseStorageRef(value, 'signatures');
+  if (!ref) return '';
+  const { data, error } = await supabase.storage.from(ref.bucket).createSignedUrl(ref.path, expiresIn);
+  if (error || !data?.signedUrl) return '';
+  return data.signedUrl;
+}
+
 /** Get (or fetch) a cached signed URL imperatively — used by approval flows. */
 export async function getCachedSignedUrl(
   fileRef: string | null | undefined,
