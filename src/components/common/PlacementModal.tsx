@@ -293,6 +293,7 @@ export function PlacementModal({
                 }}
               >
                 <img src={signatureUrl} alt="sig" className="max-w-full max-h-full object-contain pointer-events-none"
+                  onError={() => console.warn('[PlacementModal] signature image failed to load:', signatureUrl)}
                   style={{ transform: `rotate(${sig.rot}deg)`, opacity: sig.opacity }} />
                 <div onPointerDown={onResizePointerDown('sig')}
                   className="absolute -right-1 -bottom-1 w-3 h-3 bg-primary border border-background cursor-se-resize"
@@ -309,6 +310,7 @@ export function PlacementModal({
                   }}
                 >
                   <img src={stampUrl} alt="stamp" className="max-w-full max-h-full object-contain pointer-events-none"
+                    onError={() => console.warn('[PlacementModal] stamp image failed to load:', stampUrl)}
                     style={{ transform: `rotate(${stamp.rot}deg)`, opacity: stamp.opacity }} />
                   <div onPointerDown={onResizePointerDown('stamp')}
                     className="absolute -right-1 -bottom-1 w-3 h-3 bg-accent-foreground border border-background cursor-se-resize"
