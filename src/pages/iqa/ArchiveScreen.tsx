@@ -8,6 +8,7 @@ import { PlacementModal } from '@/components/common/PlacementModal';
 import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
 
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
+import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
 import { Button } from '@/components/ui/button';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,6 +41,8 @@ export default function ArchiveScreen() {
   const [deptFilter, setDeptFilter] = useState<string>('');
   const [bulkRetrying, setBulkRetrying] = useState(false);
   const [returnDocId, setReturnDocId] = useState<string | null>(null);
+  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
+  const [downloadingZip, setDownloadingZip] = useState(false);
 
 
   const allPending = useMemo(() => pendingDocs || [], [pendingDocs]);
