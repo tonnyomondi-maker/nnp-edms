@@ -231,6 +231,41 @@ export default function ArchiveScreen() {
     }
   };
 
+  // Download an archived-set ZIP nested per Department/Trainer, matching verification pack layout.
+  const handleDownloadArchivedZip = async () => {
+    setDownloadingZip(true);
+    try {
+      // Derive year+session from currently visible archived docs (fall back to newest)
+      const source = archived.length ? archived : allArchived;
+      if (!source.length) {
+        toast({ title: 'Nothing to download', description: 'No archived documents match the current filter.', variant: 'destructive' });
+        return;
+      }
+      const sample = source[0];
+      const year = sample.session_year || new Date().getFullYear();
+      const session = (sample.session_term as string) || 'JAN_APR';
+      const { data, error } = await supabase.functions.invoke('export-session-zip', {
+        body: {
+          year,
+          session,
+          nested: true,
+          department: deptFilter || undefined,
+        },
+      });
+      if (error) throw error;
+      const zipUrl = (data as { zipUrl?: string })?.zipUrl;
+      if (!zipUrl) throw new Error('Export did not return a download URL');
+      const a = document.createElement('a');
+      a.href = zipUrl; a.download = `archived_${year}_${session}${deptFilter ? '_' + deptFilter : ''}.zip`;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast({ title: 'Download started', description: 'ZIP is organised per Department / Trainer.' });
+    } catch (e) {
+      toast({ title: 'Download failed', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
+    } finally {
+      setDownloadingZip(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
@@ -262,6 +297,19 @@ export default function ArchiveScreen() {
           {bulkRetrying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
           Retry failed Drive syncs
         </ActionGuardButton>
+        <ActionGuardButton
+          action="export"
+          size="sm"
+          variant="outline"
+          onClick={handleDownloadArchivedZip}
+          disabled={downloadingZip}
+          className="gap-1 h-8"
+          title="Download archived ZIP, nested per Department / Trainer"
+        >
+          {downloadingZip ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          Download archived ZIP
+        </ActionGuardButton>
+        <GroupByControl value={groupBy} onChange={setGroupBy} />
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
       <Tabs defaultValue="pending">
