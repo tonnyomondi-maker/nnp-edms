@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
+import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl';
 import { Archive, Loader2, Download, ShieldAlert, RotateCw, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -133,8 +133,12 @@ export default function ArchiveScreen() {
       return;
     }
     try {
-      const pdfUrl = await getCachedSignedUrl(doc.signed_file_url || doc.file_url || '');
-      setPlacementDoc({ id: docId, pdfUrl, sigUrl: profAny.signature_url, stampUrl: profAny.stamp_url || '' });
+      const [pdfUrl, sigUrl, stampUrl] = await Promise.all([
+        getCachedSignedUrl(doc.signed_file_url || doc.file_url || ''),
+        resolveSignatureUrl(profAny.signature_url),
+        resolveSignatureUrl(profAny.stamp_url),
+      ]);
+      setPlacementDoc({ id: docId, pdfUrl, sigUrl, stampUrl });
     } catch (e) {
       toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
     }
