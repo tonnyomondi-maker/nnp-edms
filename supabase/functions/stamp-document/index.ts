@@ -58,10 +58,10 @@ async function fetchImageAsset(
   supabase: ReturnType<typeof createClient>,
   url: string,
 ): Promise<{ buffer: ArrayBuffer; contentType: string | null }> {
-  // Accept either a full Supabase Storage URL (public or signed) OR a bare path
-  // (which we assume lives in the private 'signatures' bucket).
-  // For URLs we still enforce SSRF: origin must match our project's storage.
-  if (/^https?:\/\//i.test(url)) {
+  // Bare paths (the new default from ProfileSettings) go straight to the
+  // private 'signatures' bucket. Only enforce SSRF when we actually see a URL.
+  const isUrl = /^https?:\/\//i.test(url);
+  if (isUrl) {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     let parsed: URL;
     try { parsed = new URL(url); } catch { throw new Error("Invalid image URL"); }
