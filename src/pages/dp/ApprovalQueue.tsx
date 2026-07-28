@@ -152,35 +152,38 @@ export default function ApprovalQueue() {
       />
       <div className="space-y-3 mt-3">
         {docs.length > 0 ? (
-          docs.map(doc => {
-            const showActions = canActOn(doc.status) && canAct;
-            return (
-              <DocumentCard
-                key={doc.id}
-                doc={doc}
-                showTrainer
-                selectable={showActions}
-                selected={selected.has(doc.id)}
-                onSelectChange={(c) => toggleOne(doc.id, c)}
-                showAiReview={canAct && doc.status === 'HOD_APPROVED'}
-                onReturnRequest={canAct && doc.status === 'HOD_APPROVED' ? () => setReturnDocId(doc.id) : undefined}
-                actions={showActions ? (
-                  <>
-                    <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'APPROVED BY DP ACADEMICS' with name & date">
-                      <Zap className="w-4 h-4" /> Quick Approve
-                    </ActionGuardButton>
-                    <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
-                      <CheckCircle2 className="w-4 h-4" /> Sign & Approve
-                    </ActionGuardButton>
-                    <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => openReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
-                      <XCircle className="w-4 h-4" /> Reject
-                    </ActionGuardButton>
-                  </>
-                ) : undefined}
-              />
-
-            );
-          })
+          groupDocs(docs, groupBy).map((group) => (
+            <GroupSection key={group.key} label={group.label} count={group.docs.length}>
+              {group.docs.map(doc => {
+                const showActions = canActOn(doc.status) && canAct;
+                return (
+                  <DocumentCard
+                    key={doc.id}
+                    doc={doc}
+                    showTrainer
+                    selectable={showActions}
+                    selected={selected.has(doc.id)}
+                    onSelectChange={(c) => toggleOne(doc.id, c)}
+                    showAiReview={canAct && doc.status === 'HOD_APPROVED'}
+                    onReturnRequest={canAct && doc.status === 'HOD_APPROVED' ? () => setReturnDocId(doc.id) : undefined}
+                    actions={showActions ? (
+                      <>
+                        <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'APPROVED BY DP ACADEMICS' with name & date">
+                          <Zap className="w-4 h-4" /> Quick Approve
+                        </ActionGuardButton>
+                        <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
+                          <CheckCircle2 className="w-4 h-4" /> Sign & Approve
+                        </ActionGuardButton>
+                        <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => openReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                          <XCircle className="w-4 h-4" /> Reject
+                        </ActionGuardButton>
+                      </>
+                    ) : undefined}
+                  />
+                );
+              })}
+            </GroupSection>
+          ))
         ) : (
           <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
         )}
