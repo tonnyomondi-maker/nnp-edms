@@ -332,23 +332,26 @@ export default function ArchiveScreen() {
             isPending={bulkUpdate.isPending}
           />
           {pending.length > 0 ? (
-            pending.map(doc => (
-              <DocumentCard
-                key={doc.id}
-                doc={doc}
-                showTrainer
-                selectable
-                selected={selected.has(doc.id)}
-                onSelectChange={(c) => toggleOne(doc.id, c)}
-                showAiReview
-                onReturnRequest={() => setReturnDocId(doc.id)}
-                actions={
-                  <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
-                    <Archive className="w-4 h-4" /> Archive
-                  </ActionGuardButton>
-                }
-              />
-
+            groupDocs(pending, groupBy).map((group) => (
+              <GroupSection key={group.key} label={group.label} count={group.docs.length}>
+                {group.docs.map(doc => (
+                  <DocumentCard
+                    key={doc.id}
+                    doc={doc}
+                    showTrainer
+                    selectable
+                    selected={selected.has(doc.id)}
+                    onSelectChange={(c) => toggleOne(doc.id, c)}
+                    showAiReview
+                    onReturnRequest={() => setReturnDocId(doc.id)}
+                    actions={
+                      <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
+                        <Archive className="w-4 h-4" /> Archive
+                      </ActionGuardButton>
+                    }
+                  />
+                ))}
+              </GroupSection>
             ))
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No documents pending archive</p>
@@ -356,7 +359,11 @@ export default function ArchiveScreen() {
         </TabsContent>
         <TabsContent value="archived" className="space-y-3">
           {archived.length > 0 ? (
-            archived.map(doc => <DocumentCard key={doc.id} doc={doc} showTrainer />)
+            groupDocs(archived, groupBy).map((group) => (
+              <GroupSection key={group.key} label={group.label} count={group.docs.length}>
+                {group.docs.map(doc => <DocumentCard key={doc.id} doc={doc} showTrainer />)}
+              </GroupSection>
+            ))
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No archived documents</p>
           )}
