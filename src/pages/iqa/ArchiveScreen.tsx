@@ -337,6 +337,17 @@ export default function ArchiveScreen() {
             onBulkAction={(s, r) => handleBulk(s as 'ARCHIVED' | 'REJECTED', r)}
             isPending={bulkUpdate.isPending}
           />
+          {selected.size > 0 && (
+            <div className="flex justify-end">
+              <BulkSignButton
+                docs={pending.filter((d) => selected.has(d.id))}
+                status="ARCHIVED"
+                stage="IQA"
+                label="Sign & archive selected"
+                onDone={async () => { setSelected(new Set()); await handleDownloadArchivedZip(); }}
+              />
+            </div>
+          )}
           {pending.length > 0 ? (
             groupDocs(pending, groupBy).map((group) => (
               <GroupSection key={group.key} label={group.label} count={group.docs.length}>
