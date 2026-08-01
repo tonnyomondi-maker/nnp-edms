@@ -359,6 +359,52 @@ export function useBulkUpdateDocumentStatus() {
   });
 }
 
+export interface BulkSignResult {
+  succeeded: number;
+  failed: number;
+  failures: { docId: string; message: string }[];
+}
+
+/**
+ * Bulk "sign & approve": applies ONE placement (chosen once in PlacementModal)
+ * to every selected document, sequentially so the stamp function is not
+ * hammered, continuing past individual failures.
+ */
+export function useBulkApproveWithPlacement() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({
+      docIds, status, placement, onProgress,
+    }: {
+      docIds: string[];
+      status: DocumentStatus;
+      placement: ApprovalPlacement | null;
+      onProgress?: (done: number, total: number) => void;
+    }): Promise<BulkSignResult> => {
+      if (!user) throw new Error('Not authenticated');
+      await assertSystemNotLocked(user.id);
+      const failures: { docId: string; message: string }[] = [];
+      let succeeded = 0;
+      for (let i = 0; i < docIds.length; i++) {
+        try {
+          await performApproval(docIds[i], status, undefined, user.id, placement, 'IMAGE');
+          succeeded++;
+        } catch (e) {
+          failures.push({ docId: docIds[i], message: e instanceof Error ? e.message : 'Unknown error' });
+        }
+        onProgress?.(i + 1, docIds.length);
+      }
+      return { succeeded, failed: failures.length, failures };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+}
+
+
+
 export function useSubmitDocument() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
