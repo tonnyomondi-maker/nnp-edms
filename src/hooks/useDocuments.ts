@@ -13,6 +13,24 @@ type SubmissionType = Database['public']['Enums']['submission_type'];
 
 export type DocumentRow = Tables<'documents'>;
 
+/** Trainer identity attached client-side (documents has no FK embed to profiles). */
+export type TrainerProfileLite = { full_name: string | null; pf_number: string | null; department: string | null };
+
+async function attachTrainerProfiles<T extends { trainer_id: string }>(
+  rows: T[],
+): Promise<(T & { profiles: TrainerProfileLite | null })[]> {
+  if (!rows.length) return rows as (T & { profiles: TrainerProfileLite | null })[];
+  const ids = Array.from(new Set(rows.map((r) => r.trainer_id).filter(Boolean)));
+  const { data } = await supabase
+    .from('profiles')
+    .select('user_id, full_name, pf_number, department')
+    .in('user_id', ids);
+  const map = new Map<string, TrainerProfileLite>(
+    (data || []).map((p) => [p.user_id, { full_name: p.full_name, pf_number: p.pf_number, department: p.department }]),
+  );
+  return rows.map((r) => ({ ...r, profiles: map.get(r.trainer_id) ?? null }));
+}
+
 export function useMyDocuments() {
   const { user } = useAuth();
   return useQuery({
@@ -40,7 +58,7 @@ export function useDocumentsByStatus(status: DocumentStatus) {
         .eq('status', status)
         .order('submitted_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return attachTrainerProfiles(data);
     },
   });
 }
@@ -56,7 +74,7 @@ export function useDocumentsByDepartmentAndStatus(department: string, status: Do
         .eq('status', status)
         .order('submitted_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return attachTrainerProfiles(data);
     },
     enabled: !!department,
   });
@@ -71,7 +89,7 @@ export function useAllDocuments() {
         .select('*, teaching_assignments(*)')
         .order('submitted_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return attachTrainerProfiles(data);
     },
   });
 }
@@ -86,7 +104,7 @@ export function useDocumentsByDepartment(department: string) {
         .eq('department', department)
         .order('submitted_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return attachTrainerProfiles(data);
     },
     enabled: !!department,
   });
@@ -340,6 +358,52 @@ export function useBulkUpdateDocumentStatus() {
     },
   });
 }
+
+export interface BulkSignResult {
+  succeeded: number;
+  failed: number;
+  failures: { docId: string; message: string }[];
+}
+
+/**
+ * Bulk "sign & approve": applies ONE placement (chosen once in PlacementModal)
+ * to every selected document, sequentially so the stamp function is not
+ * hammered, continuing past individual failures.
+ */
+export function useBulkApproveWithPlacement() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({
+      docIds, status, placement, onProgress,
+    }: {
+      docIds: string[];
+      status: DocumentStatus;
+      placement: ApprovalPlacement | null;
+      onProgress?: (done: number, total: number) => void;
+    }): Promise<BulkSignResult> => {
+      if (!user) throw new Error('Not authenticated');
+      await assertSystemNotLocked(user.id);
+      const failures: { docId: string; message: string }[] = [];
+      let succeeded = 0;
+      for (let i = 0; i < docIds.length; i++) {
+        try {
+          await performApproval(docIds[i], status, undefined, user.id, placement, 'IMAGE');
+          succeeded++;
+        } catch (e) {
+          failures.push({ docId: docIds[i], message: e instanceof Error ? e.message : 'Unknown error' });
+        }
+        onProgress?.(i + 1, docIds.length);
+      }
+      return { succeeded, failed: failures.length, failures };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+}
+
+
 
 export function useSubmitDocument() {
   const queryClient = useQueryClient();

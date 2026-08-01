@@ -67,7 +67,8 @@ export function SystemResetCard({ onAfterReset }: Props) {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">
-          Wipes <strong>all</strong> documents, audit logs, unit configs, teaching assignments and uploaded files.
+          Wipes <strong>all</strong> documents, verification packs, verifiers and their reviews, audit logs,
+          unit configs, teaching assignments, Drive folder mappings and uploaded files.
           User accounts, roles and the Super Admin remain intact. The system safety lock engages automatically
           for the duration of the wipe.
         </p>

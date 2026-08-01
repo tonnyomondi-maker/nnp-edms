@@ -54,7 +54,22 @@ Deno.serve(async (req) => {
       }
 
       // 2. Wipe data tables (preserve profiles, user_roles, system_settings)
-      for (const tbl of ["documents", "audit_logs", "role_change_audit", "unit_session_config", "teaching_assignments"]) {
+      // Order matters: child rows first so FK references never block a delete.
+      for (const tbl of [
+        "verifier_reviews",
+        "verification_pack_assignees",
+        "verification_packs",
+        "verifiers",
+        "export_progress",
+        "integration_health_runs",
+        "drive_folder_map",
+        "offload_schedules",
+        "documents",
+        "audit_logs",
+        "role_change_audit",
+        "unit_session_config",
+        "teaching_assignments",
+      ]) {
         await admin.from(tbl).delete().not("id", "is", null).then(() => {}, () => {});
       }
 

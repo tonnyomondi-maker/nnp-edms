@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     // Load document row
     const { data: doc, error: docErr } = await admin
       .from("documents")
-      .select("id, file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, session_year, session_term")
+      .select("id, file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, session_year, session_term, term_number, module_number, course_type")
       .eq("id", documentId)
       .single();
     if (docErr || !doc) return json({ error: "Document not found" }, 404);
@@ -83,21 +83,51 @@ Deno.serve(async (req) => {
     if (dlErr || !blob) return json({ error: `Storage download failed: ${dlErr?.message}` }, 500);
     const bytes = new Uint8Array(await blob.arrayBuffer());
 
-    // Multipart upload to Google Drive via gateway with retry + backoff
-    const folderName = `EDMS/${doc.session_year}_${doc.session_term}/${doc.department}/${doc.unit_code}`;
-    const meta = {
+    // Resolve (or create) the organised Drive folder tree:
+    //   EDMS / <Session> / <Department> / <Term or Module> / <PF - Trainer name>
+    const { data: trainerProfile } = await admin
+      .from("profiles").select("full_name, pf_number").eq("user_id", doc.trainer_id).maybeSingle();
+    const trainerFolder = [
+      (trainerProfile?.pf_number || "").toString().trim(),
+      (trainerProfile?.full_name || "Unknown Trainer").toString().trim(),
+    ].filter(Boolean).join(" - ");
+    const stageFolder = doc.course_type === "MODULAR" && doc.module_number
+      ? `Module ${doc.module_number}`
+      : doc.term_number ? `Term ${doc.term_number}` : "Unspecified stage";
+
+    const segments = [
+      `${doc.session_year ?? "Unknown"}_${doc.session_term ?? "Session"}`,
+      doc.department || "Unspecified department",
+      stageFolder,
+      trainerFolder,
+    ];
+
+    let parentId: string | null = null;
+    let folderPath = "EDMS";
+    try {
+      parentId = await resolveRootFolder(admin, lovableKey, gdriveKey);
+      for (const seg of segments) {
+        parentId = await ensureFolder(lovableKey, gdriveKey, seg, parentId);
+        folderPath += `/${seg}`;
+      }
+    } catch (e) {
+      // Folder creation is best-effort — never block the mirror itself.
+      console.error("Drive folder resolution failed:", (e as Error).message);
+      parentId = null;
+    }
+
+    const meta: Record<string, unknown> = {
       name: doc.file_name || `${documentId}.pdf`,
       mimeType: blob.type || "application/pdf",
-      description: `EDMS doc ${documentId} • ${folderName}`,
-      // Note: drive.file scope means we cannot create arbitrary folders;
-      // we tag the path in the description for discoverability.
+      description: `EDMS doc ${documentId} • ${folderPath}`,
     };
+    if (parentId) meta.parents = [parentId];
 
     const boundary = `edms_${crypto.randomUUID()}`;
     const enc = new TextEncoder();
     const head = enc.encode(
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n` +
-      `--${boundary}\r\nContent-Type: ${meta.mimeType}\r\n\r\n`,
+      `--${boundary}\r\nContent-Type: ${String(meta.mimeType)}\r\n\r\n`,
     );
     const tail = enc.encode(`\r\n--${boundary}--`);
     const body = new Uint8Array(head.length + bytes.length + tail.length);
@@ -175,4 +205,53 @@ function json(payload: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+const FOLDER_MIME = "application/vnd.google-apps.folder";
+
+/** Find a child folder by exact name, creating it when missing. */
+async function ensureFolder(
+  lovableKey: string,
+  gdriveKey: string,
+  name: string,
+  parentId: string | null,
+): Promise<string> {
+  const safe = name.replace(/'/g, "\\'");
+  const q = `name='${safe}' and mimeType='${FOLDER_MIME}' and trashed=false and ${parentId ? `'${parentId}' in parents` : `'root' in parents`}`;
+  const listRes = await fetch(
+    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10`,
+    { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
+  );
+  if (listRes.ok) {
+    const found = (await listRes.json()).files?.[0];
+    if (found?.id) return found.id as string;
+  }
+  const body: Record<string, unknown> = { name, mimeType: FOLDER_MIME };
+  if (parentId) body.parents = [parentId];
+  const createRes = await fetch(`${GATEWAY}/drive/v3/files?fields=id`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${lovableKey}`,
+      "X-Connection-Api-Key": gdriveKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!createRes.ok) throw new Error(`Drive create folder "${name}" ${createRes.status}`);
+  return (await createRes.json()).id as string;
+}
+
+/** Root "EDMS" folder id — from drive_folder_map when mapped, else resolved/created. */
+async function resolveRootFolder(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  lovableKey: string,
+  gdriveKey: string,
+): Promise<string> {
+  const { data: mapped } = await admin
+    .from("drive_folder_map").select("folder_id").eq("scope", "root").maybeSingle();
+  if (mapped?.folder_id) return mapped.folder_id as string;
+  const id = await ensureFolder(lovableKey, gdriveKey, "EDMS", null);
+  await admin.from("drive_folder_map").insert({ scope: "root", department: null, folder_id: id, folder_name: "EDMS" });
+  return id;
 }

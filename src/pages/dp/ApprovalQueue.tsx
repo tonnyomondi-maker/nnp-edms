@@ -10,6 +10,7 @@ import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
 import { RejectDialog } from '@/components/common/RejectDialog';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
+import { BulkSignButton } from '@/components/common/BulkSignButton';
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { Button } from '@/components/ui/button';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
@@ -150,6 +151,16 @@ export default function ApprovalQueue() {
         onBulkAction={(s, r) => handleBulk(s as 'DP_APPROVED' | 'REJECTED', r)}
         isPending={bulkUpdate.isPending}
       />
+      {canAct && selected.size > 0 && (
+        <div className="mt-2 flex justify-end">
+          <BulkSignButton
+            docs={actionable.filter((d) => selected.has(d.id))}
+            status="DP_APPROVED"
+            stage="DP"
+            onDone={() => setSelected(new Set())}
+          />
+        </div>
+      )}
       <div className="space-y-3 mt-3">
         {docs.length > 0 ? (
           groupDocs(docs, groupBy).map((group) => (

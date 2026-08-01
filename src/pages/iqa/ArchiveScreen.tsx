@@ -9,6 +9,7 @@ import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
 
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
+import { BulkSignButton } from '@/components/common/BulkSignButton';
 import { Button } from '@/components/ui/button';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { Textarea } from '@/components/ui/textarea';
@@ -176,7 +177,13 @@ export default function ArchiveScreen() {
       description: `${res.succeeded} succeeded, ${res.failed} failed${res.firstErrorMessage ? ` — ${res.firstErrorMessage}` : ''}`,
       variant: res.failed > 0 ? 'destructive' : 'default',
     });
+    // Resilient archival: even on partial failure, still hand over the nested
+    // Department/Trainer ZIP for whatever did archive successfully.
+    if (status === 'ARCHIVED' && res.succeeded > 0) {
+      await handleDownloadArchivedZip();
+    }
   };
+
 
   // Bulk-retry failed Google Drive mirrors for the currently filtered department.
   // Concurrency is capped at 3 to avoid hammering the connector gateway.
@@ -331,6 +338,17 @@ export default function ArchiveScreen() {
             onBulkAction={(s, r) => handleBulk(s as 'ARCHIVED' | 'REJECTED', r)}
             isPending={bulkUpdate.isPending}
           />
+          {selected.size > 0 && (
+            <div className="flex justify-end">
+              <BulkSignButton
+                docs={pending.filter((d) => selected.has(d.id))}
+                status="ARCHIVED"
+                stage="IQA"
+                label="Sign & archive selected"
+                onDone={async () => { setSelected(new Set()); await handleDownloadArchivedZip(); }}
+              />
+            </div>
+          )}
           {pending.length > 0 ? (
             groupDocs(pending, groupBy).map((group) => (
               <GroupSection key={group.key} label={group.label} count={group.docs.length}>

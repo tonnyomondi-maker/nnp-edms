@@ -8,6 +8,8 @@ import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
 import { RejectDialog } from '@/components/common/RejectDialog';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
+import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
+import { BulkSignButton } from '@/components/common/BulkSignButton';
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -30,6 +32,7 @@ export default function DepartmentQueue() {
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'SUBMITTED' });
+  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
 
   // Clear selection if user switches away from HOD role mid-session
   useEffect(() => { if (!canAct) setSelected(new Set()); }, [canAct, activeRole]);
@@ -145,7 +148,8 @@ export default function DepartmentQueue() {
           You are viewing as <strong>{activeRole}</strong>. Switch to <strong>HOD</strong> in the top bar to verify documents.
         </div>
       )}
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex flex-wrap justify-end gap-2">
+        <GroupByControl value={groupBy} onChange={setGroupBy} />
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
       <Tabs defaultValue="queue">
@@ -167,41 +171,56 @@ export default function DepartmentQueue() {
             onBulkAction={(s, r) => handleBulk(s as 'HOD_APPROVED' | 'REJECTED', r)}
             isPending={bulkUpdate.isPending}
           />
+          {canAct && selected.size > 0 && (
+            <div className="mt-2 flex justify-end">
+              <BulkSignButton
+                docs={actionable.filter((d) => selected.has(d.id))}
+                status="HOD_APPROVED"
+                stage="HOD"
+                label="Sign & verify selected"
+                onDone={() => setSelected(new Set())}
+              />
+            </div>
+          )}
           <div className="space-y-3 mt-3">
             {filteredQueue.length > 0 ? (
-              filteredQueue.map(doc => {
-                const showActions = canActOn(doc.status) && canAct;
-                return (
-                  <DocumentCard
-                    key={doc.id}
-                    doc={doc}
-                    showTrainer
-                    selectable={showActions}
-                    selected={selected.has(doc.id)}
-                    onSelectChange={(c) => toggleOne(doc.id, c)}
-                    showAiReview={showActions}
-                    actions={showActions ? (
-                      <>
-                        <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'VERIFIED BY HOD' with name & date">
-                          <Zap className="w-4 h-4" /> Quick Verify
-                        </ActionGuardButton>
-                        <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
-                          <CheckCircle2 className="w-4 h-4" /> Sign & Approve
-                        </ActionGuardButton>
-                        <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => openReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
-                          <XCircle className="w-4 h-4" /> Reject
-                        </ActionGuardButton>
-                      </>
-                    ) : undefined}
-                  />
-
-                );
-              })
+              groupDocs(filteredQueue, groupBy).map((group) => (
+                <GroupSection key={group.key} label={group.label} count={group.docs.length}>
+                  {group.docs.map(doc => {
+                    const showActions = canActOn(doc.status) && canAct;
+                    return (
+                      <DocumentCard
+                        key={doc.id}
+                        doc={doc}
+                        showTrainer
+                        selectable={showActions}
+                        selected={selected.has(doc.id)}
+                        onSelectChange={(c) => toggleOne(doc.id, c)}
+                        showAiReview={showActions}
+                        actions={showActions ? (
+                          <>
+                            <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'VERIFIED BY HOD' with name & date">
+                              <Zap className="w-4 h-4" /> Quick Verify
+                            </ActionGuardButton>
+                            <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
+                              <CheckCircle2 className="w-4 h-4" /> Sign & Approve
+                            </ActionGuardButton>
+                            <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => openReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+                              <XCircle className="w-4 h-4" /> Reject
+                            </ActionGuardButton>
+                          </>
+                        ) : undefined}
+                      />
+                    );
+                  })}
+                </GroupSection>
+              ))
             ) : (
               <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
             )}
           </div>
         </TabsContent>
+
 
         <TabsContent value="mine">
           <QueueFilterBar value={filter} onChange={setFilter} docs={myActioned} showStatus={false} />
