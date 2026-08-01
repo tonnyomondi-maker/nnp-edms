@@ -31,7 +31,7 @@ export default function DepartmentQueue() {
   const [rejectDoc, setRejectDoc] = useState<{ id: string; label: string } | null>(null);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
-  const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'SUBMITTED' });
+  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
 
   // Clear selection if user switches away from HOD role mid-session
   useEffect(() => { if (!canAct) setSelected(new Set()); }, [canAct, activeRole]);
