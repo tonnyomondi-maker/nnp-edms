@@ -35,6 +35,7 @@ const iqaItems = [
 
 const superAdminItems = [
   { to: '/admin/setup', icon: Settings, label: 'Setup' },
+  { to: '/admin/documents', icon: FileText, label: 'Docs' },
   { to: '/admin/efficiency', icon: Activity, label: 'Efficiency' },
   { to: '/admin/users', icon: Users, label: 'Users' },
   { to: '/admin/audit', icon: ScrollText, label: 'Audit' },
