@@ -90,6 +90,7 @@ function ProtectedRoutes() {
         <Route path="/admin/session-config" element={<SessionConfig />} />
         <Route path="/admin/templates" element={<Templates />} />
         <Route path="/admin/efficiency" element={<EfficiencyDashboard />} />
+        <Route path="/admin/documents" element={<AllDocuments />} />
 
         <Route path="/reports" element={<Reports />} />
         <Route path="/profile" element={<ProfileSettings />} />
