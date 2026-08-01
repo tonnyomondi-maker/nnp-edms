@@ -57,8 +57,7 @@ Deno.serve(async (req) => {
       // Order matters: child rows first so FK references never block a delete.
       for (const tbl of [
         "verifier_reviews",
-        "verification_pack_verifiers",
-        "verification_pack_documents",
+        "verification_pack_assignees",
         "verification_packs",
         "verifiers",
         "export_progress",
