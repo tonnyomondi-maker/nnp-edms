@@ -83,15 +83,45 @@ Deno.serve(async (req) => {
     if (dlErr || !blob) return json({ error: `Storage download failed: ${dlErr?.message}` }, 500);
     const bytes = new Uint8Array(await blob.arrayBuffer());
 
-    // Multipart upload to Google Drive via gateway with retry + backoff
-    const folderName = `EDMS/${doc.session_year}_${doc.session_term}/${doc.department}/${doc.unit_code}`;
-    const meta = {
+    // Resolve (or create) the organised Drive folder tree:
+    //   EDMS / <Session> / <Department> / <Term or Module> / <PF - Trainer name>
+    const { data: trainerProfile } = await admin
+      .from("profiles").select("full_name, pf_number").eq("user_id", doc.trainer_id).maybeSingle();
+    const trainerFolder = [
+      (trainerProfile?.pf_number || "").toString().trim(),
+      (trainerProfile?.full_name || "Unknown Trainer").toString().trim(),
+    ].filter(Boolean).join(" - ");
+    const stageFolder = doc.course_type === "MODULAR" && doc.module_number
+      ? `Module ${doc.module_number}`
+      : doc.term_number ? `Term ${doc.term_number}` : "Unspecified stage";
+
+    const segments = [
+      `${doc.session_year ?? "Unknown"}_${doc.session_term ?? "Session"}`,
+      doc.department || "Unspecified department",
+      stageFolder,
+      trainerFolder,
+    ];
+
+    let parentId: string | null = null;
+    let folderPath = "EDMS";
+    try {
+      parentId = await resolveRootFolder(admin, lovableKey, gdriveKey);
+      for (const seg of segments) {
+        parentId = await ensureFolder(lovableKey, gdriveKey, seg, parentId);
+        folderPath += `/${seg}`;
+      }
+    } catch (e) {
+      // Folder creation is best-effort — never block the mirror itself.
+      console.error("Drive folder resolution failed:", (e as Error).message);
+      parentId = null;
+    }
+
+    const meta: Record<string, unknown> = {
       name: doc.file_name || `${documentId}.pdf`,
       mimeType: blob.type || "application/pdf",
-      description: `EDMS doc ${documentId} • ${folderName}`,
-      // Note: drive.file scope means we cannot create arbitrary folders;
-      // we tag the path in the description for discoverability.
+      description: `EDMS doc ${documentId} • ${folderPath}`,
     };
+    if (parentId) meta.parents = [parentId];
 
     const boundary = `edms_${crypto.randomUUID()}`;
     const enc = new TextEncoder();
