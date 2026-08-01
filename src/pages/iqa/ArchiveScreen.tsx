@@ -176,7 +176,13 @@ export default function ArchiveScreen() {
       description: `${res.succeeded} succeeded, ${res.failed} failed${res.firstErrorMessage ? ` — ${res.firstErrorMessage}` : ''}`,
       variant: res.failed > 0 ? 'destructive' : 'default',
     });
+    // Resilient archival: even on partial failure, still hand over the nested
+    // Department/Trainer ZIP for whatever did archive successfully.
+    if (status === 'ARCHIVED' && res.succeeded > 0) {
+      await handleDownloadArchivedZip();
+    }
   };
+
 
   // Bulk-retry failed Google Drive mirrors for the currently filtered department.
   // Concurrency is capped at 3 to avoid hammering the connector gateway.
