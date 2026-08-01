@@ -206,3 +206,52 @@ function json(payload: unknown, status = 200) {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
+const FOLDER_MIME = "application/vnd.google-apps.folder";
+
+/** Find a child folder by exact name, creating it when missing. */
+async function ensureFolder(
+  lovableKey: string,
+  gdriveKey: string,
+  name: string,
+  parentId: string | null,
+): Promise<string> {
+  const safe = name.replace(/'/g, "\\'");
+  const q = `name='${safe}' and mimeType='${FOLDER_MIME}' and trashed=false and ${parentId ? `'${parentId}' in parents` : `'root' in parents`}`;
+  const listRes = await fetch(
+    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10`,
+    { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
+  );
+  if (listRes.ok) {
+    const found = (await listRes.json()).files?.[0];
+    if (found?.id) return found.id as string;
+  }
+  const body: Record<string, unknown> = { name, mimeType: FOLDER_MIME };
+  if (parentId) body.parents = [parentId];
+  const createRes = await fetch(`${GATEWAY}/drive/v3/files?fields=id`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${lovableKey}`,
+      "X-Connection-Api-Key": gdriveKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!createRes.ok) throw new Error(`Drive create folder "${name}" ${createRes.status}`);
+  return (await createRes.json()).id as string;
+}
+
+/** Root "EDMS" folder id — from drive_folder_map when mapped, else resolved/created. */
+async function resolveRootFolder(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  lovableKey: string,
+  gdriveKey: string,
+): Promise<string> {
+  const { data: mapped } = await admin
+    .from("drive_folder_map").select("folder_id").eq("scope", "root").maybeSingle();
+  if (mapped?.folder_id) return mapped.folder_id as string;
+  const id = await ensureFolder(lovableKey, gdriveKey, "EDMS", null);
+  await admin.from("drive_folder_map").insert({ scope: "root", department: null, folder_id: id, folder_name: "EDMS" });
+  return id;
+}
