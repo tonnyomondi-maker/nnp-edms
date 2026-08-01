@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
     const enc = new TextEncoder();
     const head = enc.encode(
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n` +
-      `--${boundary}\r\nContent-Type: ${meta.mimeType}\r\n\r\n`,
+      `--${boundary}\r\nContent-Type: ${String(meta.mimeType)}\r\n\r\n`,
     );
     const tail = enc.encode(`\r\n--${boundary}--`);
     const body = new Uint8Array(head.length + bytes.length + tail.length);
