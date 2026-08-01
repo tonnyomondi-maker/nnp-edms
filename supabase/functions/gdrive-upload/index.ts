@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     // Load document row
     const { data: doc, error: docErr } = await admin
       .from("documents")
-      .select("id, file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, session_year, session_term")
+      .select("id, file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, session_year, session_term, term_number, module_number, course_type")
       .eq("id", documentId)
       .single();
     if (docErr || !doc) return json({ error: "Document not found" }, 404);
