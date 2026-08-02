@@ -3,7 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
-export type GroupByKey = 'NONE' | 'STAGE' | 'DEPARTMENT' | 'TRAINER' | 'DOC_TYPE';
+export type GroupByKey = 'NONE' | 'SESSION' | 'STAGE' | 'DEPARTMENT' | 'TRAINER' | 'DOC_TYPE';
 
 interface DocLike {
   id: string;
@@ -12,6 +12,8 @@ interface DocLike {
   term_number?: number | null;
   course_type?: string | null;
   module_number?: number | null;
+  session_year?: number | null;
+  session_term?: string | null;
   profiles?: { full_name?: string | null; pf_number?: string | null } | null;
   trainer_id?: string;
 }
@@ -24,11 +26,13 @@ interface GroupByControlProps {
 
 const OPTIONS: { key: GroupByKey; label: string }[] = [
   { key: 'NONE', label: 'No grouping' },
+  { key: 'SESSION', label: 'Training session' },
   { key: 'STAGE', label: 'Term / Module' },
   { key: 'DEPARTMENT', label: 'Department' },
   { key: 'TRAINER', label: 'Trainer' },
   { key: 'DOC_TYPE', label: 'Document type' },
 ];
+
 
 export function GroupByControl({ value, onChange, className }: GroupByControlProps) {
   return (
