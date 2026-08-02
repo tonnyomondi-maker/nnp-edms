@@ -66,9 +66,17 @@ export function groupDocs<T extends DocLike>(
   const buckets = new Map<string, { label: string; order: number; docs: T[] }>();
   for (const d of docs) {
     let key = 'other', label = 'Other', order = 999;
-    if (by === 'STAGE') {
+    if (by === 'SESSION') {
+      const y = d.session_year ?? 0;
+      const t = (d.session_term as SessionTerm) || null;
+      key = `${y}_${t || 'NA'}`;
+      label = y && t ? sessionLabel(y, t) : 'Unspecified session';
+      const termOrder = t === 'JAN_APR' ? 1 : t === 'MAY_AUG' ? 2 : t === 'SEP_DEC' ? 3 : 9;
+      order = y ? -(y * 10 + (10 - termOrder)) : 9999; // newest session first
+    } else if (by === 'STAGE') {
       const s = stageKeyOf(d);
       key = s.key; label = s.label; order = s.order;
+
     } else if (by === 'DEPARTMENT') {
       key = d.department || 'unspecified'; label = d.department || 'Unspecified department';
     } else if (by === 'TRAINER') {
