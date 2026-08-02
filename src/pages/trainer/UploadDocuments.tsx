@@ -70,15 +70,17 @@ export default function UploadDocuments() {
   const sessionOptions = useMemo(() => getSessionOptions(), []);
   // The admin-configured current session governs uploads.
   const { data: adminSession } = useCurrentSession();
+  const isResubmit = !!new URLSearchParams(window.location.search).get('resubmit');
 
   const [sessionYear, setSessionYear] = useState<number>(current.year);
   const [sessionTerm, setSessionTerm] = useState<SessionTerm>(current.term);
-  const sessionLockedByAdmin = !!adminSession && !resubmitIdParam;
+  const sessionLockedByAdmin = !!adminSession && !isResubmit;
   useEffect(() => {
-    if (!adminSession || resubmitIdParam) return;
+    if (!adminSession || isResubmit) return;
     setSessionYear(adminSession.session_year);
     setSessionTerm(adminSession.session_term);
-  }, [adminSession, resubmitIdParam]);
+  }, [adminSession, isResubmit]);
+
 
   const [department, setDepartment] = useState('');
   const [unitCode, setUnitCode] = useState('');
