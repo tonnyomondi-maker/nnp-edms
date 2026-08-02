@@ -3,6 +3,8 @@ import { useAllDocuments, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, 
 import { useAuth } from '@/contexts/AuthContext';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { PageHeader } from '@/components/common/PageHeader';
+import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
+
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
