@@ -54,7 +54,20 @@ export const ONE_TIME_DOC_TYPES = [
   'Course Outline',
 ] as const;
 
-export const WEEKLY_DOC_TYPES = ['Session Plan', 'Class Attendance'] as const;
+export const WEEKLY_DOC_TYPES = ['Session Plan', 'Class Attendance', 'Records of Work Covered'] as const;
+
+/** All document types the system knows about (policies, SLA targets, templates). */
+export const ALL_DOC_TYPES = [...ONE_TIME_DOC_TYPES, ...WEEKLY_DOC_TYPES] as const;
+
+/**
+ * How many submissions of a weekly document type are expected per unit per session.
+ * Session Plan / Class Attendance follow the teaching weeks; Records of Work Covered
+ * is submitted twice a session (mid and end), tracked by week number like the others.
+ */
+export const WEEKLY_EXPECTED_PER_SESSION: Record<string, number> = {
+  'Records of Work Covered': 2,
+};
+
 
 export type CourseType = 'CYCLE' | 'MODULAR';
 
