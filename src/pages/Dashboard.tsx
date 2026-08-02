@@ -7,6 +7,8 @@ import { DocumentCard } from '@/components/common/DocumentCard';
 import { FileText, Clock, CheckCircle2, XCircle, Archive, Users, BookOpen, Loader2, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { HodBlock, DpBlock, IqaBlock, SuperAdminBlock } from '@/components/dashboard/RoleDashboardBlocks';
+import { RoleGuideCard } from '@/components/common/RoleGuideCard';
+
 
 const roleInfo: Record<UserRole, { label: string; desc: string; icon: React.ReactNode }> = {
   TRAINER: { label: 'Trainer', desc: 'Submit & track documents', icon: <FileText className="w-6 h-6 text-primary" /> },
