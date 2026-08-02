@@ -162,7 +162,7 @@ export default function Templates() {
               </Select>
             </div>
             <div className="md:col-span-2">
-              <Label>Title</Label>
+              <Label>Title {files.length > 1 && <span className="text-xs text-muted-foreground">(used as a prefix for each file)</span>}</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Scheme of Work — CDACC compliant sample" />
             </div>
             <div className="md:col-span-2">
@@ -170,14 +170,36 @@ export default function Templates() {
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
             </div>
             <div className="md:col-span-2">
-              <Label>PDF file</Label>
-              <Input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <Label>Template files</Label>
+              <Input
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,application/pdf"
+                onChange={(e) => setFiles(Array.from(e.target.files || []))}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Select several files at once — PDF, Word or Excel. Each becomes its own template entry under
+                the chosen document type.
+              </p>
+              {files.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {files.map((f) => (
+                    <li key={f.name} className="text-xs flex items-center justify-between gap-2 rounded border px-2 py-1">
+                      <span className="truncate">{f.name}</span>
+                      <span className="text-muted-foreground shrink-0">{(f.size / 1024 / 1024).toFixed(2)} MB</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
+          {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
           <div className="flex gap-2">
             <Button onClick={upload} disabled={busy}>
-              {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />} Upload
+              {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              Upload {files.length > 1 ? `${files.length} templates` : 'template'}
             </Button>
+
             <Button variant="outline" onClick={() => setShowPromote(v => !v)}>
               <Copy className="w-4 h-4 mr-2" /> Promote from archive
             </Button>
