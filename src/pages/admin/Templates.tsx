@@ -28,8 +28,10 @@ export default function Templates() {
   const [department, setDepartment] = useState<string>('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string>('');
+
 
   const [showPromote, setShowPromote] = useState(false);
   const { data: allDocs } = useAllDocuments();
