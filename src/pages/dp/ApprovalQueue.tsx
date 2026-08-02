@@ -3,6 +3,8 @@ import { useAllDocuments, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, 
 import { useAuth } from '@/contexts/AuthContext';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { PageHeader } from '@/components/common/PageHeader';
+import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
+
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
@@ -130,6 +132,8 @@ export default function ApprovalQueue() {
   return (
     <div>
       <PageHeader title="DP Approval Queue" subtitle={`${docs.length} document(s)`} />
+      <TemplateLibraryPanel />
+
       {!canAct && (
         <div className="mb-3 p-2 rounded border border-amber-500/40 bg-amber-50 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-100">
           You are viewing as <strong>{activeRole}</strong>. Switch to <strong>DP Academics</strong> in the top bar to approve documents.

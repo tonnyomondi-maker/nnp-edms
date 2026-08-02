@@ -28,8 +28,10 @@ export default function Templates() {
   const [department, setDepartment] = useState<string>('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string>('');
+
 
   const [showPromote, setShowPromote] = useState(false);
   const { data: allDocs } = useAllDocuments();
@@ -40,31 +42,49 @@ export default function Templates() {
   }
 
   const upload = async () => {
-    if (!file || !title) {
-      toast({ title: 'Missing fields', description: 'Pick a file and enter a title.', variant: 'destructive' });
+    if (files.length === 0) {
+      toast({ title: 'Pick at least one file', description: 'You can select several templates at once.', variant: 'destructive' });
       return;
     }
     setBusy(true);
+    let ok = 0;
+    const failed: string[] = [];
     try {
-      const path = `${documentType.replace(/\W+/g, '_')}/${Date.now()}_${file.name}`;
-      const { error: uErr } = await supabase.storage.from('templates').upload(path, file, { contentType: file.type || 'application/pdf' });
-      if (uErr) throw uErr;
-      await upsert.mutateAsync({
-        document_type: documentType,
-        department: department || null,
-        title,
-        description: description || null,
-        file_path: path,
-        file_name: file.name,
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        setProgress(`Uploading ${i + 1} of ${files.length}: ${f.name}`);
+        try {
+          const path = `${documentType.replace(/\W+/g, '_')}/${Date.now()}_${f.name.replace(/[^\w.\-]+/g, '_')}`;
+          const { error: uErr } = await supabase.storage
+            .from('templates')
+            .upload(path, f, { contentType: f.type || 'application/octet-stream' });
+          if (uErr) throw uErr;
+          await upsert.mutateAsync({
+            document_type: documentType,
+            department: department || null,
+            // With several files the file name keeps each entry distinguishable.
+            title: files.length === 1 && title ? title : `${title || documentType} — ${f.name.replace(/\.[^.]+$/, '')}`,
+            description: description || null,
+            file_path: path,
+            file_name: f.name,
+          });
+          ok += 1;
+        } catch (e) {
+          failed.push(`${f.name}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      toast({
+        title: failed.length ? `Uploaded ${ok}, ${failed.length} failed` : `Uploaded ${ok} template(s)`,
+        description: failed.join(' • ') || undefined,
+        variant: failed.length ? 'destructive' : undefined,
       });
-      toast({ title: 'Template uploaded' });
-      setTitle(''); setDescription(''); setFile(null);
-    } catch (e) {
-      toast({ title: 'Upload failed', description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
+      if (ok > 0) { setTitle(''); setDescription(''); setFiles([]); }
     } finally {
       setBusy(false);
+      setProgress('');
     }
   };
+
 
   const promoteFromArchive = async (docId: string) => {
     setBusy(true);
@@ -142,7 +162,7 @@ export default function Templates() {
               </Select>
             </div>
             <div className="md:col-span-2">
-              <Label>Title</Label>
+              <Label>Title {files.length > 1 && <span className="text-xs text-muted-foreground">(used as a prefix for each file)</span>}</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Scheme of Work — CDACC compliant sample" />
             </div>
             <div className="md:col-span-2">
@@ -150,14 +170,36 @@ export default function Templates() {
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
             </div>
             <div className="md:col-span-2">
-              <Label>PDF file</Label>
-              <Input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <Label>Template files</Label>
+              <Input
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,application/pdf"
+                onChange={(e) => setFiles(Array.from(e.target.files || []))}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Select several files at once — PDF, Word or Excel. Each becomes its own template entry under
+                the chosen document type.
+              </p>
+              {files.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {files.map((f) => (
+                    <li key={f.name} className="text-xs flex items-center justify-between gap-2 rounded border px-2 py-1">
+                      <span className="truncate">{f.name}</span>
+                      <span className="text-muted-foreground shrink-0">{(f.size / 1024 / 1024).toFixed(2)} MB</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
+          {progress && <p className="text-xs text-muted-foreground">{progress}</p>}
           <div className="flex gap-2">
             <Button onClick={upload} disabled={busy}>
-              {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />} Upload
+              {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              Upload {files.length > 1 ? `${files.length} templates` : 'template'}
             </Button>
+
             <Button variant="outline" onClick={() => setShowPromote(v => !v)}>
               <Copy className="w-4 h-4 mr-2" /> Promote from archive
             </Button>

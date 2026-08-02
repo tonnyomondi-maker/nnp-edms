@@ -2,8 +2,10 @@ import { useState, ReactNode } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { sessionLabel, type SessionTerm } from '@/lib/sessions';
 
-export type GroupByKey = 'NONE' | 'STAGE' | 'DEPARTMENT' | 'TRAINER' | 'DOC_TYPE';
+
+export type GroupByKey = 'NONE' | 'SESSION' | 'STAGE' | 'DEPARTMENT' | 'TRAINER' | 'DOC_TYPE';
 
 interface DocLike {
   id: string;
@@ -12,6 +14,8 @@ interface DocLike {
   term_number?: number | null;
   course_type?: string | null;
   module_number?: number | null;
+  session_year?: number | null;
+  session_term?: string | null;
   profiles?: { full_name?: string | null; pf_number?: string | null } | null;
   trainer_id?: string;
 }
@@ -24,11 +28,13 @@ interface GroupByControlProps {
 
 const OPTIONS: { key: GroupByKey; label: string }[] = [
   { key: 'NONE', label: 'No grouping' },
+  { key: 'SESSION', label: 'Training session' },
   { key: 'STAGE', label: 'Term / Module' },
   { key: 'DEPARTMENT', label: 'Department' },
   { key: 'TRAINER', label: 'Trainer' },
   { key: 'DOC_TYPE', label: 'Document type' },
 ];
+
 
 export function GroupByControl({ value, onChange, className }: GroupByControlProps) {
   return (
@@ -62,9 +68,17 @@ export function groupDocs<T extends DocLike>(
   const buckets = new Map<string, { label: string; order: number; docs: T[] }>();
   for (const d of docs) {
     let key = 'other', label = 'Other', order = 999;
-    if (by === 'STAGE') {
+    if (by === 'SESSION') {
+      const y = d.session_year ?? 0;
+      const t = (d.session_term as SessionTerm) || null;
+      key = `${y}_${t || 'NA'}`;
+      label = y && t ? sessionLabel(y, t) : 'Unspecified session';
+      const termOrder = t === 'JAN_APR' ? 1 : t === 'MAY_AUG' ? 2 : t === 'SEP_DEC' ? 3 : 9;
+      order = y ? -(y * 10 + (10 - termOrder)) : 9999; // newest session first
+    } else if (by === 'STAGE') {
       const s = stageKeyOf(d);
       key = s.key; label = s.label; order = s.order;
+
     } else if (by === 'DEPARTMENT') {
       key = d.department || 'unspecified'; label = d.department || 'Unspecified department';
     } else if (by === 'TRAINER') {

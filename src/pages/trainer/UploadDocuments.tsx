@@ -16,7 +16,7 @@ import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useUploadResume } from '@/hooks/useUploadResume';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
-import { checkSubmissionWindow } from '@/hooks/useAcademicSession';
+import { checkSubmissionWindow, useCurrentSession } from '@/hooks/useAcademicSession';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams } from 'react-router-dom';
@@ -68,9 +68,20 @@ export default function UploadDocuments() {
 
   const current = getCurrentSession();
   const sessionOptions = useMemo(() => getSessionOptions(), []);
+  // The admin-configured current session governs uploads.
+  const { data: adminSession } = useCurrentSession();
+  const isResubmit = !!new URLSearchParams(window.location.search).get('resubmit');
 
   const [sessionYear, setSessionYear] = useState<number>(current.year);
   const [sessionTerm, setSessionTerm] = useState<SessionTerm>(current.term);
+  const sessionLockedByAdmin = !!adminSession && !isResubmit;
+  useEffect(() => {
+    if (!adminSession || isResubmit) return;
+    setSessionYear(adminSession.session_year);
+    setSessionTerm(adminSession.session_term);
+  }, [adminSession, isResubmit]);
+
+
   const [department, setDepartment] = useState('');
   const [unitCode, setUnitCode] = useState('');
   const [unitName, setUnitName] = useState('');
@@ -480,7 +491,11 @@ export default function UploadDocuments() {
         </div>
       )}
 
-      <TemplateLibraryPanel department={department || undefined} />
+      <TemplateLibraryPanel
+        department={department || undefined}
+        documentType={files.find((f) => f.documentType)?.documentType || undefined}
+      />
+
 
       <Card className="mb-4">
 
@@ -488,27 +503,36 @@ export default function UploadDocuments() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-sm font-medium">Training Session</Label>
-              <Select
-                value={`${sessionYear}_${sessionTerm}`}
-                onValueChange={(v) => {
-                  const [y, t] = v.split('_');
-                  // session keys are like JAN_APR which has underscore — handle properly
-                  const yy = Number(y);
-                  const tt = v.substring(v.indexOf('_') + 1) as SessionTerm;
-                  setSessionYear(yy);
-                  setSessionTerm(tt);
-                }}
-              >
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {sessionOptions.map((o) => (
-                    <SelectItem key={`${o.year}_${o.term}`} value={`${o.year}_${o.term}`}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {sessionLockedByAdmin ? (
+                <div className="mt-1.5 rounded-md border bg-muted/40 px-3 py-2">
+                  <p className="text-sm font-semibold">{sessionLabel(sessionYear, sessionTerm)}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Set by the administrator as the open training session. Past sessions stay available
+                    read-only under My Submissions.
+                  </p>
+                </div>
+              ) : (
+                <Select
+                  value={`${sessionYear}_${sessionTerm}`}
+                  onValueChange={(v) => {
+                    const yy = Number(v.split('_')[0]);
+                    const tt = v.substring(v.indexOf('_') + 1) as SessionTerm;
+                    setSessionYear(yy);
+                    setSessionTerm(tt);
+                  }}
+                >
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {sessionOptions.map((o) => (
+                      <SelectItem key={`${o.year}_${o.term}`} value={`${o.year}_${o.term}`}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
+
 
             <div>
               <Label className="text-sm font-medium">Department</Label>

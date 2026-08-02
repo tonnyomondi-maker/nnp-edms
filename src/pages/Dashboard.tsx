@@ -7,6 +7,8 @@ import { DocumentCard } from '@/components/common/DocumentCard';
 import { FileText, Clock, CheckCircle2, XCircle, Archive, Users, BookOpen, Loader2, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { HodBlock, DpBlock, IqaBlock, SuperAdminBlock } from '@/components/dashboard/RoleDashboardBlocks';
+import { RoleGuideCard } from '@/components/common/RoleGuideCard';
+
 
 const roleInfo: Record<UserRole, { label: string; desc: string; icon: React.ReactNode }> = {
   TRAINER: { label: 'Trainer', desc: 'Submit & track documents', icon: <FileText className="w-6 h-6 text-primary" /> },
@@ -35,6 +37,9 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader title={`Welcome, ${currentUser.name.split(' ')[0]}`} subtitle={`${currentUser.department || ''} • ${currentUser.pfNumber || ''}`} />
+
+      <RoleGuideCard />
+
 
       <Card className="mb-4">
         <CardContent className="p-4 flex items-center gap-3">

@@ -3,6 +3,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useDocumentsByDepartment, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
+import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
+
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
@@ -143,6 +145,8 @@ export default function DepartmentQueue() {
   return (
     <div>
       <PageHeader title="Department Queue" subtitle={`${currentUser?.department || ''} • ${filteredQueue.length} document(s)`} />
+      <TemplateLibraryPanel department={currentUser?.department || undefined} />
+
       {!canAct && (
         <div className="mb-3 p-2 rounded border border-amber-500/40 bg-amber-50 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-100">
           You are viewing as <strong>{activeRole}</strong>. Switch to <strong>HOD</strong> in the top bar to verify documents.

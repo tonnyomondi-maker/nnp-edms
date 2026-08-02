@@ -1,51 +1,52 @@
-## Verified current state
+## Why sessions "can't be set" today
 
-- Document queries in `useDocuments.ts` select `*, teaching_assignments(*)` — no join to `profiles`. `GroupByControl.groupDocs` reads `d.profiles?.full_name`, so "Group by Trainer" always falls back to "Unknown". This is the trainer-name bug.
-- `gdrive-upload` builds only a *label* string `EDMS/{year}_{term}/{dept}/{unit}` in the file description and uploads flat; the code comment states `drive.file` scope prevents folder creation. Nothing is nested in Drive today. `drive_folder_map` (root + department scopes only) exists from the re-link work.
-- `system-reset` deletes `documents, audit_logs, role_change_audit, unit_session_config, teaching_assignments` only. Packs (`verification_packs`, `verification_pack_assignees`), `verifier_reviews`, `verifiers`, plus `export_progress`, `backup_metadata`, `integration_health_runs` survive a reset.
-- `GroupByControl` + `GroupSection` already exist and are wired into DP Approval Queue and both IQA archive tabs; Super Admin views are not yet grouped.
+The Academic Sessions screen exists at `/admin/session-config` and the Templates screen at `/admin/templates`, but neither appears in the admin navigation (`BottomNav` only links Exports, Setup, Docs, Efficiency, Users, Audit). They're reachable only by typing the URL. That's the root cause — plus the session screen shows raw codes (`SEP_DEC 2026`) instead of readable labels.
 
-## Plan
+## 1. Make sessions configurable and visible
 
-### 1. Fix trainer names in grouping
+- Add **Sessions** and **Templates** entries to the Super Admin navigation, and add both as cards on the System Setup page.
+- Rework the Academic Sessions screen:
+  - Year picker defaulting to the current year (2026) with a few years either side.
+  - Term picker showing "January – April", "May – August", "September – December".
+  - Quick "Create the three sessions for &nbsp;" button.
+  - Existing sessions listed as "September – December 2026" with status, window dates and a "Make current" action. 
+  - Let the terms remain but let the admin type the academic year for flexibility
 
-- Extend the document selects in `useDocuments.ts` to include the trainer profile: `*, teaching_assignments(*), profiles:trainer_id (full_name, pf_number, department)`.
-- If the FK embed isn't resolvable, fall back to a single batched `profiles` fetch keyed by `trainer_id` inside the hook and attach a `profiles` field client-side.
-- No change needed in `GroupByControl` — it already reads `profiles.full_name` / `pf_number`.
+## 2. Session becomes the enforced default everywhere
 
-### 2. Consistent module-based grouping everywhere
+- **Trainer upload**: session year/term pre-filled from the admin-set current session and locked (read-only, with a note naming the open session). Submissions still validated against the open/close window and grace days already implemented.
+- **Higher roles** (HOD, DP Academics, IQA, Super Admin): add a **Session** option to the group-by control and a session filter, with session as the default top-level grouping; Term/Module stays available as the secondary grouping.
+- **Trainer history**: add a session selector on My Submissions so trainers can browse previous sessions' documents read-only, including items already offloaded to Google Drive (link opens the Drive copy when the cloud file has been tiered away).
 
-- Default `GroupByControl` to `STAGE` (Term/Module) on DP Approval Queue, IQA Archive (both tabs) and add it to the Super Admin document surfaces in `RoleDashboardBlocks.tsx` (and any admin doc list it renders).
-- Persist the chosen grouping per role in `localStorage` so the view stays consistent between screens and reloads.
+## 3. New weekly document type: Records of Work Covered
 
-### 3. IQA archival → nested ZIP, resilient to partial failures
+- Add to the weekly document types, so it uses the existing week-number field like Session Plan and Class Attendance.
+- Expected count per unit per session = 2; the trainer progress tracker and HOD/Reports completeness counts are updated to expect two submissions.
+- The type is added to the approval-policy and SLA target lists so signature/stamp rules can be set for it.
 
-- In `ArchiveScreen.tsx`, run archival per document, collecting `{ok, failed[]}` instead of aborting on first error.
-- After the run, always offer/trigger the nested ZIP via `export-session-zip` with `nested: true` and the current department/stage filter, so a partial archival still yields a `Department/Trainer/*.pdf` download.
-- Show a summary toast: `N archived, M failed` plus an expandable list of failures with the server message, and a "Retry failed" action.
+## 4. Templates: admin publishes, everyone uses
 
-### 4. Bulk signing for IQA and DP
+- Templates admin screen gets multi-file upload (drag several files, set type/department per row) so you can load the whole set in one pass, plus visible download counts and active/inactive toggles.
+- Trainers already see the `TemplateLibraryPanel` on upload; it will be filtered to the document type being uploaded and shown expanded when no submission exists yet for that type.
+- **New**: the same template panel appears for HOD, DP Academics and IQA on each document review, showing the approved sample for that document type side-by-side with the submission so verification is consistent.
 
-- Add "Sign & approve all in this group" in the group header (and a select-all checkbox on cards) for DP and IQA.
-- One placement pass: the user positions signature/stamp once in `PlacementModal`; the chosen page/coords/size/opacity are reused for every selected document (with a "last page" option so varying page counts still work).
-- Run through the existing `stamp-document` path sequentially with a progress panel (`x of N`), continue past failures, and report a per-document result list at the end.
-- Also for the HOD
+## 5. Onboarding / screen guides per role
 
-### 5. Organized Google Drive folder structure
+- A dismissible "What you need to do" card on each role's dashboard listing that role's responsibilities and next actions, with links.
+- A first-login guided tour (3–5 steps) per role highlighting the key screens, replayable from a "?" button in the top bar. Dismissal state stored per user so it never nags.
 
-- Extend `drive_folder_map` usage with scopes `stage` (Term/Module) and `trainer`, keyed by department.
-- Add a folder resolver in a shared helper used by `gdrive-upload` and `offload-to-drive`: ensure/create `EDMS / <Department> / <Term N|Module N> / <PF> - <Trainer Name>` and upload the file into that folder id, caching resolved ids in `drive_folder_map`.
-- Requires the Drive connector scope to allow folder creation. If create calls fail with a scope error, the function keeps working (flat upload + clear health-check warning) rather than failing the mirror.
-- Update `drive-relink-folders` "create" mode to build the department → stage skeleton, and surface the tree on `/admin/integration-health`.
+## 6. Footer and copyright
 
-### 6. Reset clears packs and verifiers
+- Rebuild the footer with clearer credit blocks: institution (logo, name, motto, website) on one side, a separated "Developed by the Office of the Systems Administrator" credit visually distinct with a divider, and the copyright line using a live `new Date().getFullYear()` (already dynamic — it will stay dynamic and be given its own line with the system version).
 
-- Extend the `system-reset` delete list to: `verification_pack_assignees`, `verification_packs`, `verifier_reviews`, `verifiers`, `export_progress`, `integration_health_runs`, `backup_metadata` (in FK-safe order), keeping `profiles`, `user_roles`, `system_settings` untouched as today.
-- Update the confirmation dialog copy in `SystemResetCard.tsx` to list exactly what is wiped and that only users/roles/settings remain.
+## Advice: what helps vs. what would hinder
 
-Then can we also have a guide on how to use the system embeded?
+- Locking the session is safe **only** with an admin override — I'll keep an admin/HOD "allow late submission" path so a closed window never hard-blocks legitimate work.
+- Keep the guided tour dismissible and never modal-blocking, so experienced trainers aren't slowed down.
+- Don't make templates mandatory-to-download before upload; that adds friction with no compliance benefit.
 
 ## Technical notes
 
-- No schema change expected except possibly widening `drive_folder_map.scope` values; if a check constraint blocks `stage`/`trainer`, that's one migration.
-- Bulk signing reuses `stamp-document` per document — no new server endpoint, so all existing policy/SLA enforcement still applies.
+- Migration: extend the document-type list used by `document_type_policy` / `sla_targets` seeds with "Records of Work Covered"; add a `download_count` column to `document_templates`; add a `user_onboarding` table (per-user, per-role tour completion) with RLS scoped to `auth.uid()` and the required grants.
+- Frontend: `src/lib/sessions.ts` (WEEKLY_DOC_TYPES), `GroupByControl` (new `SESSION` key), `SessionConfig`, `Templates`, `UploadDocuments`, `MySubmissions`, `BottomNav`, `SystemSetup`, `Footer`, plus a new `RoleGuideCard` / `GuidedTour` component pair.
+- Since your template files didn't attach, the upload screen is built for you to load them yourself; re-attach them any time and I'll ingest them.

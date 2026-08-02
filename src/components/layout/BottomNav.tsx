@@ -1,6 +1,6 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useLocation, Link } from 'react-router-dom';
-import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, ScrollText, ShieldCheck, UserCheck, ListChecks, Activity } from 'lucide-react';
+import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, ScrollText, ShieldCheck, UserCheck, ListChecks, Activity, CalendarDays, FileStack } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const trainerItems = [
@@ -35,11 +35,14 @@ const iqaItems = [
 
 const superAdminItems = [
   { to: '/admin/setup', icon: Settings, label: 'Setup' },
+  { to: '/admin/session-config', icon: CalendarDays, label: 'Sessions' },
+  { to: '/admin/templates', icon: FileStack, label: 'Templates' },
   { to: '/admin/documents', icon: FileText, label: 'Docs' },
   { to: '/admin/efficiency', icon: Activity, label: 'Efficiency' },
   { to: '/admin/users', icon: Users, label: 'Users' },
   { to: '/admin/audit', icon: ScrollText, label: 'Audit' },
 ];
+
 
 
 const navMap: Record<UserRole, typeof trainerItems> = {
