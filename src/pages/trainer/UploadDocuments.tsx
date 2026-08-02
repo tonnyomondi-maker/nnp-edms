@@ -16,7 +16,7 @@ import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useUploadResume } from '@/hooks/useUploadResume';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
-import { checkSubmissionWindow } from '@/hooks/useAcademicSession';
+import { checkSubmissionWindow, useCurrentSession } from '@/hooks/useAcademicSession';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams } from 'react-router-dom';
