@@ -491,7 +491,11 @@ export default function UploadDocuments() {
         </div>
       )}
 
-      <TemplateLibraryPanel department={department || undefined} />
+      <TemplateLibraryPanel
+        department={department || undefined}
+        documentType={files.find((f) => f.documentType)?.documentType || undefined}
+      />
+
 
       <Card className="mb-4">
 
