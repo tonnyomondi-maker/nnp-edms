@@ -2,6 +2,8 @@ import { useState, ReactNode } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { sessionLabel, type SessionTerm } from '@/lib/sessions';
+
 
 export type GroupByKey = 'NONE' | 'SESSION' | 'STAGE' | 'DEPARTMENT' | 'TRAINER' | 'DOC_TYPE';
 
