@@ -47,7 +47,8 @@ export function useRoleGuard() {
         if (isActive('HOD') && has('HOD') && doc.status === 'SUBMITTED') {
           return !currentUser?.department || doc.department === currentUser.department;
         }
-        if (isActive('DP_ACADEMICS') && has('DP_ACADEMICS') && doc.status === 'HOD_APPROVED') return true;
+        if (isActive('IQA') && has('IQA') && doc.status === 'HOD_APPROVED') return true;
+        if (isActive('DP_ACADEMICS') && has('DP_ACADEMICS') && doc.status === 'IQA_REVIEWED') return true;
         if (isActive('IQA') && has('IQA') && doc.status === 'DP_APPROVED') return true;
         return false;
       case 'delete':
@@ -75,7 +76,8 @@ export function useRoleGuard() {
     }
     if (action === 'approve' || action === 'reject') {
       if (doc?.status === 'SUBMITTED') return 'Switch to your HOD role (and department) to verify this document.';
-      if (doc?.status === 'HOD_APPROVED') return 'Switch to your DP Academics role to approve this document.';
+      if (doc?.status === 'HOD_APPROVED') return 'Switch to your IQA role to review this document.';
+      if (doc?.status === 'IQA_REVIEWED') return 'Switch to your DP Academics role to approve this document.';
       if (doc?.status === 'DP_APPROVED') return 'Switch to your IQA role to archive this document.';
       return 'Switch to the role that owns this approval stage.';
     }
@@ -86,7 +88,8 @@ export function useRoleGuard() {
   const canReturnToPreviousStage = (doc?: Doc | null): boolean => {
     if (writesBlocked) return false;
     if (!doc) return isActive('DP_ACADEMICS') || isActive('IQA');
-    if (isActive('DP_ACADEMICS') && has('DP_ACADEMICS') && doc.status === 'HOD_APPROVED') return true;
+    if (isActive('IQA') && has('IQA') && doc.status === 'HOD_APPROVED') return true;
+    if (isActive('DP_ACADEMICS') && has('DP_ACADEMICS') && doc.status === 'IQA_REVIEWED') return true;
     if (isActive('IQA') && has('IQA') && doc.status === 'DP_APPROVED') return true;
     return false;
   };
@@ -104,6 +107,7 @@ export function useRoleGuard() {
     // Back-compat short forms kept for existing callers:
     canVerifyAsHOD: (doc?: Doc | null) => canActOn('approve', doc) && isActive('HOD'),
     canApproveAsDP: (doc?: Doc | null) => canActOn('approve', doc) && isActive('DP_ACADEMICS'),
+    canReviewAsIQA: (doc?: Doc | null) => canActOn('approve', doc) && isActive('IQA'),
     canArchiveAsIQA: (doc?: Doc | null) => canActOn('approve', doc) && isActive('IQA'),
     canUploadAsTrainer: () => canActOn('upload'),
     canManageUsers: () => isActive('SUPER_ADMIN') && has('SUPER_ADMIN'),

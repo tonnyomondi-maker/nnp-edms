@@ -84,21 +84,16 @@ Deno.serve(async (req) => {
     const bytes = new Uint8Array(await blob.arrayBuffer());
 
     // Resolve (or create) the organised Drive folder tree:
-    //   EDMS / <Session> / <Department> / <Term or Module> / <PF - Trainer name>
+    //   EDMS / <Session> / <Department> / <PF - Trainer name>
     const { data: trainerProfile } = await admin
       .from("profiles").select("full_name, pf_number").eq("user_id", doc.trainer_id).maybeSingle();
     const trainerFolder = [
       (trainerProfile?.pf_number || "").toString().trim(),
       (trainerProfile?.full_name || "Unknown Trainer").toString().trim(),
     ].filter(Boolean).join(" - ");
-    const stageFolder = doc.course_type === "MODULAR" && doc.module_number
-      ? `Module ${doc.module_number}`
-      : doc.term_number ? `Term ${doc.term_number}` : "Unspecified stage";
-
     const segments = [
       `${doc.session_year ?? "Unknown"}_${doc.session_term ?? "Session"}`,
       doc.department || "Unspecified department",
-      stageFolder,
       trainerFolder,
     ];
 
