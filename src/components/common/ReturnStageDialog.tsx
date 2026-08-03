@@ -13,7 +13,7 @@ interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   docId: string;
-  fromStage: 'DP' | 'IQA';
+  fromStage: 'IQA_REVIEW' | 'DP' | 'IQA';
 }
 
 export function ReturnStageDialog({ open, onOpenChange, docId, fromStage }: Props) {
@@ -22,8 +22,10 @@ export function ReturnStageDialog({ open, onOpenChange, docId, fromStage }: Prop
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const targetLabel = fromStage === 'DP' ? 'HOD' : 'DP Academics';
-  const targetStatus = fromStage === 'DP' ? 'SUBMITTED' : 'HOD_APPROVED';
+  // Workflow: Trainer → HOD verify → IQA review → DP approve → IQA archive.
+  const targetLabel = fromStage === 'IQA_REVIEW' ? 'HOD' : fromStage === 'DP' ? 'IQA review' : 'DP Academics';
+  const targetStatus = fromStage === 'IQA_REVIEW' ? 'SUBMITTED' : fromStage === 'DP' ? 'HOD_APPROVED' : 'IQA_REVIEWED';
+
 
   const submit = async () => {
     if (note.trim().length < 5) {
