@@ -17,7 +17,7 @@ interface PlacementModalProps {
   pdfUrl: string;
   signatureUrl: string;
   stampUrl: string;
-  stage: 'HOD' | 'DP' | 'IQA';
+  stage: 'HOD' | 'IQA_REVIEW' | 'DP' | 'IQA';
   /** True when policy says a stamp must be embedded for this document type. */
   stampMandatory?: boolean;
   /** True when signature-only is explicitly allowed by policy. */

@@ -35,7 +35,7 @@ export default function ApprovalQueue() {
   const [rejectDoc, setRejectDoc] = useState<{ id: string; label: string } | null>(null);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
-  const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'HOD_APPROVED' });
+  const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'IQA_REVIEWED' });
   const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
 
 
@@ -49,7 +49,7 @@ export default function ApprovalQueue() {
   const counts = useMemo(() => termCounts(baseDocs), [baseDocs]);
   const termFiltered = useMemo(() => filterByTerm(baseDocs, termFilter), [baseDocs, termFilter]);
   const docs = useMemo(() => applyQueueFilter(termFiltered, filter), [termFiltered, filter]);
-  const canActOn = (status: string) => status === 'HOD_APPROVED';
+  const canActOn = (status: string) => status === 'IQA_REVIEWED';
 
   const toggleOne = (id: string, checked: boolean) => {
     setSelected(prev => {
@@ -179,8 +179,8 @@ export default function ApprovalQueue() {
                     selectable={showActions}
                     selected={selected.has(doc.id)}
                     onSelectChange={(c) => toggleOne(doc.id, c)}
-                    showAiReview={canAct && doc.status === 'HOD_APPROVED'}
-                    onReturnRequest={canAct && doc.status === 'HOD_APPROVED' ? () => setReturnDocId(doc.id) : undefined}
+                    showAiReview={canAct && doc.status === 'IQA_REVIEWED'}
+                    onReturnRequest={canAct && doc.status === 'IQA_REVIEWED' ? () => setReturnDocId(doc.id) : undefined}
                     actions={showActions ? (
                       <>
                         <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'APPROVED BY DP ACADEMICS' with name & date">
