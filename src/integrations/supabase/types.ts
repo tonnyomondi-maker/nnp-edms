@@ -133,6 +133,36 @@ export type Database = {
         }
         Relationships: []
       }
+      courses: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          department: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          department: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          department?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       department_pack_capacity: {
         Row: {
           active_pack_limit: number
@@ -238,6 +268,7 @@ export type Database = {
           archived_at: string | null
           assignment_id: string | null
           class_code: string | null
+          course_id: string | null
           course_type: string | null
           created_at: string
           department: string
@@ -339,6 +370,7 @@ export type Database = {
           archived_at?: string | null
           assignment_id?: string | null
           class_code?: string | null
+          course_id?: string | null
           course_type?: string | null
           created_at?: string
           department: string
@@ -440,6 +472,7 @@ export type Database = {
           archived_at?: string | null
           assignment_id?: string | null
           class_code?: string | null
+          course_id?: string | null
           course_type?: string | null
           created_at?: string
           department?: string
@@ -542,6 +575,13 @@ export type Database = {
             columns: ["assignment_id"]
             isOneToOne: false
             referencedRelation: "teaching_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
             referencedColumns: ["id"]
           },
         ]
@@ -708,6 +748,36 @@ export type Database = {
           min_age_days?: number
           only_tier?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      onboarding_progress: {
+        Row: {
+          created_at: string
+          done_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          step_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          step_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          step_key?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -927,6 +997,7 @@ export type Database = {
       unit_session_config: {
         Row: {
           class_code: string | null
+          course_id: string | null
           course_type: string
           created_at: string
           department: string
@@ -943,6 +1014,7 @@ export type Database = {
         }
         Insert: {
           class_code?: string | null
+          course_id?: string | null
           course_type?: string
           created_at?: string
           department: string
@@ -959,6 +1031,7 @@ export type Database = {
         }
         Update: {
           class_code?: string | null
+          course_id?: string | null
           course_type?: string
           created_at?: string
           department?: string
@@ -973,7 +1046,15 @@ export type Database = {
           unit_name?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "unit_session_config_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -1236,6 +1317,7 @@ export type Database = {
       document_status:
         | "SUBMITTED"
         | "HOD_APPROVED"
+        | "IQA_REVIEWED"
         | "DP_APPROVED"
         | "ARCHIVED"
         | "REJECTED"
@@ -1248,6 +1330,7 @@ export type Database = {
         | "Session Plan"
         | "Class Attendance"
         | "Course Outline"
+        | "Records of Work Covered"
       submission_type: "ONE_TIME" | "WEEKLY"
       verifier_decision: "APPROVED" | "QUERY" | "REJECTED"
     }
@@ -1381,6 +1464,7 @@ export const Constants = {
       document_status: [
         "SUBMITTED",
         "HOD_APPROVED",
+        "IQA_REVIEWED",
         "DP_APPROVED",
         "ARCHIVED",
         "REJECTED",
@@ -1394,6 +1478,7 @@ export const Constants = {
         "Session Plan",
         "Class Attendance",
         "Course Outline",
+        "Records of Work Covered",
       ],
       submission_type: ["ONE_TIME", "WEEKLY"],
       verifier_decision: ["APPROVED", "QUERY", "REJECTED"],
