@@ -327,6 +327,8 @@ export type Database = {
           id: string
           iqa_archived_by: string | null
           iqa_autofill: boolean | null
+          iqa_reviewed_at: string | null
+          iqa_reviewed_by: string | null
           iqa_sig_h: number | null
           iqa_sig_opacity: number | null
           iqa_sig_page: number | null
@@ -429,6 +431,8 @@ export type Database = {
           id?: string
           iqa_archived_by?: string | null
           iqa_autofill?: boolean | null
+          iqa_reviewed_at?: string | null
+          iqa_reviewed_by?: string | null
           iqa_sig_h?: number | null
           iqa_sig_opacity?: number | null
           iqa_sig_page?: number | null
@@ -531,6 +535,8 @@ export type Database = {
           id?: string
           iqa_archived_by?: string | null
           iqa_autofill?: boolean | null
+          iqa_reviewed_at?: string | null
+          iqa_reviewed_by?: string | null
           iqa_sig_h?: number | null
           iqa_sig_opacity?: number | null
           iqa_sig_page?: number | null
