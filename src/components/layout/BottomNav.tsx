@@ -27,9 +27,9 @@ const dpItems = [
 
 const iqaItems = [
   { to: '/', icon: Home, label: 'Home' },
+  { to: '/iqa/review', icon: ShieldCheck, label: 'Review' },
   { to: '/iqa/archive', icon: ClipboardList, label: 'Archive' },
-  { to: '/iqa/verifier-packs', icon: ShieldCheck, label: 'Packs' },
-  { to: '/iqa/bulk-assign', icon: ListChecks, label: 'Bulk' },
+  { to: '/iqa/verifier-packs', icon: FileArchive, label: 'Packs' },
   { to: '/iqa/verifiers', icon: UserCheck, label: 'Verifiers' },
 ];
 
@@ -37,6 +37,7 @@ const superAdminItems = [
   { to: '/admin/setup', icon: Settings, label: 'Setup' },
   { to: '/admin/session-config', icon: CalendarDays, label: 'Sessions' },
   { to: '/admin/templates', icon: FileStack, label: 'Templates' },
+  { to: '/admin/courses', icon: BookOpen, label: 'Courses' },
   { to: '/admin/documents', icon: FileText, label: 'Docs' },
   { to: '/admin/efficiency', icon: Activity, label: 'Efficiency' },
   { to: '/admin/users', icon: Users, label: 'Users' },

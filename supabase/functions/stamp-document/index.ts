@@ -20,7 +20,7 @@ interface Placement {
 }
 interface StampRequest {
   documentId: string;
-  stage: "HOD" | "DP" | "IQA";
+  stage: "HOD" | "IQA_REVIEW" | "DP" | "IQA";
   signatureUrl?: string;
   stampUrl?: string;
   approverName: string;
@@ -29,7 +29,7 @@ interface StampRequest {
 }
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
-const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", DP: "DP Academics", IQA: "IQA" };
+const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "IQA Review", DP: "DP Academics", IQA: "IQA Archival" };
 
 
 function parseStorageRef(value: string, defaultBucket = "documents"): { bucket: string; path: string } | null {
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
 
     // Role/stage authorization: caller must hold the role matching the stage.
     const callerId = userData.user.id;
-    const stageRole: Record<string, string> = { HOD: "HOD", DP: "DP_ACADEMICS", IQA: "IQA" };
+    const stageRole: Record<string, string> = { HOD: "HOD", IQA_REVIEW: "IQA", DP: "DP_ACADEMICS", IQA: "IQA" };
     const requiredRole = stageRole[stage];
     if (!requiredRole) {
       return new Response(JSON.stringify({ error: "Invalid stage" }), {
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     // Stage/status consistency: caller can only stamp docs currently at the
     // expected upstream status for their stage.
     const expectedStatus: Record<string, string> = {
-      HOD: "SUBMITTED", DP: "HOD_APPROVED", IQA: "DP_APPROVED",
+      HOD: "SUBMITTED", IQA_REVIEW: "HOD_APPROVED", DP: "IQA_REVIEWED", IQA: "DP_APPROVED",
     };
     const { data: docStatus } = await supabase
       .from("documents").select("status,trainer_id").eq("id", documentId).single();
@@ -213,6 +213,7 @@ Deno.serve(async (req) => {
     // Resolve a STABLE date for this stage so re-exports always render the same text
     const stageDateIso: string | null =
       stage === "HOD" ? (doc.verified_by_hod_at ?? doc.hod_approved_at ?? null)
+      : stage === "IQA_REVIEW" ? (doc.iqa_reviewed_at ?? null)
       : stage === "DP" ? (doc.approved_by_dp_academics_at ?? doc.dp_approved_at ?? null)
       : (doc.archived_at ?? null);
     const stageDate = stageDateIso ? new Date(stageDateIso) : new Date();
@@ -224,10 +225,12 @@ Deno.serve(async (req) => {
       const { width } = lastPage.getSize();
       const stageLabel = stage === "HOD"
         ? "VERIFIED BY HOD"
-        : stage === "DP"
-          ? "APPROVED BY DP ACADEMICS"
-          : "ARCHIVED BY IQA";
-      const stageOffset: Record<string, number> = { HOD: 0, DP: 1, IQA: 2 };
+        : stage === "IQA_REVIEW"
+          ? "REVIEWED BY IQA"
+          : stage === "DP"
+            ? "APPROVED BY DP ACADEMICS"
+            : "ARCHIVED BY IQA";
+      const stageOffset: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
       const baseY = 60 + stageOffset[stage] * 70;
       const boxX = 40, boxW = Math.min(360, width - 80), boxH = 56;
       lastPage.drawRectangle({
@@ -325,7 +328,7 @@ Deno.serve(async (req) => {
       }
     } else {
       const lastPage = pages[pages.length - 1];
-      const stageOffset: Record<string, number> = { HOD: 0, DP: 1, IQA: 2 };
+      const stageOffset: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
       const offsetY = stageOffset[stage] * 110;
       const sigDims = sigImage.scaleToFit(SIG_W, SIG_H);
       const stampDims = stampImage ? stampImage.scaleToFit(STAMP_W, STAMP_H) : { width: STAMP_W, height: STAMP_H };

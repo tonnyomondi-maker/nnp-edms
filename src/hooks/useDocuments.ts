@@ -125,7 +125,7 @@ export function useDocumentsByAssignment(assignmentId: string) {
   });
 }
 
-const APPROVAL_STATUSES: DocumentStatus[] = ['HOD_APPROVED', 'DP_APPROVED', 'ARCHIVED'];
+const APPROVAL_STATUSES: DocumentStatus[] = ['HOD_APPROVED', 'IQA_REVIEWED', 'DP_APPROVED', 'ARCHIVED'];
 
 export interface ApprovalPlacement {
   page?: number | null;
@@ -203,7 +203,9 @@ async function performApproval(
     }
   }
 
-  const stage = status === 'HOD_APPROVED' ? 'HOD' : status === 'DP_APPROVED' ? 'DP' : 'IQA';
+  const stage = status === 'HOD_APPROVED' ? 'HOD'
+    : status === 'IQA_REVIEWED' ? 'IQA_REVIEW'
+    : status === 'DP_APPROVED' ? 'DP' : 'IQA';
 
   // Burn signature + stamp (or text label) into PDF via edge function
   const { data: stampResp, error: stampErr } = await supabase.functions.invoke('stamp-document', {
@@ -263,6 +265,10 @@ async function performApproval(
         hod_autofill: placement.autofill ?? true,
       });
     }
+  } else if (status === 'IQA_REVIEWED') {
+    const nowIso = new Date().toISOString();
+    (updates as Record<string, unknown>).iqa_reviewed_at = nowIso;
+    (updates as Record<string, unknown>).iqa_reviewed_by = userId;
   } else if (status === 'DP_APPROVED') {
     const nowIso = new Date().toISOString();
     updates.dp_approved_at = nowIso;
@@ -318,6 +324,15 @@ async function performApproval(
   const { data, error } = await supabase
     .from('documents').update(updates).eq('id', docId).select().single();
   if (error) throw error;
+
+  // Google Drive is a backup of FINAL documents only — mirror once the document
+  // is approved by DP Academics (and again after IQA archival, which replaces
+  // the mirrored copy with the fully signed version).
+  if (status === 'DP_APPROVED' || status === 'ARCHIVED') {
+    supabase.functions
+      .invoke('gdrive-upload', { body: { documentId: docId, replace: true } })
+      .catch(() => { /* logged server-side; retryable from the IQA screen */ });
+  }
   return data;
 }
 
@@ -427,6 +442,7 @@ export function useSubmitDocument() {
       termNumber,
       courseType,
       moduleNumber,
+      courseId,
     }: {
       file: File;
       assignmentId?: string | null;
@@ -444,6 +460,7 @@ export function useSubmitDocument() {
       termNumber?: number | null;
       courseType?: 'CYCLE' | 'MODULAR';
       moduleNumber?: number | null;
+      courseId?: string | null;
     }) => {
       await assertSystemNotLocked(user?.id);
       const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -483,6 +500,7 @@ export function useSubmitDocument() {
         term_number: courseType === 'MODULAR' ? null : (termNumber ?? null),
         course_type: courseType ?? 'CYCLE',
         module_number: courseType === 'MODULAR' ? (moduleNumber ?? null) : null,
+        course_id: courseId ?? null,
       };
 
       const { data, error } = await supabase
@@ -492,10 +510,8 @@ export function useSubmitDocument() {
         .single();
       if (error) throw error;
 
-      // Best-effort mirror to Google Drive — never blocks the submission.
-      // The edge function has its own retry + backoff.
-      supabase.functions.invoke('gdrive-upload', { body: { documentId: data.id } })
-        .catch(() => { /* logged server-side */ });
+      // NOTE: raw trainer submissions are deliberately NOT mirrored to Google
+      // Drive. Drive holds approved/archived documents only.
 
       return data;
     },

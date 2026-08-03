@@ -30,7 +30,7 @@ export interface BulkSignDoc {
 interface Props {
   docs: BulkSignDoc[];
   status: DocumentStatus;
-  stage: 'HOD' | 'DP' | 'IQA';
+  stage: 'HOD' | 'IQA_REVIEW' | 'DP' | 'IQA';
   label?: string;
   onDone?: () => void;
 }

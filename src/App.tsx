@@ -15,6 +15,8 @@ import DepartmentQueue from "./pages/hod/DepartmentQueue";
 import HodDashboard from "./pages/hod/Dashboard";
 import ApprovalQueue from "./pages/dp/ApprovalQueue";
 import ArchiveScreen from "./pages/iqa/ArchiveScreen";
+import ReviewQueue from "./pages/iqa/ReviewQueue";
+import Courses from "./pages/admin/Courses";
 import ManageUsers from "./pages/admin/ManageUsers";
 import ManageAssignments from "./pages/admin/ManageAssignments";
 import SessionExports from "./pages/admin/SessionExports";
@@ -71,6 +73,7 @@ function ProtectedRoutes() {
         <Route path="/hod/queue" element={<DepartmentQueue />} />
         <Route path="/hod/dashboard" element={<HodDashboard />} />
         <Route path="/dp/queue" element={<ApprovalQueue />} />
+        <Route path="/iqa/review" element={<ReviewQueue />} />
         <Route path="/iqa/archive" element={<ArchiveScreen />} />
         <Route path="/iqa/verifier-packs" element={<VerifierPacks />} />
         <Route path="/iqa/verifiers" element={<Verifiers />} />
@@ -89,6 +92,7 @@ function ProtectedRoutes() {
         <Route path="/admin/integration-health" element={<IntegrationHealth />} />
         <Route path="/admin/session-config" element={<SessionConfig />} />
         <Route path="/admin/templates" element={<Templates />} />
+        <Route path="/admin/courses" element={<Courses />} />
         <Route path="/admin/efficiency" element={<EfficiencyDashboard />} />
         <Route path="/admin/documents" element={<AllDocuments />} />
 

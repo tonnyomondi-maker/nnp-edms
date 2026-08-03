@@ -10,8 +10,9 @@ type Doc = Tables<'documents'> & {
 const STAGES = [
   { key: 'SUBMITTED', label: 'Submitted' },
   { key: 'HOD_APPROVED', label: 'HOD' },
+  { key: 'IQA_REVIEWED', label: 'IQA review' },
   { key: 'DP_APPROVED', label: 'DP' },
-  { key: 'ARCHIVED', label: 'IQA' },
+  { key: 'ARCHIVED', label: 'Archived' },
 ] as const;
 
 export function ProgressTracker({ doc }: { doc: Doc }) {
@@ -19,8 +20,9 @@ export function ProgressTracker({ doc }: { doc: Doc }) {
   const returned = !!doc.returned_at && doc.status !== 'ARCHIVED';
 
   const currentIndex =
-    doc.status === 'ARCHIVED' ? 3
-      : doc.status === 'DP_APPROVED' ? 2
+    doc.status === 'ARCHIVED' ? 4
+      : doc.status === 'DP_APPROVED' ? 3
+      : doc.status === 'IQA_REVIEWED' ? 2
       : doc.status === 'HOD_APPROVED' ? 1
       : 0;
 

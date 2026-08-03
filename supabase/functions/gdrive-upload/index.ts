@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
-    const { documentId } = await req.json().catch(() => ({}));
+    const { documentId, replace } = await req.json().catch(() => ({}));
     if (!documentId) return json({ error: "documentId is required" }, 400);
 
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     // Load document row
     const { data: doc, error: docErr } = await admin
       .from("documents")
-      .select("id, file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, session_year, session_term, term_number, module_number, course_type")
+      .select("id, file_url, signed_file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, session_year, session_term, term_number, module_number, course_type")
       .eq("id", documentId)
       .single();
     if (docErr || !doc) return json({ error: "Document not found" }, 404);
@@ -60,17 +60,21 @@ Deno.serve(async (req) => {
     }
     if (!allowed) return json({ error: "Forbidden" }, 403);
 
-    if (doc.gdrive_file_id) {
+    if (doc.gdrive_file_id && !replace) {
       // Already mirrored — return cached info
       return json({ fileId: doc.gdrive_file_id, alreadyMirrored: true });
     }
 
-    // Extract storage path from public URL
-    const fileUrl = doc.file_url as string;
+    // Mirror the FINAL (signed) rendition when one exists, else the original.
+    const fileUrl = (doc.signed_file_url || doc.file_url) as string;
     const marker = "/object/public/documents/";
     const idx = fileUrl.indexOf(marker);
     let storagePath: string | null = null;
     if (idx >= 0) storagePath = decodeURIComponent(fileUrl.substring(idx + marker.length));
+    if (!storagePath && !/^https?:\/\//i.test(fileUrl)) {
+      // Bare storage path (private bucket default)
+      storagePath = fileUrl.replace(/^\/+/, "");
+    }
     if (!storagePath) {
       // Try sign route
       const m2 = fileUrl.indexOf("/object/sign/documents/");
@@ -84,21 +88,16 @@ Deno.serve(async (req) => {
     const bytes = new Uint8Array(await blob.arrayBuffer());
 
     // Resolve (or create) the organised Drive folder tree:
-    //   EDMS / <Session> / <Department> / <Term or Module> / <PF - Trainer name>
+    //   EDMS / <Session> / <Department> / <PF - Trainer name>
     const { data: trainerProfile } = await admin
       .from("profiles").select("full_name, pf_number").eq("user_id", doc.trainer_id).maybeSingle();
     const trainerFolder = [
       (trainerProfile?.pf_number || "").toString().trim(),
       (trainerProfile?.full_name || "Unknown Trainer").toString().trim(),
     ].filter(Boolean).join(" - ");
-    const stageFolder = doc.course_type === "MODULAR" && doc.module_number
-      ? `Module ${doc.module_number}`
-      : doc.term_number ? `Term ${doc.term_number}` : "Unspecified stage";
-
     const segments = [
       `${doc.session_year ?? "Unknown"}_${doc.session_term ?? "Session"}`,
       doc.department || "Unspecified department",
-      stageFolder,
       trainerFolder,
     ];
 
@@ -136,16 +135,21 @@ Deno.serve(async (req) => {
     let lastErr = "";
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
+        const existingId = replace ? (doc.gdrive_file_id as string | null) : null;
         const resp = await fetch(
-          `${GATEWAY}/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink`,
+          existingId
+            ? `${GATEWAY}/upload/drive/v3/files/${existingId}?uploadType=media&fields=id,webViewLink`
+            : `${GATEWAY}/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink`,
           {
-            method: "POST",
+            method: existingId ? "PATCH" : "POST",
             headers: {
               "Authorization": `Bearer ${lovableKey}`,
               "X-Connection-Api-Key": gdriveKey,
-              "Content-Type": `multipart/related; boundary=${boundary}`,
+              "Content-Type": existingId
+                ? String(meta.mimeType)
+                : `multipart/related; boundary=${boundary}`,
             },
-            body,
+            body: existingId ? bytes : body,
           },
         );
         if (!resp.ok) {
