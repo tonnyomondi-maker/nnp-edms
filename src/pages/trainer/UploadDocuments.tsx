@@ -405,6 +405,7 @@ export default function UploadDocuments() {
         termNumber: courseType === 'MODULAR' ? null : termNumber,
         courseType,
         moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
+        courseId: courseId || null,
       });
       setStage(entry.id, { stage: 'storage_ok', documentId: submitted.id, stageMessage: 'Uploaded — mirroring…' });
       // Mirror in the same loop so the user sees Drive status before navigating away.
@@ -466,6 +467,7 @@ export default function UploadDocuments() {
         term_number: courseType === 'MODULAR' ? null : termNumber,
         course_type: courseType,
         module_number: courseType === 'MODULAR' ? moduleNumber : null,
+        course_id: courseId || null,
       });
 
       let success = 0;
@@ -648,11 +650,20 @@ export default function UploadDocuments() {
 
       <Card className="mb-4">
         <CardContent className="p-4 space-y-3">
-          <Label className="text-sm font-medium">Files (PDF)</Label>
+          <Label className="text-sm font-medium">Files (PDF only)</Label>
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <div>
+              <strong>Word files (.doc / .docx) are rejected.</strong> Only PDFs can carry the HOD, IQA and
+              DP Academics signatures and stamps. In Word use <em>File → Save As / Export → PDF</em>
+              {' '}(or print to “Microsoft Print to PDF”), then upload the PDF here.
+            </div>
+          </div>
           <label className="block cursor-pointer">
             <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors">
               <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Tap to add one or more PDFs</p>
+
               <input
                 type="file"
                 accept=".pdf"
