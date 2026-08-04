@@ -10,6 +10,7 @@ export interface UnitSessionConfigRow {
   unit_code: string;
   unit_name: string | null;
   class_code: string | null;
+  course_id: string | null;
   session_year: number;
   session_term: SessionTerm;
   sessions_per_week: number;
@@ -48,6 +49,7 @@ export function useUpsertUnitConfig() {
       unit_code: string;
       unit_name?: string;
       class_code?: string;
+      course_id?: string | null;
       session_year: number;
       session_term: SessionTerm;
       sessions_per_week: number;
