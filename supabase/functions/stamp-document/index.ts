@@ -30,6 +30,58 @@ interface StampRequest {
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
 const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "IQA Review", DP: "DP Academics", IQA: "IQA Archival" };
+const STAGE_TITLE: Record<string, string> = {
+  HOD: "1. VERIFIED BY HEAD OF DEPARTMENT",
+  IQA_REVIEW: "2. REVIEWED BY INTERNAL QUALITY ASSURANCE",
+  DP: "3. APPROVED BY DEPUTY PRINCIPAL — ACADEMICS",
+  IQA: "4. ARCHIVED BY INTERNAL QUALITY ASSURANCE",
+};
+const STAGE_SLOT: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
+const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
+
+/**
+ * Returns the dedicated approval sheet appended at the end of the document,
+ * creating it on first use. The sheet is marked in the PDF subject so later
+ * approval stages reuse the same page instead of appending a new one — this
+ * keeps all four signatures ordered and evenly spaced without the approver
+ * ever having to open the document.
+ */
+// deno-lint-ignore no-explicit-any
+function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any) {
+  const marked = (pdfDoc.getSubject() || "").includes(SHEET_MARKER);
+  const pages = pdfDoc.getPages();
+  if (marked && pages.length > 0) return pages[pages.length - 1];
+
+  const page = pdfDoc.addPage([595.28, 841.89]);
+  const { width, height } = page.getSize();
+  page.drawText("DOCUMENT APPROVAL & VERIFICATION SHEET", {
+    x: 40, y: height - 60, size: 14, font: bold, color: rgb(0.1, 0.25, 0.5),
+  });
+  page.drawText(
+    "System-generated. Each stage below is signed in order by the responsible officer.",
+    { x: 40, y: height - 76, size: 8, font: regular, color: rgb(0.35, 0.35, 0.35) },
+  );
+  page.drawLine({
+    start: { x: 40, y: height - 86 }, end: { x: width - 40, y: height - 86 },
+    thickness: 1, color: rgb(0.1, 0.25, 0.5),
+  });
+  pdfDoc.setSubject(`${pdfDoc.getSubject() || ""} ${SHEET_MARKER}`.trim());
+  return page;
+}
+
+/** Y coordinate of the bottom of a stage slot on the approval sheet. */
+// deno-lint-ignore no-explicit-any
+function slotBox(page: any, stage: string) {
+  const { width, height } = page.getSize();
+  const top = height - 110;
+  const slotH = 155;
+  const gap = 14;
+  const idx = STAGE_SLOT[stage] ?? 0;
+  const y = top - (idx + 1) * slotH - idx * gap;
+  return { x: 40, y, w: width - 80, h: slotH };
+}
+
+
 
 
 function parseStorageRef(value: string, defaultBucket = "documents"): { bucket: string; path: string } | null {
