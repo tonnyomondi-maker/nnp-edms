@@ -270,30 +270,29 @@ Deno.serve(async (req) => {
       : (doc.archived_at ?? null);
     const stageDate = stageDateIso ? new Date(stageDateIso) : new Date();
 
-    // Text-only quick approval: draw a labelled text block, skip signature/stamp images
+    // Text-only quick approval: write the stage block on the shared approval sheet
     if (mode === "TEXT_ONLY") {
-      const pages = pdfDoc.getPages();
-      const lastPage = pages[pages.length - 1];
-      const { width } = lastPage.getSize();
-      const stageLabel = stage === "HOD"
-        ? "VERIFIED BY HOD"
-        : stage === "IQA_REVIEW"
-          ? "REVIEWED BY IQA"
-          : stage === "DP"
-            ? "APPROVED BY DP ACADEMICS"
-            : "ARCHIVED BY IQA";
-      const stageOffset: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
-      const baseY = 60 + stageOffset[stage] * 70;
-      const boxX = 40, boxW = Math.min(360, width - 80), boxH = 56;
-      lastPage.drawRectangle({
-        x: boxX, y: baseY, width: boxW, height: boxH,
-        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1.2,
-        color: rgb(0.95, 0.97, 1), opacity: 0.85,
+      const sheet = ensureApprovalSheet(pdfDoc, helvBold, helv);
+      const box = slotBox(sheet, stage);
+      sheet.drawRectangle({
+        x: box.x, y: box.y, width: box.w, height: box.h,
+        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
+        color: rgb(0.96, 0.98, 1), opacity: 0.9,
       });
-      lastPage.drawText(stageLabel, { x: boxX + 10, y: baseY + boxH - 16, size: 11, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
-      lastPage.drawText(`Name: ${approverName || "—"}`, { x: boxX + 10, y: baseY + boxH - 30, size: 9, font: helv });
-      lastPage.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: boxX + 10, y: baseY + boxH - 42, size: 9, font: helv });
-      lastPage.drawText(`Timestamp: ${stageDate.toLocaleString()}`, { x: boxX + 10, y: baseY + boxH - 52, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
+      let ty = box.y + box.h - 20;
+      sheet.drawText(STAGE_TITLE[stage], { x: box.x + 14, y: ty, size: 10, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
+      ty -= 22;
+      sheet.drawText(`Name: ${approverName || "—"}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+      ty -= 16;
+      sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+      ty -= 16;
+      sheet.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+      ty -= 16;
+      sheet.drawText(`Timestamp: ${stageDate.toLocaleString()}`, { x: box.x + 14, y: ty, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
+      sheet.drawText("Approved electronically in the EDMS — no wet signature supplied for this stage.", {
+        x: box.x + 14, y: box.y + 12, size: 7, font: helv, color: rgb(0.45, 0.45, 0.45),
+      });
+
 
       const stampedBytes = await pdfDoc.save();
       const newPath = `${doc.trainer_id}/${doc.assignment_id || "unassigned"}/stamped_${stage}_${Date.now()}.pdf`;
