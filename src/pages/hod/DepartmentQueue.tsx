@@ -61,9 +61,16 @@ export default function DepartmentQueue() {
   }, [baseQueue, termInitialized]);
 
   const counts = useMemo(() => termCounts(baseQueue), [baseQueue]);
-  const termFiltered = useMemo(() => filterByTerm(baseQueue, termFilter), [baseQueue, termFilter]);
+  const byCourse = useMemo(
+    () => (courseFilter === 'ALL'
+      ? baseQueue
+      : baseQueue.filter((d) => (d as unknown as { course_id?: string | null }).course_id === courseFilter)),
+    [baseQueue, courseFilter],
+  );
+  const termFiltered = useMemo(() => filterByTerm(byCourse, termFilter), [byCourse, termFilter]);
   const filteredQueue = useMemo(() => applyQueueFilter(termFiltered, filter), [termFiltered, filter]);
   const myFiltered = useMemo(() => applyQueueFilter(filterByTerm(myActioned, termFilter), { ...filter, status: 'ALL' }), [myActioned, termFilter, filter]);
+
 
   const canActOn = (status: string) => status === 'SUBMITTED';
 
