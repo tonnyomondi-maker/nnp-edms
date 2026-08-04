@@ -378,33 +378,53 @@ Deno.serve(async (req) => {
         }
       }
     } else {
-      const lastPage = pages[pages.length - 1];
-      const stageOffset: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
-      const offsetY = stageOffset[stage] * 110;
+      // No custom placement (typical for bulk approvals): render the stage on
+      // the shared, ordered approval sheet appended at the end of the PDF.
+      const sheet = ensureApprovalSheet(pdfDoc, helvBold, helv);
+      const box = slotBox(sheet, stage);
+      sheet.drawRectangle({
+        x: box.x, y: box.y, width: box.w, height: box.h,
+        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
+        color: rgb(0.98, 0.99, 1), opacity: 0.9,
+      });
+      sheet.drawText(STAGE_TITLE[stage], {
+        x: box.x + 14, y: box.y + box.h - 20, size: 10, font: helvBold, color: rgb(0.1, 0.25, 0.5),
+      });
+
       const sigDims = sigImage.scaleToFit(SIG_W, SIG_H);
       const stampDims = stampImage ? stampImage.scaleToFit(STAMP_W, STAMP_H) : { width: STAMP_W, height: STAMP_H };
-      const baseY = 60 + offsetY;
-      lastPage.drawText(`${STAGE_LABEL[stage]} APPROVAL${autofill ? ` — ${approverName}` : ''}`, { x: 40, y: baseY + 95, size: 9, font: helvBold });
+      const sigX = box.x + 14;
+      const sigY = box.y + 52;
+      const lineY = sigY - 4;
+
       if (autofill) {
-        lastPage.drawImage(sigImage, { x: 40, y: baseY + 40, width: sigDims.width, height: sigDims.height });
+        sheet.drawImage(sigImage, { x: sigX, y: sigY, width: sigDims.width, height: sigDims.height });
+        sheet.drawLine({ start: { x: sigX, y: lineY }, end: { x: sigX + Math.max(sigDims.width, 160), y: lineY }, thickness: 0.6 });
+        sheet.drawText(`Name: ${approverName}`, { x: sigX, y: lineY - 14, size: 9, font: helv });
+        sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: sigX, y: lineY - 27, size: 9, font: helv });
+        sheet.drawText(`Date: ${stageDate.toLocaleDateString()} · ${stageDate.toLocaleTimeString()}`, {
+          x: sigX, y: lineY - 40, size: 7.5, font: helv, color: rgb(0.35, 0.35, 0.35),
+        });
         if (stampImage) {
-          lastPage.drawImage(stampImage, { x: 200, y: baseY + 10, width: stampDims.width, height: stampDims.height });
+          sheet.drawImage(stampImage, {
+            x: box.x + box.w - stampDims.width - 24,
+            y: box.y + 22,
+            width: stampDims.width,
+            height: stampDims.height,
+          });
         }
-        lastPage.drawLine({ start: { x: 40, y: baseY + 38 }, end: { x: 40 + sigDims.width, y: baseY + 38 }, thickness: 0.5 });
-        lastPage.drawText(`Name: ${approverName}`, { x: 40, y: baseY + 28, size: 8, font: helv });
-        lastPage.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: 40, y: baseY + 18, size: 8, font: helv });
-        lastPage.drawText(`Signed: ${stageDate.toLocaleString()}`, { x: 40, y: baseY + 8, size: 7, font: helv });
       } else {
-        lastPage.drawText('Name: __________________________', { x: 40, y: baseY + 75, size: 9, font: helv });
-        lastPage.drawText('Sign: __________________________', { x: 40, y: baseY + 55, size: 9, font: helv });
-        lastPage.drawText('Date: __________________________', { x: 40, y: baseY + 35, size: 9, font: helv });
+        sheet.drawText('Sign: ______________________________', { x: sigX, y: box.y + box.h - 55, size: 9, font: helv });
+        sheet.drawText('Name: ______________________________', { x: sigX, y: box.y + box.h - 78, size: 9, font: helv });
+        sheet.drawText('Date: ______________________________', { x: sigX, y: box.y + box.h - 101, size: 9, font: helv });
         if (stampImage) {
-          const cx = 240, cy = baseY + 50;
-          lastPage.drawCircle({ x: cx, y: cy, size: 35, borderWidth: 1, borderColor: rgb(0.3, 0.3, 0.3) });
-          lastPage.drawText('STAMP', { x: cx - 14, y: cy - 3, size: 8, font: helvBold, color: rgb(0.4, 0.4, 0.4) });
+          const cx = box.x + box.w - 70, cy = box.y + box.h / 2;
+          sheet.drawCircle({ x: cx, y: cy, size: 35, borderWidth: 1, borderColor: rgb(0.3, 0.3, 0.3) });
+          sheet.drawText('STAMP', { x: cx - 14, y: cy - 3, size: 8, font: helvBold, color: rgb(0.4, 0.4, 0.4) });
         }
       }
     }
+
 
     const stampedBytes = await pdfDoc.save();
 
