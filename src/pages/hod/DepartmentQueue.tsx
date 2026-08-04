@@ -15,7 +15,9 @@ import { BulkSignButton } from '@/components/common/BulkSignButton';
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
+import { useCourses } from '@/hooks/useCourses';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl';
@@ -35,6 +37,8 @@ export default function DepartmentQueue() {
   const [termInitialized, setTermInitialized] = useState(false);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'SUBMITTED' });
   const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
+  const [courseFilter, setCourseFilter] = useState<string>('ALL');
+  const { data: deptCourses = [] } = useCourses(currentUser?.department || null);
 
   // Clear selection if user switches away from HOD role mid-session
   useEffect(() => { if (!canAct) setSelected(new Set()); }, [canAct, activeRole]);
@@ -57,9 +61,16 @@ export default function DepartmentQueue() {
   }, [baseQueue, termInitialized]);
 
   const counts = useMemo(() => termCounts(baseQueue), [baseQueue]);
-  const termFiltered = useMemo(() => filterByTerm(baseQueue, termFilter), [baseQueue, termFilter]);
+  const byCourse = useMemo(
+    () => (courseFilter === 'ALL'
+      ? baseQueue
+      : baseQueue.filter((d) => (d as unknown as { course_id?: string | null }).course_id === courseFilter)),
+    [baseQueue, courseFilter],
+  );
+  const termFiltered = useMemo(() => filterByTerm(byCourse, termFilter), [byCourse, termFilter]);
   const filteredQueue = useMemo(() => applyQueueFilter(termFiltered, filter), [termFiltered, filter]);
   const myFiltered = useMemo(() => applyQueueFilter(filterByTerm(myActioned, termFilter), { ...filter, status: 'ALL' }), [myActioned, termFilter, filter]);
+
 
   const canActOn = (status: string) => status === 'SUBMITTED';
 
@@ -153,9 +164,19 @@ export default function DepartmentQueue() {
         </div>
       )}
       <div className="mb-3 flex flex-wrap justify-end gap-2">
+        <Select value={courseFilter} onValueChange={setCourseFilter}>
+          <SelectTrigger className="h-8 w-[190px] text-xs"><SelectValue placeholder="All courses" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All courses</SelectItem>
+            {deptCourses.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.code} — {c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <GroupByControl value={groupBy} onChange={setGroupBy} />
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
+
       <Tabs defaultValue="queue">
         <TabsList className="w-full mb-3">
           <TabsTrigger value="queue" className="flex-1">Queue ({filteredQueue.length})</TabsTrigger>

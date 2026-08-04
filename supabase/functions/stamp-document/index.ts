@@ -30,6 +30,58 @@ interface StampRequest {
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
 const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "IQA Review", DP: "DP Academics", IQA: "IQA Archival" };
+const STAGE_TITLE: Record<string, string> = {
+  HOD: "1. VERIFIED BY HEAD OF DEPARTMENT",
+  IQA_REVIEW: "2. REVIEWED BY INTERNAL QUALITY ASSURANCE",
+  DP: "3. APPROVED BY DEPUTY PRINCIPAL — ACADEMICS",
+  IQA: "4. ARCHIVED BY INTERNAL QUALITY ASSURANCE",
+};
+const STAGE_SLOT: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
+const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
+
+/**
+ * Returns the dedicated approval sheet appended at the end of the document,
+ * creating it on first use. The sheet is marked in the PDF subject so later
+ * approval stages reuse the same page instead of appending a new one — this
+ * keeps all four signatures ordered and evenly spaced without the approver
+ * ever having to open the document.
+ */
+// deno-lint-ignore no-explicit-any
+function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any) {
+  const marked = (pdfDoc.getSubject() || "").includes(SHEET_MARKER);
+  const pages = pdfDoc.getPages();
+  if (marked && pages.length > 0) return pages[pages.length - 1];
+
+  const page = pdfDoc.addPage([595.28, 841.89]);
+  const { width, height } = page.getSize();
+  page.drawText("DOCUMENT APPROVAL & VERIFICATION SHEET", {
+    x: 40, y: height - 60, size: 14, font: bold, color: rgb(0.1, 0.25, 0.5),
+  });
+  page.drawText(
+    "System-generated. Each stage below is signed in order by the responsible officer.",
+    { x: 40, y: height - 76, size: 8, font: regular, color: rgb(0.35, 0.35, 0.35) },
+  );
+  page.drawLine({
+    start: { x: 40, y: height - 86 }, end: { x: width - 40, y: height - 86 },
+    thickness: 1, color: rgb(0.1, 0.25, 0.5),
+  });
+  pdfDoc.setSubject(`${pdfDoc.getSubject() || ""} ${SHEET_MARKER}`.trim());
+  return page;
+}
+
+/** Y coordinate of the bottom of a stage slot on the approval sheet. */
+// deno-lint-ignore no-explicit-any
+function slotBox(page: any, stage: string) {
+  const { width, height } = page.getSize();
+  const top = height - 110;
+  const slotH = 155;
+  const gap = 14;
+  const idx = STAGE_SLOT[stage] ?? 0;
+  const y = top - (idx + 1) * slotH - idx * gap;
+  return { x: 40, y, w: width - 80, h: slotH };
+}
+
+
 
 
 function parseStorageRef(value: string, defaultBucket = "documents"): { bucket: string; path: string } | null {
@@ -218,30 +270,29 @@ Deno.serve(async (req) => {
       : (doc.archived_at ?? null);
     const stageDate = stageDateIso ? new Date(stageDateIso) : new Date();
 
-    // Text-only quick approval: draw a labelled text block, skip signature/stamp images
+    // Text-only quick approval: write the stage block on the shared approval sheet
     if (mode === "TEXT_ONLY") {
-      const pages = pdfDoc.getPages();
-      const lastPage = pages[pages.length - 1];
-      const { width } = lastPage.getSize();
-      const stageLabel = stage === "HOD"
-        ? "VERIFIED BY HOD"
-        : stage === "IQA_REVIEW"
-          ? "REVIEWED BY IQA"
-          : stage === "DP"
-            ? "APPROVED BY DP ACADEMICS"
-            : "ARCHIVED BY IQA";
-      const stageOffset: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
-      const baseY = 60 + stageOffset[stage] * 70;
-      const boxX = 40, boxW = Math.min(360, width - 80), boxH = 56;
-      lastPage.drawRectangle({
-        x: boxX, y: baseY, width: boxW, height: boxH,
-        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1.2,
-        color: rgb(0.95, 0.97, 1), opacity: 0.85,
+      const sheet = ensureApprovalSheet(pdfDoc, helvBold, helv);
+      const box = slotBox(sheet, stage);
+      sheet.drawRectangle({
+        x: box.x, y: box.y, width: box.w, height: box.h,
+        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
+        color: rgb(0.96, 0.98, 1), opacity: 0.9,
       });
-      lastPage.drawText(stageLabel, { x: boxX + 10, y: baseY + boxH - 16, size: 11, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
-      lastPage.drawText(`Name: ${approverName || "—"}`, { x: boxX + 10, y: baseY + boxH - 30, size: 9, font: helv });
-      lastPage.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: boxX + 10, y: baseY + boxH - 42, size: 9, font: helv });
-      lastPage.drawText(`Timestamp: ${stageDate.toLocaleString()}`, { x: boxX + 10, y: baseY + boxH - 52, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
+      let ty = box.y + box.h - 20;
+      sheet.drawText(STAGE_TITLE[stage], { x: box.x + 14, y: ty, size: 10, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
+      ty -= 22;
+      sheet.drawText(`Name: ${approverName || "—"}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+      ty -= 16;
+      sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+      ty -= 16;
+      sheet.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+      ty -= 16;
+      sheet.drawText(`Timestamp: ${stageDate.toLocaleString()}`, { x: box.x + 14, y: ty, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
+      sheet.drawText("Approved electronically in the EDMS — no wet signature supplied for this stage.", {
+        x: box.x + 14, y: box.y + 12, size: 7, font: helv, color: rgb(0.45, 0.45, 0.45),
+      });
+
 
       const stampedBytes = await pdfDoc.save();
       const newPath = `${doc.trainer_id}/${doc.assignment_id || "unassigned"}/stamped_${stage}_${Date.now()}.pdf`;
@@ -327,33 +378,53 @@ Deno.serve(async (req) => {
         }
       }
     } else {
-      const lastPage = pages[pages.length - 1];
-      const stageOffset: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
-      const offsetY = stageOffset[stage] * 110;
+      // No custom placement (typical for bulk approvals): render the stage on
+      // the shared, ordered approval sheet appended at the end of the PDF.
+      const sheet = ensureApprovalSheet(pdfDoc, helvBold, helv);
+      const box = slotBox(sheet, stage);
+      sheet.drawRectangle({
+        x: box.x, y: box.y, width: box.w, height: box.h,
+        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
+        color: rgb(0.98, 0.99, 1), opacity: 0.9,
+      });
+      sheet.drawText(STAGE_TITLE[stage], {
+        x: box.x + 14, y: box.y + box.h - 20, size: 10, font: helvBold, color: rgb(0.1, 0.25, 0.5),
+      });
+
       const sigDims = sigImage.scaleToFit(SIG_W, SIG_H);
       const stampDims = stampImage ? stampImage.scaleToFit(STAMP_W, STAMP_H) : { width: STAMP_W, height: STAMP_H };
-      const baseY = 60 + offsetY;
-      lastPage.drawText(`${STAGE_LABEL[stage]} APPROVAL${autofill ? ` — ${approverName}` : ''}`, { x: 40, y: baseY + 95, size: 9, font: helvBold });
+      const sigX = box.x + 14;
+      const sigY = box.y + 52;
+      const lineY = sigY - 4;
+
       if (autofill) {
-        lastPage.drawImage(sigImage, { x: 40, y: baseY + 40, width: sigDims.width, height: sigDims.height });
+        sheet.drawImage(sigImage, { x: sigX, y: sigY, width: sigDims.width, height: sigDims.height });
+        sheet.drawLine({ start: { x: sigX, y: lineY }, end: { x: sigX + Math.max(sigDims.width, 160), y: lineY }, thickness: 0.6 });
+        sheet.drawText(`Name: ${approverName}`, { x: sigX, y: lineY - 14, size: 9, font: helv });
+        sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: sigX, y: lineY - 27, size: 9, font: helv });
+        sheet.drawText(`Date: ${stageDate.toLocaleDateString()} · ${stageDate.toLocaleTimeString()}`, {
+          x: sigX, y: lineY - 40, size: 7.5, font: helv, color: rgb(0.35, 0.35, 0.35),
+        });
         if (stampImage) {
-          lastPage.drawImage(stampImage, { x: 200, y: baseY + 10, width: stampDims.width, height: stampDims.height });
+          sheet.drawImage(stampImage, {
+            x: box.x + box.w - stampDims.width - 24,
+            y: box.y + 22,
+            width: stampDims.width,
+            height: stampDims.height,
+          });
         }
-        lastPage.drawLine({ start: { x: 40, y: baseY + 38 }, end: { x: 40 + sigDims.width, y: baseY + 38 }, thickness: 0.5 });
-        lastPage.drawText(`Name: ${approverName}`, { x: 40, y: baseY + 28, size: 8, font: helv });
-        lastPage.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: 40, y: baseY + 18, size: 8, font: helv });
-        lastPage.drawText(`Signed: ${stageDate.toLocaleString()}`, { x: 40, y: baseY + 8, size: 7, font: helv });
       } else {
-        lastPage.drawText('Name: __________________________', { x: 40, y: baseY + 75, size: 9, font: helv });
-        lastPage.drawText('Sign: __________________________', { x: 40, y: baseY + 55, size: 9, font: helv });
-        lastPage.drawText('Date: __________________________', { x: 40, y: baseY + 35, size: 9, font: helv });
+        sheet.drawText('Sign: ______________________________', { x: sigX, y: box.y + box.h - 55, size: 9, font: helv });
+        sheet.drawText('Name: ______________________________', { x: sigX, y: box.y + box.h - 78, size: 9, font: helv });
+        sheet.drawText('Date: ______________________________', { x: sigX, y: box.y + box.h - 101, size: 9, font: helv });
         if (stampImage) {
-          const cx = 240, cy = baseY + 50;
-          lastPage.drawCircle({ x: cx, y: cy, size: 35, borderWidth: 1, borderColor: rgb(0.3, 0.3, 0.3) });
-          lastPage.drawText('STAMP', { x: cx - 14, y: cy - 3, size: 8, font: helvBold, color: rgb(0.4, 0.4, 0.4) });
+          const cx = box.x + box.w - 70, cy = box.y + box.h / 2;
+          sheet.drawCircle({ x: cx, y: cy, size: 35, borderWidth: 1, borderColor: rgb(0.3, 0.3, 0.3) });
+          sheet.drawText('STAMP', { x: cx - 14, y: cy - 3, size: 8, font: helvBold, color: rgb(0.4, 0.4, 0.4) });
         }
       }
     }
+
 
     const stampedBytes = await pdfDoc.save();
 

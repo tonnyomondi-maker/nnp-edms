@@ -8,6 +8,7 @@ import { FileText, Clock, CheckCircle2, XCircle, Archive, Users, BookOpen, Loade
 import { Link } from 'react-router-dom';
 import { HodBlock, DpBlock, IqaBlock, SuperAdminBlock } from '@/components/dashboard/RoleDashboardBlocks';
 import { RoleGuideCard } from '@/components/common/RoleGuideCard';
+import { OnboardingChecklist } from '@/components/common/OnboardingChecklist';
 
 
 const roleInfo: Record<UserRole, { label: string; desc: string; icon: React.ReactNode }> = {
@@ -38,6 +39,7 @@ export default function Dashboard() {
     <div>
       <PageHeader title={`Welcome, ${currentUser.name.split(' ')[0]}`} subtitle={`${currentUser.department || ''} • ${currentUser.pfNumber || ''}`} />
 
+      <OnboardingChecklist />
       <RoleGuideCard />
 
 

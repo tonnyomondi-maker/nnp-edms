@@ -19,7 +19,9 @@ import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
 import { checkSubmissionWindow, useCurrentSession } from '@/hooks/useAcademicSession';
 
 import { supabase } from '@/integrations/supabase/client';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
+import { useCourses } from '@/hooks/useCourses';
+import { useProfileCompleteness } from '@/hooks/useProfileCompleteness';
 import {
   DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
@@ -83,6 +85,7 @@ export default function UploadDocuments() {
 
 
   const [department, setDepartment] = useState('');
+  const [courseId, setCourseId] = useState('');
   const [unitCode, setUnitCode] = useState('');
   const [unitName, setUnitName] = useState('');
   const [classCode, setClassCode] = useState('');
@@ -91,6 +94,7 @@ export default function UploadDocuments() {
   const [termNumber, setTermNumber] = useState<number>(1);
   const [moduleNumber, setModuleNumber] = useState<number>(1);
   const [files, setFiles] = useState<FileEntry[]>([]);
+
 
   // --- Resume across page reloads ---
   const resume = useUploadResume();
@@ -189,12 +193,20 @@ export default function UploadDocuments() {
       setClassCode(cfg.class_code || '');
       setSessionsPerWeek(cfg.sessions_per_week);
       setDepartment(cfg.department);
+      setCourseId(cfg.course_id ?? '');
       const ct = (cfg.course_type as CourseType) || 'CYCLE';
       setCourseType(ct);
       if (ct === 'MODULAR' && cfg.module_number) setModuleNumber(cfg.module_number);
       if (ct !== 'MODULAR' && cfg.term_number) setTermNumber(cfg.term_number);
     }
   }
+
+  const { data: deptCourses = [] } = useCourses(department || null);
+  const courseName = useMemo(() => {
+    const c = deptCourses.find((x) => x.id === courseId);
+    return c ? `${c.code} — ${c.name}` : null;
+  }, [deptCourses, courseId]);
+
 
   const previousUnits = useMemo(() => {
     const map = new Map<string, { code: string; name: string | null; class_code: string | null }>();
@@ -206,10 +218,20 @@ export default function UploadDocuments() {
     if (!newFiles) return;
     const valid: FileEntry[] = [];
     Array.from(newFiles).forEach((f) => {
-      if (f.type !== 'application/pdf') {
-        toast({ title: 'Skipped', description: `${f.name} is not a PDF`, variant: 'destructive' });
+      const isWord = /\.docx?$/i.test(f.name) || f.type.includes('word') || f.type.includes('officedocument.wordprocessing');
+      if (isWord) {
+        toast({
+          title: 'Word files are not accepted',
+          description: `${f.name} is a .doc/.docx file. In Word choose File → Save As / Export → PDF (or print to PDF) and upload the PDF instead.`,
+          variant: 'destructive',
+        });
         return;
       }
+      if (f.type !== 'application/pdf') {
+        toast({ title: 'Skipped', description: `${f.name} is not a PDF. Only PDF files can be signed and stamped.`, variant: 'destructive' });
+        return;
+      }
+
       valid.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file: f,
@@ -295,21 +317,24 @@ export default function UploadDocuments() {
   const { writesBlocked, lock_active, lock_reason } = useSystemLock();
   const guard = useRoleGuard();
   const canUpload = guard.canUploadAsTrainer();
+  const profile = useProfileCompleteness();
+  const profileBlocked = !profile.loading && !profile.complete;
 
   const headerValid = department && unitCode && classCode && (!hasWeeklyType || sessionsPerWeek >= 1);
   const fileErrors = files.map((f) => ({ id: f.id, error: validateFile(f) }));
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
   const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
-  const canSubmit = headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked;
+  const canSubmit = headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked && !profileBlocked;
 
   const submitReasons = useMemo(() => {
     const r: string[] = [];
     if (!canUpload) r.push('Your active role can\'t upload documents. Switch to Trainer.');
+    if (profileBlocked) r.push(`Complete your profile first — missing ${profile.missing.join(', ')}.`);
     if (writesBlocked) r.push(`System is locked${lock_reason ? `: ${lock_reason}` : ''}. Writes are disabled.`);
     if (!headerValid) {
       const missing: string[] = [];
+      if (!unitCode) missing.push('unit');
       if (!department) missing.push('department');
-      if (!unitCode) missing.push('unit code');
       if (!classCode) missing.push('class code');
       if (hasWeeklyType && sessionsPerWeek < 1) missing.push('sessions per week');
       r.push(`Fill required header fields: ${missing.join(', ')}.`);
@@ -322,7 +347,8 @@ export default function UploadDocuments() {
     if (anyInFlight) r.push('Wait for in-flight uploads to finish.');
     if (submitDoc.isPending) r.push('Submission in progress…');
     return r;
-  }, [canUpload, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
+  }, [canUpload, profileBlocked, profile.missing, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
+
 
   function setStage(id: string, patch: Partial<FileEntry>) {
     setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
@@ -379,6 +405,7 @@ export default function UploadDocuments() {
         termNumber: courseType === 'MODULAR' ? null : termNumber,
         courseType,
         moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
+        courseId: courseId || null,
       });
       setStage(entry.id, { stage: 'storage_ok', documentId: submitted.id, stageMessage: 'Uploaded — mirroring…' });
       // Mirror in the same loop so the user sees Drive status before navigating away.
@@ -440,6 +467,7 @@ export default function UploadDocuments() {
         term_number: courseType === 'MODULAR' ? null : termNumber,
         course_type: courseType,
         module_number: courseType === 'MODULAR' ? moduleNumber : null,
+        course_id: courseId || null,
       });
 
       let success = 0;
@@ -479,6 +507,17 @@ export default function UploadDocuments() {
         title="Upload Documents"
         subtitle={sessionLabel(sessionYear, sessionTerm)}
       />
+
+      {profileBlocked && (
+        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-xs p-3 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <div>
+            <strong>Complete your profile before uploading.</strong> Missing: {profile.missing.join(', ')}.{' '}
+            <Link to="/profile" className="underline font-medium">Update profile</Link> — every document and
+            approval record is keyed to these details.
+          </div>
+        </div>
+      )}
 
       {(!canUpload || writesBlocked) && (
         <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs p-3 flex items-start gap-2">
@@ -535,52 +574,41 @@ export default function UploadDocuments() {
 
 
             <div>
-              <Label className="text-sm font-medium">Department</Label>
-              <Select value={department} onValueChange={setDepartment}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select department" /></SelectTrigger>
+              <Label className="text-sm font-medium">Unit</Label>
+              <Select value={unitCode} onValueChange={(v) => { setUnitCode(v); applyConfig(v); }}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder={configs.length ? 'Select one of your units' : 'No units keyed in yet'} />
+                </SelectTrigger>
                 <SelectContent>
-                  {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  {configs.map((c) => (
+                    <SelectItem key={c.id} value={c.unit_code}>
+                      {c.unit_name ? `${c.unit_name} — ${c.unit_code}` : c.unit_code}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {configs.length === 0 ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                  You have not keyed in any units for this session.{' '}
+                  <Link to="/teaching" className="underline font-medium">Add your units first</Link>.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Only units you keyed in under <Link to="/teaching" className="underline">My Units</Link> for this session are listed.
+                </p>
+              )}
             </div>
 
             <div>
-              <Label className="text-sm font-medium">Unit Code</Label>
-              <Input
-                list="unit-codes"
-                value={unitCode}
-                onChange={(e) => {
-                  setUnitCode(e.target.value);
-                  applyConfig(e.target.value);
-                }}
-                placeholder="e.g. ICT/CU/CS/CR/01/6"
-                className="mt-1.5"
-              />
-              <datalist id="unit-codes">
-                {previousUnits.map((u) => <option key={u.code} value={u.code}>{u.name || ''}</option>)}
-              </datalist>
-              <p className="text-xs text-muted-foreground mt-1">Type any unit you teach — no pre-assignment needed.</p>
+              <Label className="text-sm font-medium">Unit details</Label>
+              <div className="mt-1.5 rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-0.5">
+                <p><span className="text-muted-foreground">Department:</span> <strong>{department || '—'}</strong></p>
+                <p><span className="text-muted-foreground">Course:</span> <strong>{courseName || '—'}</strong></p>
+                <p><span className="text-muted-foreground">Class:</span> <strong>{classCode || '—'}</strong></p>
+                <p className="text-[11px] text-muted-foreground">Derived from the unit you selected. Edit it under My Units.</p>
+              </div>
             </div>
 
-            <div>
-              <Label className="text-sm font-medium">Unit Name</Label>
-              <Input
-                value={unitName}
-                onChange={(e) => setUnitName(e.target.value)}
-                placeholder="e.g. Computer Networks"
-                className="mt-1.5"
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Class Code</Label>
-              <Input
-                value={classCode}
-                onChange={(e) => setClassCode(e.target.value)}
-                placeholder="e.g. DICT 2A"
-                className="mt-1.5"
-              />
-            </div>
 
             <div>
               <Label className="text-sm font-medium">Course Type</Label>
@@ -633,11 +661,20 @@ export default function UploadDocuments() {
 
       <Card className="mb-4">
         <CardContent className="p-4 space-y-3">
-          <Label className="text-sm font-medium">Files (PDF)</Label>
+          <Label className="text-sm font-medium">Files (PDF only)</Label>
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <div>
+              <strong>Word files (.doc / .docx) are rejected.</strong> Only PDFs can carry the HOD, IQA and
+              DP Academics signatures and stamps. In Word use <em>File → Save As / Export → PDF</em>
+              {' '}(or print to “Microsoft Print to PDF”), then upload the PDF here.
+            </div>
+          </div>
           <label className="block cursor-pointer">
             <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors">
               <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Tap to add one or more PDFs</p>
+
               <input
                 type="file"
                 accept=".pdf"
