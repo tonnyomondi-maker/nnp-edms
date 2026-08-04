@@ -535,52 +535,41 @@ export default function UploadDocuments() {
 
 
             <div>
-              <Label className="text-sm font-medium">Department</Label>
-              <Select value={department} onValueChange={setDepartment}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select department" /></SelectTrigger>
+              <Label className="text-sm font-medium">Unit</Label>
+              <Select value={unitCode} onValueChange={(v) => { setUnitCode(v); applyConfig(v); }}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder={configs.length ? 'Select one of your units' : 'No units keyed in yet'} />
+                </SelectTrigger>
                 <SelectContent>
-                  {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  {configs.map((c) => (
+                    <SelectItem key={c.id} value={c.unit_code}>
+                      {c.unit_name ? `${c.unit_name} — ${c.unit_code}` : c.unit_code}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {configs.length === 0 ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                  You have not keyed in any units for this session.{' '}
+                  <Link to="/teaching" className="underline font-medium">Add your units first</Link>.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Only units you keyed in under <Link to="/teaching" className="underline">My Units</Link> for this session are listed.
+                </p>
+              )}
             </div>
 
             <div>
-              <Label className="text-sm font-medium">Unit Code</Label>
-              <Input
-                list="unit-codes"
-                value={unitCode}
-                onChange={(e) => {
-                  setUnitCode(e.target.value);
-                  applyConfig(e.target.value);
-                }}
-                placeholder="e.g. ICT/CU/CS/CR/01/6"
-                className="mt-1.5"
-              />
-              <datalist id="unit-codes">
-                {previousUnits.map((u) => <option key={u.code} value={u.code}>{u.name || ''}</option>)}
-              </datalist>
-              <p className="text-xs text-muted-foreground mt-1">Type any unit you teach — no pre-assignment needed.</p>
+              <Label className="text-sm font-medium">Unit details</Label>
+              <div className="mt-1.5 rounded-md border bg-muted/40 px-3 py-2 text-xs space-y-0.5">
+                <p><span className="text-muted-foreground">Department:</span> <strong>{department || '—'}</strong></p>
+                <p><span className="text-muted-foreground">Course:</span> <strong>{courseName || '—'}</strong></p>
+                <p><span className="text-muted-foreground">Class:</span> <strong>{classCode || '—'}</strong></p>
+                <p className="text-[11px] text-muted-foreground">Derived from the unit you selected. Edit it under My Units.</p>
+              </div>
             </div>
 
-            <div>
-              <Label className="text-sm font-medium">Unit Name</Label>
-              <Input
-                value={unitName}
-                onChange={(e) => setUnitName(e.target.value)}
-                placeholder="e.g. Computer Networks"
-                className="mt-1.5"
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Class Code</Label>
-              <Input
-                value={classCode}
-                onChange={(e) => setClassCode(e.target.value)}
-                placeholder="e.g. DICT 2A"
-                className="mt-1.5"
-              />
-            </div>
 
             <div>
               <Label className="text-sm font-medium">Course Type</Label>
