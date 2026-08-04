@@ -218,10 +218,20 @@ export default function UploadDocuments() {
     if (!newFiles) return;
     const valid: FileEntry[] = [];
     Array.from(newFiles).forEach((f) => {
-      if (f.type !== 'application/pdf') {
-        toast({ title: 'Skipped', description: `${f.name} is not a PDF`, variant: 'destructive' });
+      const isWord = /\.docx?$/i.test(f.name) || f.type.includes('word') || f.type.includes('officedocument.wordprocessing');
+      if (isWord) {
+        toast({
+          title: 'Word files are not accepted',
+          description: `${f.name} is a .doc/.docx file. In Word choose File → Save As / Export → PDF (or print to PDF) and upload the PDF instead.`,
+          variant: 'destructive',
+        });
         return;
       }
+      if (f.type !== 'application/pdf') {
+        toast({ title: 'Skipped', description: `${f.name} is not a PDF. Only PDF files can be signed and stamped.`, variant: 'destructive' });
+        return;
+      }
+
       valid.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file: f,
