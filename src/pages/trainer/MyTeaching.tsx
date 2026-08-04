@@ -1,29 +1,105 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BookOpen, ChevronRight, Loader2, Plus } from 'lucide-react';
+import { BookOpen, ChevronRight, Loader2, Plus, Save } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { useMyDocumentsBySession } from '@/hooks/useDocuments';
-import { useMyUnitConfigs } from '@/hooks/useUnitSessionConfig';
+import { useMyUnitConfigs, useUpsertUnitConfig } from '@/hooks/useUnitSessionConfig';
+import { useCourses } from '@/hooks/useCourses';
+import { useCurrentSession } from '@/hooks/useAcademicSession';
 import {
+  DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
   WEEKLY_DOC_TYPES,
+  COURSE_TYPES,
+  MODULE_NUMBERS,
   getCurrentSession,
   getSessionOptions,
+  sessionLabel,
   type SessionTerm,
+  type CourseType,
 } from '@/lib/sessions';
 
 export default function MyTeaching() {
+  const { currentUser } = useAuth();
   const current = getCurrentSession();
   const sessionOptions = useMemo(() => getSessionOptions(), []);
+  const { data: adminSession } = useCurrentSession();
   const [year, setYear] = useState<number>(current.year);
   const [term, setTerm] = useState<SessionTerm>(current.term);
 
+  useEffect(() => {
+    if (!adminSession) return;
+    setYear(adminSession.session_year);
+    setTerm(adminSession.session_term as SessionTerm);
+  }, [adminSession]);
+
   const { data: docs, isLoading } = useMyDocumentsBySession(year, term);
   const { data: configs = [] } = useMyUnitConfigs(year, term);
+  const upsertConfig = useUpsertUnitConfig();
+
+  // --- Add / edit a unit (course-linked) ---
+  const [showForm, setShowForm] = useState(false);
+  const [department, setDepartment] = useState(currentUser?.department || '');
+  const [courseId, setCourseId] = useState('');
+  const [unitCode, setUnitCode] = useState('');
+  const [unitName, setUnitName] = useState('');
+  const [classCode, setClassCode] = useState('');
+  const [sessionsPerWeek, setSessionsPerWeek] = useState(1);
+  const [courseType, setCourseType] = useState<CourseType>('CYCLE');
+  const [termNumber, setTermNumber] = useState(1);
+  const [moduleNumber, setModuleNumber] = useState(1);
+
+  const { data: courses = [] } = useCourses(department || null);
+
+  useEffect(() => {
+    if (!department && currentUser?.department) setDepartment(currentUser.department);
+  }, [currentUser?.department, department]);
+
+  const resetForm = () => {
+    setCourseId('');
+    setUnitCode('');
+    setUnitName('');
+    setClassCode('');
+    setSessionsPerWeek(1);
+    setCourseType('CYCLE');
+    setTermNumber(1);
+    setModuleNumber(1);
+  };
+
+  const saveUnit = async () => {
+    if (!department || !courseId || !unitCode.trim() || !unitName.trim() || !classCode.trim()) {
+      toast({ title: 'Missing details', description: 'Department, course, unit code, unit name and class code are all required.', variant: 'destructive' });
+      return;
+    }
+    try {
+      await upsertConfig.mutateAsync({
+        department,
+        course_id: courseId,
+        unit_code: unitCode.trim(),
+        unit_name: unitName.trim(),
+        class_code: classCode.trim(),
+        session_year: year,
+        session_term: term,
+        sessions_per_week: sessionsPerWeek,
+        course_type: courseType,
+        term_number: courseType === 'MODULAR' ? null : termNumber,
+        module_number: courseType === 'MODULAR' ? moduleNumber : null,
+      });
+      toast({ title: 'Unit saved', description: `${unitCode} is now available in the Upload tab.` });
+      resetForm();
+      setShowForm(false);
+    } catch (e) {
+      toast({ title: 'Could not save unit', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
+    }
+  };
 
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
@@ -35,17 +111,18 @@ export default function MyTeaching() {
     week_number: number | null;
   }>;
 
-  // Group docs by unit_code
+  const courseName = (id: string | null) => courses.find((c) => c.id === id)?.name || null;
+
   const unitMap = new Map<string, {
     unit_code: string;
     unit_name: string;
     class_code: string;
     sessionsPerWeek: number;
     termNumber: number | null;
+    course_id: string | null;
     docs: typeof allDocs;
   }>();
 
-  // Seed from configs (units the trainer has set up)
   configs.forEach((c) => {
     unitMap.set(c.unit_code, {
       unit_code: c.unit_code,
@@ -53,11 +130,11 @@ export default function MyTeaching() {
       class_code: c.class_code || '',
       sessionsPerWeek: c.sessions_per_week,
       termNumber: c.term_number,
+      course_id: c.course_id ?? null,
       docs: [],
     });
   });
 
-  // Add any docs whose unit isn't in configs
   allDocs.forEach((d) => {
     const code = (d.unit_code as string) || 'Unknown';
     if (!unitMap.has(code)) {
@@ -67,6 +144,7 @@ export default function MyTeaching() {
         class_code: (d.class_code as string) || '',
         sessionsPerWeek: (d.sessions_per_week as number) || 1,
         termNumber: (d.term_number as number) ?? null,
+        course_id: (d.course_id as string) ?? null,
         docs: [],
       });
     }
@@ -76,37 +154,130 @@ export default function MyTeaching() {
   const units = Array.from(unitMap.values()).sort((a, b) => a.unit_code.localeCompare(b.unit_code));
 
   return (
-    <div>
-      <PageHeader title="My Teaching" subtitle={`${units.length} unit(s) this session`} />
+    <div className="pb-8">
+      <PageHeader title="My Units" subtitle={`${sessionLabel(year, term)} • ${units.length} unit(s)`} />
 
       <div className="flex items-center gap-3 mb-4">
-        <Select
-          value={`${year}_${term}`}
-          onValueChange={(v) => {
-            const yy = Number(v.split('_')[0]);
-            const tt = v.substring(v.indexOf('_') + 1) as SessionTerm;
-            setYear(yy);
-            setTerm(tt);
-          }}
-        >
-          <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {sessionOptions.map((o) => (
-              <SelectItem key={`${o.year}_${o.term}`} value={`${o.year}_${o.term}`}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button asChild size="sm">
-          <Link to="/upload"><Plus className="w-4 h-4 mr-1" /> Upload</Link>
+        {adminSession ? (
+          <div className="flex-1 rounded-md border bg-muted/40 px-3 py-2">
+            <p className="text-sm font-semibold">{sessionLabel(year, term)}</p>
+            <p className="text-[11px] text-muted-foreground">Open training session set by the administrator.</p>
+          </div>
+        ) : (
+          <Select
+            value={`${year}_${term}`}
+            onValueChange={(v) => {
+              setYear(Number(v.split('_')[0]));
+              setTerm(v.substring(v.indexOf('_') + 1) as SessionTerm);
+            }}
+          >
+            <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {sessionOptions.map((o) => (
+                <SelectItem key={`${o.year}_${o.term}`} value={`${o.year}_${o.term}`}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Button size="sm" onClick={() => setShowForm((s) => !s)}>
+          <Plus className="w-4 h-4 mr-1" /> Add unit
         </Button>
       </div>
 
+      <p className="text-xs text-muted-foreground mb-3">
+        Key in every unit you teach this session. Units must be linked to a course in your department —
+        the Upload tab only offers units listed here. No documents are uploaded from this screen.
+      </p>
+
+      {showForm && (
+        <Card className="mb-4">
+          <CardContent className="p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-sm font-medium">Department</Label>
+                <Select value={department} onValueChange={(v) => { setDepartment(v); setCourseId(''); }}>
+                  <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select department" /></SelectTrigger>
+                  <SelectContent>
+                    {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Course</Label>
+                <Select value={courseId} onValueChange={setCourseId} disabled={!department}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue placeholder={department ? 'Select course' : 'Pick a department first'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {courses.filter((c) => c.active).map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.code} — {c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {department && courses.length === 0 && (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">
+                    No courses set up for this department yet — ask the administrator to add them.
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Unit Code</Label>
+                <Input className="mt-1.5" value={unitCode} onChange={(e) => setUnitCode(e.target.value)} placeholder="e.g. ICT/CU/CS/CR/01/6" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Unit Name</Label>
+                <Input className="mt-1.5" value={unitName} onChange={(e) => setUnitName(e.target.value)} placeholder="e.g. Computer Networks" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Class Code</Label>
+                <Input className="mt-1.5" value={classCode} onChange={(e) => setClassCode(e.target.value)} placeholder="e.g. DICT 2A" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Sessions per Week</Label>
+                <Input className="mt-1.5" type="number" min={1} max={7} value={sessionsPerWeek}
+                  onChange={(e) => setSessionsPerWeek(Math.max(1, Math.min(7, Number(e.target.value) || 1)))} />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Course Type</Label>
+                <Select value={courseType} onValueChange={(v) => setCourseType(v as CourseType)}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {COURSE_TYPES.map((c) => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {courseType === 'MODULAR' ? (
+                <div>
+                  <Label className="text-sm font-medium">Module</Label>
+                  <Select value={String(moduleNumber)} onValueChange={(v) => setModuleNumber(Number(v))}>
+                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MODULE_NUMBERS.map((n) => <SelectItem key={n} value={String(n)}>Module {n}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div>
+                  <Label className="text-sm font-medium">Term of study</Label>
+                  <Input className="mt-1.5" type="number" min={1} max={9} value={termNumber}
+                    onChange={(e) => setTermNumber(Math.max(1, Number(e.target.value) || 1))} />
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={saveUnit} disabled={upsertConfig.isPending}>
+                {upsertConfig.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                Save unit
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => { resetForm(); setShowForm(false); }}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-3">
         {units.map((u) => {
-          const oneTimeDone = ONE_TIME_DOC_TYPES.filter((dt) =>
-            u.docs.some((d) => d.document_type === dt),
-          ).length;
-          // Weekly: count distinct (week, session_index) tuples submitted
+          const oneTimeDone = ONE_TIME_DOC_TYPES.filter((dt) => u.docs.some((d) => d.document_type === dt)).length;
           const weeklyKeys = new Set<string>();
           u.docs.forEach((d) => {
             if (WEEKLY_DOC_TYPES.includes(d.document_type as typeof WEEKLY_DOC_TYPES[number]) && d.week_number) {
@@ -115,7 +286,7 @@ export default function MyTeaching() {
           });
           const oneTimeTotal = ONE_TIME_DOC_TYPES.length;
           const completedDocs = oneTimeDone + weeklyKeys.size;
-          const totalDocs = oneTimeTotal + weeklyKeys.size; // dynamic — show progress against current submissions
+          const totalDocs = oneTimeTotal + weeklyKeys.size;
           const pct = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
 
           return (
@@ -130,6 +301,7 @@ export default function MyTeaching() {
                       <div className="min-w-0">
                         <p className="font-semibold text-sm truncate">{u.unit_code}{u.unit_name ? ` — ${u.unit_name}` : ''}</p>
                         <p className="text-xs text-muted-foreground truncate">
+                          {courseName(u.course_id) ? `${courseName(u.course_id)} • ` : ''}
                           {u.class_code || '—'} • {u.sessionsPerWeek} session(s)/week
                           {u.termNumber ? ` • Term ${u.termNumber}` : ''}
                         </p>
@@ -153,10 +325,8 @@ export default function MyTeaching() {
 
         {units.length === 0 && (
           <div className="text-center py-8 space-y-3">
-            <p className="text-sm text-muted-foreground">No units yet for this session</p>
-            <Button asChild>
-              <Link to="/upload"><Plus className="w-4 h-4 mr-1" /> Upload your first document</Link>
-            </Button>
+            <p className="text-sm text-muted-foreground">No units keyed in for this session yet</p>
+            <Button onClick={() => setShowForm(true)}><Plus className="w-4 h-4 mr-1" /> Add your first unit</Button>
           </div>
         )}
       </div>
