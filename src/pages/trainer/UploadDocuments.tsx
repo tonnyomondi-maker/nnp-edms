@@ -508,6 +508,17 @@ export default function UploadDocuments() {
         subtitle={sessionLabel(sessionYear, sessionTerm)}
       />
 
+      {profileBlocked && (
+        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-xs p-3 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <div>
+            <strong>Complete your profile before uploading.</strong> Missing: {profile.missing.join(', ')}.{' '}
+            <Link to="/profile" className="underline font-medium">Update profile</Link> — every document and
+            approval record is keyed to these details.
+          </div>
+        </div>
+      )}
+
       {(!canUpload || writesBlocked) && (
         <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs p-3 flex items-start gap-2">
           <Lock className="w-4 h-4 mt-0.5" />
