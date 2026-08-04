@@ -37,6 +37,8 @@ export default function DepartmentQueue() {
   const [termInitialized, setTermInitialized] = useState(false);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'SUBMITTED' });
   const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
+  const [courseFilter, setCourseFilter] = useState<string>('ALL');
+  const { data: deptCourses = [] } = useCourses(currentUser?.department || null);
 
   // Clear selection if user switches away from HOD role mid-session
   useEffect(() => { if (!canAct) setSelected(new Set()); }, [canAct, activeRole]);
