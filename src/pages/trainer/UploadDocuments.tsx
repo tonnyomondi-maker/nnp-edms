@@ -317,21 +317,24 @@ export default function UploadDocuments() {
   const { writesBlocked, lock_active, lock_reason } = useSystemLock();
   const guard = useRoleGuard();
   const canUpload = guard.canUploadAsTrainer();
+  const profile = useProfileCompleteness();
+  const profileBlocked = !profile.loading && !profile.complete;
 
   const headerValid = department && unitCode && classCode && (!hasWeeklyType || sessionsPerWeek >= 1);
   const fileErrors = files.map((f) => ({ id: f.id, error: validateFile(f) }));
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
   const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
-  const canSubmit = headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked;
+  const canSubmit = headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked && !profileBlocked;
 
   const submitReasons = useMemo(() => {
     const r: string[] = [];
     if (!canUpload) r.push('Your active role can\'t upload documents. Switch to Trainer.');
+    if (profileBlocked) r.push(`Complete your profile first — missing ${profile.missing.join(', ')}.`);
     if (writesBlocked) r.push(`System is locked${lock_reason ? `: ${lock_reason}` : ''}. Writes are disabled.`);
     if (!headerValid) {
       const missing: string[] = [];
+      if (!unitCode) missing.push('unit');
       if (!department) missing.push('department');
-      if (!unitCode) missing.push('unit code');
       if (!classCode) missing.push('class code');
       if (hasWeeklyType && sessionsPerWeek < 1) missing.push('sessions per week');
       r.push(`Fill required header fields: ${missing.join(', ')}.`);
@@ -344,7 +347,8 @@ export default function UploadDocuments() {
     if (anyInFlight) r.push('Wait for in-flight uploads to finish.');
     if (submitDoc.isPending) r.push('Submission in progress…');
     return r;
-  }, [canUpload, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
+  }, [canUpload, profileBlocked, profile.missing, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
+
 
   function setStage(id: string, patch: Partial<FileEntry>) {
     setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
