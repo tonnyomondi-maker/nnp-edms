@@ -19,7 +19,9 @@ import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
 import { checkSubmissionWindow, useCurrentSession } from '@/hooks/useAcademicSession';
 
 import { supabase } from '@/integrations/supabase/client';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
+import { useCourses } from '@/hooks/useCourses';
+import { useProfileCompleteness } from '@/hooks/useProfileCompleteness';
 import {
   DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
@@ -83,6 +85,7 @@ export default function UploadDocuments() {
 
 
   const [department, setDepartment] = useState('');
+  const [courseId, setCourseId] = useState('');
   const [unitCode, setUnitCode] = useState('');
   const [unitName, setUnitName] = useState('');
   const [classCode, setClassCode] = useState('');
@@ -91,6 +94,7 @@ export default function UploadDocuments() {
   const [termNumber, setTermNumber] = useState<number>(1);
   const [moduleNumber, setModuleNumber] = useState<number>(1);
   const [files, setFiles] = useState<FileEntry[]>([]);
+
 
   // --- Resume across page reloads ---
   const resume = useUploadResume();
@@ -189,12 +193,20 @@ export default function UploadDocuments() {
       setClassCode(cfg.class_code || '');
       setSessionsPerWeek(cfg.sessions_per_week);
       setDepartment(cfg.department);
+      setCourseId(cfg.course_id ?? '');
       const ct = (cfg.course_type as CourseType) || 'CYCLE';
       setCourseType(ct);
       if (ct === 'MODULAR' && cfg.module_number) setModuleNumber(cfg.module_number);
       if (ct !== 'MODULAR' && cfg.term_number) setTermNumber(cfg.term_number);
     }
   }
+
+  const { data: deptCourses = [] } = useCourses(department || null);
+  const courseName = useMemo(() => {
+    const c = deptCourses.find((x) => x.id === courseId);
+    return c ? `${c.code} — ${c.name}` : null;
+  }, [deptCourses, courseId]);
+
 
   const previousUnits = useMemo(() => {
     const map = new Map<string, { code: string; name: string | null; class_code: string | null }>();
