@@ -164,9 +164,19 @@ export default function DepartmentQueue() {
         </div>
       )}
       <div className="mb-3 flex flex-wrap justify-end gap-2">
+        <Select value={courseFilter} onValueChange={setCourseFilter}>
+          <SelectTrigger className="h-8 w-[190px] text-xs"><SelectValue placeholder="All courses" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All courses</SelectItem>
+            {deptCourses.map((c) => (
+              <SelectItem key={c.id} value={c.id}>{c.code} — {c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <GroupByControl value={groupBy} onChange={setGroupBy} />
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
+
       <Tabs defaultValue="queue">
         <TabsList className="w-full mb-3">
           <TabsTrigger value="queue" className="flex-1">Queue ({filteredQueue.length})</TabsTrigger>
