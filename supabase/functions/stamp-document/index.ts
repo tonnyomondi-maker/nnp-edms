@@ -38,6 +38,9 @@ const STAGE_TITLE: Record<string, string> = {
 };
 const STAGE_SLOT: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
 const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
+/** Bump whenever the approval-sheet layout or stamping logic changes. */
+const STAMP_VERSION = "2.0.0";
+
 
 /**
  * Returns the dedicated approval sheet appended at the end of the document,
