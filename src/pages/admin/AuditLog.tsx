@@ -26,6 +26,7 @@ type UnifiedRow = {
 const ACTION_FILTERS = [
   'ALL',
   'STATUS_CHANGE',
+  'DOCUMENT_STAMPED',
   'ROLE_ADDED',
   'ROLE_REMOVED',
   'DEPARTMENT_CHANGED',

@@ -16,6 +16,7 @@ import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { useUploadResume } from '@/hooks/useUploadResume';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
+import { ApprovalSheetPreview } from '@/components/common/ApprovalSheetPreview';
 import { checkSubmissionWindow, useCurrentSession } from '@/hooks/useAcademicSession';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -94,6 +95,9 @@ export default function UploadDocuments() {
   const [termNumber, setTermNumber] = useState<number>(1);
   const [moduleNumber, setModuleNumber] = useState<number>(1);
   const [files, setFiles] = useState<FileEntry[]>([]);
+  // Files the browser refused before they ever entered the queue — shown
+  // inline (not just as a toast) with the exact filename and the fix.
+  const [rejectedFiles, setRejectedFiles] = useState<{ id: string; name: string; reason: string; fix: string }[]>([]);
 
 
   // --- Resume across page reloads ---
@@ -217,18 +221,35 @@ export default function UploadDocuments() {
   function addFiles(newFiles: FileList | null) {
     if (!newFiles) return;
     const valid: FileEntry[] = [];
+    const rejected: { id: string; name: string; reason: string; fix: string }[] = [];
     Array.from(newFiles).forEach((f) => {
+      const ext = (f.name.match(/\.[^.]+$/)?.[0] || '').toLowerCase();
       const isWord = /\.docx?$/i.test(f.name) || f.type.includes('word') || f.type.includes('officedocument.wordprocessing');
       if (isWord) {
-        toast({
-          title: 'Word files are not accepted',
-          description: `${f.name} is a .doc/.docx file. In Word choose File → Save As / Export → PDF (or print to PDF) and upload the PDF instead.`,
-          variant: 'destructive',
+        rejected.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: f.name,
+          reason: `Word document (${ext || '.doc'}) — Word files cannot carry approval signatures or stamps.`,
+          fix: 'Open the file in Word, choose File → Save As / Export → PDF (or print to "Microsoft Print to PDF"), then add the resulting .pdf here.',
         });
         return;
       }
       if (f.type !== 'application/pdf') {
-        toast({ title: 'Skipped', description: `${f.name} is not a PDF. Only PDF files can be signed and stamped.`, variant: 'destructive' });
+        rejected.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: f.name,
+          reason: `Unsupported file type${ext ? ` (${ext})` : ''} — only PDF files are accepted.`,
+          fix: 'Export or scan the document as a PDF and add it again. Images can be combined into one PDF before uploading.',
+        });
+        return;
+      }
+      if (f.size > MAX_ELIGIBLE_BYTES * 3) {
+        rejected.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: f.name,
+          reason: `PDF is ${formatBytes(f.size)} — far above the ${formatBytes(MAX_ELIGIBLE_BYTES)} limit, even after compression.`,
+          fix: 'Re-scan at 150–200 dpi in black & white, or split the document and upload the parts separately.',
+        });
         return;
       }
 
@@ -244,6 +265,14 @@ export default function UploadDocuments() {
       });
     });
     setFiles((prev) => [...prev, ...valid]);
+    if (rejected.length > 0) {
+      setRejectedFiles((prev) => [...prev, ...rejected]);
+      toast({
+        title: `${rejected.length} file(s) not added`,
+        description: rejected.map((r) => r.name).join(', ') + ' — see the details below the file picker.',
+        variant: 'destructive',
+      });
+    }
     // Compute compression preview for each so the trainer sees pre/post sizes
     // and an eligibility tag BEFORE they submit.
     valid.forEach(async (entry) => {
@@ -661,7 +690,13 @@ export default function UploadDocuments() {
 
       <Card className="mb-4">
         <CardContent className="p-4 space-y-3">
-          <Label className="text-sm font-medium">Files (PDF only)</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm font-medium">Files (PDF only)</Label>
+            <ApprovalSheetPreview
+              docLabel={unitCode ? `${unitCode}${unitName ? ' — ' + unitName : ''}` : undefined}
+              className="h-7 text-[11px]"
+            />
+          </div>
           <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-2">
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             <div>
@@ -670,6 +705,27 @@ export default function UploadDocuments() {
               {' '}(or print to “Microsoft Print to PDF”), then upload the PDF here.
             </div>
           </div>
+          {rejectedFiles.length > 0 && (
+            <div className="space-y-2">
+              {rejectedFiles.map((r) => (
+                <div key={r.id} className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-[11px] flex items-start gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-destructive" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium break-all text-destructive">{r.name} was not added</p>
+                    <p className="text-muted-foreground mt-0.5">{r.reason}</p>
+                    <p className="mt-1"><strong>How to fix:</strong> {r.fix}</p>
+                  </div>
+                  <button
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => setRejectedFiles((prev) => prev.filter((x) => x.id !== r.id))}
+                    aria-label={`Dismiss error for ${r.name}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <label className="block cursor-pointer">
             <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors">
               <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
@@ -732,9 +788,15 @@ export default function UploadDocuments() {
                     <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Already optimal — no compression applied</span>
                   )}
                   {entry.eligibility === 'OVERSIZE' && (
-                    <span className="px-1.5 py-0.5 rounded bg-destructive/15 text-destructive flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      Over 20 MB after compression — signatures &amp; stamps may not embed reliably
+                    <span className="w-full px-2 py-1.5 rounded bg-destructive/10 border border-destructive/40 text-destructive flex items-start gap-1.5">
+                      <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
+                      <span>
+                        <strong className="break-all">{entry.fileName}</strong> is {formatBytes(entry.estimatedSize ?? entry.originalSize)} after
+                        compression — over the {formatBytes(MAX_ELIGIBLE_BYTES)} limit, so signatures and stamps may fail to embed.
+                        <br />
+                        <strong>How to fix:</strong> re-scan at 150–200 dpi (black &amp; white), remove large embedded images,
+                        or split it into smaller PDFs and upload each part.
+                      </span>
                     </span>
                   )}
                   {entry.eligibility === 'OK' && entry.estimatedSize !== undefined && (
@@ -822,7 +884,7 @@ export default function UploadDocuments() {
           )}
           {files.length > 0 && (
             <div className="flex justify-end pt-1">
-              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground" onClick={() => { setFiles([]); resume.clear(); }}>
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground" onClick={() => { setFiles([]); setRejectedFiles([]); resume.clear(); }}>
                 <X className="w-3 h-3" /> Clear resume state
               </Button>
             </div>

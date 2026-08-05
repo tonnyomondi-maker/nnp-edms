@@ -16,12 +16,48 @@ import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilte
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { useCourses } from '@/hooks/useCourses';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl';
-import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Zap, Search, ArrowUpDown } from 'lucide-react';
+
+type SortKey = 'RECENT' | 'TRAINER' | 'UNIT' | 'STATUS' | 'TYPE';
+
+const STATUS_ORDER: Record<string, number> = {
+  SUBMITTED: 0, HOD_APPROVED: 1, IQA_REVIEWED: 2, DP_APPROVED: 3, ARCHIVED: 4, EXPORTED: 5, REJECTED: 6,
+};
+
+type QueueDoc = Record<string, unknown> & { id: string; status: string };
+
+const trainerLabel = (d: QueueDoc) => {
+  const p = d.profiles as { full_name?: string | null; pf_number?: string | null } | null | undefined;
+  return [p?.full_name, p?.pf_number].filter(Boolean).join(' ').trim();
+};
+
+/** Free-text search across trainer, unit, class, type and status. */
+function searchDocs<T extends QueueDoc>(docs: T[], q: string): T[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return docs;
+  return docs.filter((d) => [
+    trainerLabel(d), d.unit_code, d.unit_name, d.class_code,
+    d.document_type, d.status, d.file_name,
+  ].filter(Boolean).some((v) => String(v).toLowerCase().includes(needle)));
+}
+
+function sortDocs<T extends QueueDoc>(docs: T[], key: SortKey): T[] {
+  const arr = [...docs];
+  const str = (v: unknown) => String(v ?? '').toLowerCase();
+  switch (key) {
+    case 'TRAINER': return arr.sort((a, b) => trainerLabel(a).localeCompare(trainerLabel(b)));
+    case 'UNIT': return arr.sort((a, b) => str(a.unit_code || a.unit_name).localeCompare(str(b.unit_code || b.unit_name)));
+    case 'STATUS': return arr.sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
+    case 'TYPE': return arr.sort((a, b) => str(a.document_type).localeCompare(str(b.document_type)));
+    default: return arr.sort((a, b) => str(b.submitted_at).localeCompare(str(a.submitted_at)));
+  }
+}
 
 export default function DepartmentQueue() {
   const { currentUser, activeRole } = useAuth();
@@ -38,6 +74,8 @@ export default function DepartmentQueue() {
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'SUBMITTED' });
   const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
   const [courseFilter, setCourseFilter] = useState<string>('ALL');
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('RECENT');
   const { data: deptCourses = [] } = useCourses(currentUser?.department || null);
 
   // Clear selection if user switches away from HOD role mid-session
@@ -68,8 +106,17 @@ export default function DepartmentQueue() {
     [baseQueue, courseFilter],
   );
   const termFiltered = useMemo(() => filterByTerm(byCourse, termFilter), [byCourse, termFilter]);
-  const filteredQueue = useMemo(() => applyQueueFilter(termFiltered, filter), [termFiltered, filter]);
-  const myFiltered = useMemo(() => applyQueueFilter(filterByTerm(myActioned, termFilter), { ...filter, status: 'ALL' }), [myActioned, termFilter, filter]);
+  const filteredQueue = useMemo(
+    () => sortDocs(searchDocs(applyQueueFilter(termFiltered, filter) as unknown as QueueDoc[], search), sortKey) as unknown as typeof termFiltered,
+    [termFiltered, filter, search, sortKey],
+  );
+  const myFiltered = useMemo(
+    () => sortDocs(
+      searchDocs(applyQueueFilter(filterByTerm(myActioned, termFilter), { ...filter, status: 'ALL' }) as unknown as QueueDoc[], search),
+      sortKey,
+    ) as unknown as typeof myActioned,
+    [myActioned, termFilter, filter, search, sortKey],
+  );
 
 
   const canActOn = (status: string) => status === 'SUBMITTED';
@@ -163,7 +210,29 @@ export default function DepartmentQueue() {
           You are viewing as <strong>{activeRole}</strong>. Switch to <strong>HOD</strong> in the top bar to verify documents.
         </div>
       )}
-      <div className="mb-3 flex flex-wrap justify-end gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search trainer, unit, class, type or status"
+            className="h-8 pl-7 text-xs"
+          />
+        </div>
+        <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
+          <SelectTrigger className="h-8 w-[170px] text-xs">
+            <ArrowUpDown className="w-3.5 h-3.5 mr-1 shrink-0" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="RECENT">Newest first</SelectItem>
+            <SelectItem value="TRAINER">Trainer (A–Z)</SelectItem>
+            <SelectItem value="UNIT">Unit (A–Z)</SelectItem>
+            <SelectItem value="STATUS">Status (workflow order)</SelectItem>
+            <SelectItem value="TYPE">Document type (A–Z)</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={courseFilter} onValueChange={setCourseFilter}>
           <SelectTrigger className="h-8 w-[190px] text-xs"><SelectValue placeholder="All courses" /></SelectTrigger>
           <SelectContent>
