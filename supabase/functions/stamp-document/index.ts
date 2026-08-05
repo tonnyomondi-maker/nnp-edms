@@ -53,7 +53,7 @@ const STAMP_VERSION = "2.0.0";
 function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any) {
   const marked = (pdfDoc.getSubject() || "").includes(SHEET_MARKER);
   const pages = pdfDoc.getPages();
-  if (marked && pages.length > 0) return pages[pages.length - 1];
+  if (marked && pages.length > 0) return { page: pages[pages.length - 1], created: false };
 
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
@@ -69,7 +69,30 @@ function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any) {
     thickness: 1, color: rgb(0.1, 0.25, 0.5),
   });
   pdfDoc.setSubject(`${pdfDoc.getSubject() || ""} ${SHEET_MARKER}`.trim());
-  return page;
+  return { page, created: true };
+}
+
+/**
+ * Records a stamping operation in the audit trail so every appended page can be
+ * traced back to the stage, its order in the approval chain and the layout
+ * version that produced it.
+ */
+async function logStampOperation(
+  supabase: ReturnType<typeof createClient>,
+  details: Record<string, unknown>,
+  documentId: string,
+  performedBy: string,
+) {
+  try {
+    await supabase.from("audit_logs").insert({
+      document_id: documentId,
+      action: "DOCUMENT_STAMPED",
+      performed_by: performedBy,
+      details,
+    });
+  } catch (e) {
+    console.error("audit log insert failed", e);
+  }
 }
 
 /** Y coordinate of the bottom of a stage slot on the approval sheet. */
@@ -275,7 +298,8 @@ Deno.serve(async (req) => {
 
     // Text-only quick approval: write the stage block on the shared approval sheet
     if (mode === "TEXT_ONLY") {
-      const sheet = ensureApprovalSheet(pdfDoc, helvBold, helv);
+      const pagesBefore = pdfDoc.getPageCount();
+      const { page: sheet, created: sheetCreated } = ensureApprovalSheet(pdfDoc, helvBold, helv);
       const box = slotBox(sheet, stage);
       sheet.drawRectangle({
         x: box.x, y: box.y, width: box.w, height: box.h,
@@ -302,7 +326,26 @@ Deno.serve(async (req) => {
       const { error: uploadErr } = await supabase.storage
         .from("documents").upload(newPath, stampedBytes, { contentType: "application/pdf", upsert: false });
       if (uploadErr) throw uploadErr;
-      return new Response(JSON.stringify({ signedFileUrl: newPath }), {
+      await logStampOperation(supabase, {
+        stamp_version: STAMP_VERSION,
+        stage,
+        stage_order: (STAGE_SLOT[stage] ?? 0) + 1,
+        stage_label: STAGE_LABEL[stage],
+        mode: "TEXT_ONLY",
+        approver_name: approverName,
+        approval_sheet_page: pdfDoc.getPageCount(),
+        approval_sheet_appended: sheetCreated,
+        pages_before: pagesBefore,
+        pages_after: pdfDoc.getPageCount(),
+        target: "APPROVAL_SHEET",
+        slot_index: STAGE_SLOT[stage] ?? 0,
+        signature_embedded: false,
+        stamp_embedded: false,
+        source_path: sourceRef.path,
+        output_path: newPath,
+        stamped_at: stageDate.toISOString(),
+      }, documentId, callerId);
+      return new Response(JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -319,12 +362,16 @@ Deno.serve(async (req) => {
     const sigImage = await embedImage(sig.buffer, sig.contentType);
     const stampImage = stamp ? await embedImage(stamp.buffer, stamp.contentType) : null;
 
+    const pagesBefore = pdfDoc.getPageCount();
+    let sheetCreated = false;
+    let targetPageIndex = pagesBefore;
     const pages = pdfDoc.getPages();
     const useCustom = placement && (placement.sigX != null || placement.stampX != null);
     const autofill = placement?.autofill ?? true;
 
     if (useCustom) {
       const pageIdx = Math.max(0, Math.min(pages.length - 1, (placement!.page ?? pages.length) - 1));
+      targetPageIndex = pageIdx + 1;
       const page = pages[pageIdx];
       const { width, height } = page.getSize();
 
@@ -383,7 +430,10 @@ Deno.serve(async (req) => {
     } else {
       // No custom placement (typical for bulk approvals): render the stage on
       // the shared, ordered approval sheet appended at the end of the PDF.
-      const sheet = ensureApprovalSheet(pdfDoc, helvBold, helv);
+      const ensured = ensureApprovalSheet(pdfDoc, helvBold, helv);
+      const sheet = ensured.page;
+      sheetCreated = ensured.created;
+      targetPageIndex = pdfDoc.getPageCount();
       const box = slotBox(sheet, stage);
       sheet.drawRectangle({
         x: box.x, y: box.y, width: box.w, height: box.h,
@@ -437,10 +487,31 @@ Deno.serve(async (req) => {
       .upload(newPath, stampedBytes, { contentType: "application/pdf", upsert: false });
     if (uploadErr) throw uploadErr;
 
+    await logStampOperation(supabase, {
+      stamp_version: STAMP_VERSION,
+      stage,
+      stage_order: (STAGE_SLOT[stage] ?? 0) + 1,
+      stage_label: STAGE_LABEL[stage],
+      mode: "IMAGE",
+      approver_name: approverName,
+      target: useCustom ? "IN_PLACE" : "APPROVAL_SHEET",
+      slot_index: useCustom ? null : (STAGE_SLOT[stage] ?? 0),
+      page_index: targetPageIndex,
+      approval_sheet_appended: sheetCreated,
+      pages_before: pagesBefore,
+      pages_after: pdfDoc.getPageCount(),
+      signature_embedded: true,
+      stamp_embedded: !!stampImage,
+      autofill,
+      source_path: sourceRef.path,
+      output_path: newPath,
+      stamped_at: stageDate.toISOString(),
+    }, documentId, callerId);
+
     // Bucket is private — return the bare path. The client uses parseStorageRef
     // and createSignedUrl to build a fresh preview URL each time.
     return new Response(
-      JSON.stringify({ signedFileUrl: newPath }),
+      JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
