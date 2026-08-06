@@ -526,50 +526,63 @@ Deno.serve(async (req) => {
     } else {
       // No custom placement (typical for bulk approvals): render the stage on
       // the shared, ordered approval sheet appended at the end of the PDF.
-      const ensured = ensureApprovalSheet(pdfDoc, helvBold, helv);
+      const ensured = ensureApprovalSheet(pdfDoc, helvBold, helv, layout);
       const sheet = ensured.page;
       sheetCreated = ensured.created;
       targetPageIndex = pdfDoc.getPageCount();
-      const box = slotBox(sheet, stage);
-      sheet.drawRectangle({
-        x: box.x, y: box.y, width: box.w, height: box.h,
-        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
-        color: rgb(0.98, 0.99, 1), opacity: 0.9,
-      });
-      sheet.drawText(STAGE_TITLE[stage], {
-        x: box.x + 14, y: box.y + box.h - 20, size: 10, font: helvBold, color: rgb(0.1, 0.25, 0.5),
-      });
+      const box = slotBox(sheet, stage, layout.stages);
 
-      const sigDims = sigImage.scaleToFit(SIG_W, SIG_H);
-      const stampDims = stampImage ? stampImage.scaleToFit(STAMP_W, STAMP_H) : { width: STAMP_W, height: STAMP_H };
-      const sigX = box.x + 14;
-      const sigY = box.y + 52;
-      const lineY = sigY - 4;
-
-      if (autofill) {
-        sheet.drawImage(sigImage, { x: sigX, y: sigY, width: sigDims.width, height: sigDims.height });
-        sheet.drawLine({ start: { x: sigX, y: lineY }, end: { x: sigX + Math.max(sigDims.width, 160), y: lineY }, thickness: 0.6 });
-        sheet.drawText(`Name: ${approverName}`, { x: sigX, y: lineY - 14, size: 9, font: helv });
-        sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: sigX, y: lineY - 27, size: 9, font: helv });
-        sheet.drawText(`Date: ${stageDate.toLocaleDateString()} · ${stageDate.toLocaleTimeString()}`, {
-          x: sigX, y: lineY - 40, size: 7.5, font: helv, color: rgb(0.35, 0.35, 0.35),
-        });
-        if (stampImage) {
-          sheet.drawImage(stampImage, {
-            x: box.x + box.w - stampDims.width - 24,
-            y: box.y + 22,
-            width: stampDims.width,
-            height: stampDims.height,
-          });
-        }
+      if (!box) {
+        // IQA archival has no signing slot — record it as the sheet footer.
+        drawArchivalFooter(
+          sheet, helv,
+          `Archived by Internal Quality Assurance — ${approverName || "IQA"} · ${stageDate.toLocaleString()} · layout ${layout.name} v${layout.version} · stamp v${STAMP_VERSION}`,
+        );
       } else {
-        sheet.drawText('Sign: ______________________________', { x: sigX, y: box.y + box.h - 55, size: 9, font: helv });
-        sheet.drawText('Name: ______________________________', { x: sigX, y: box.y + box.h - 78, size: 9, font: helv });
-        sheet.drawText('Date: ______________________________', { x: sigX, y: box.y + box.h - 101, size: 9, font: helv });
-        if (stampImage) {
-          const cx = box.x + box.w - 70, cy = box.y + box.h / 2;
-          sheet.drawCircle({ x: cx, y: cy, size: 35, borderWidth: 1, borderColor: rgb(0.3, 0.3, 0.3) });
-          sheet.drawText('STAMP', { x: cx - 14, y: cy - 3, size: 8, font: helvBold, color: rgb(0.4, 0.4, 0.4) });
+        sheet.drawRectangle({
+          x: box.x, y: box.y, width: box.w, height: box.h,
+          borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
+          color: rgb(0.98, 0.99, 1), opacity: 0.9,
+        });
+        sheet.drawText(stageTitle, {
+          x: box.x + 14, y: box.y + box.h - 20, size: stageCfg?.title_size ?? 10, font: helvBold, color: rgb(0.1, 0.25, 0.5),
+        });
+
+        // Keep every mark inside its own slot so stages can never overlap.
+        const maxSigW = Math.min(stageCfg?.sig_w ?? SIG_W, box.w * 0.5);
+        const maxSigH = Math.min(stageCfg?.sig_h ?? SIG_H, box.h - 110);
+        const maxStamp = Math.min(stageCfg?.stamp_size ?? STAMP_W, box.h - 60);
+        const sigDims = sigImage.scaleToFit(maxSigW, maxSigH);
+        const stampDims = stampImage ? stampImage.scaleToFit(maxStamp, maxStamp) : { width: maxStamp, height: maxStamp };
+        const sigX = box.x + 14;
+        const sigY = box.y + box.h - 34 - sigDims.height;
+        const lineY = sigY - 6;
+
+        if (autofill) {
+          sheet.drawImage(sigImage, { x: sigX, y: sigY, width: sigDims.width, height: sigDims.height });
+          sheet.drawLine({ start: { x: sigX, y: lineY }, end: { x: sigX + Math.max(sigDims.width, 180), y: lineY }, thickness: 0.6 });
+          sheet.drawText(`Name: ${approverName}`, { x: sigX, y: lineY - 15, size: 9, font: helv });
+          sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: sigX, y: lineY - 29, size: 9, font: helv });
+          sheet.drawText(`Date: ${stageDate.toLocaleDateString()} · ${stageDate.toLocaleTimeString()}`, {
+            x: sigX, y: lineY - 43, size: 7.5, font: helv, color: rgb(0.35, 0.35, 0.35),
+          });
+          if (stampImage) {
+            sheet.drawImage(stampImage, {
+              x: box.x + box.w - stampDims.width - 24,
+              y: box.y + (box.h - 30 - stampDims.height) / 2,
+              width: stampDims.width,
+              height: stampDims.height,
+            });
+          }
+        } else {
+          sheet.drawText('Sign: ______________________________', { x: sigX, y: box.y + box.h - 55, size: 9, font: helv });
+          sheet.drawText('Name: ______________________________', { x: sigX, y: box.y + box.h - 80, size: 9, font: helv });
+          sheet.drawText('Date: ______________________________', { x: sigX, y: box.y + box.h - 105, size: 9, font: helv });
+          if (stampImage) {
+            const cx = box.x + box.w - 70, cy = box.y + box.h / 2;
+            sheet.drawCircle({ x: cx, y: cy, size: Math.min(35, box.h / 2 - 20), borderWidth: 1, borderColor: rgb(0.3, 0.3, 0.3) });
+            sheet.drawText('STAMP', { x: cx - 14, y: cy - 3, size: 8, font: helvBold, color: rgb(0.4, 0.4, 0.4) });
+          }
         }
       }
     }
@@ -585,13 +598,16 @@ Deno.serve(async (req) => {
 
     await logStampOperation(supabase, {
       stamp_version: STAMP_VERSION,
+      layout_name: layout.name,
+      layout_version: layout.version,
       stage,
-      stage_order: (STAGE_SLOT[stage] ?? 0) + 1,
+      stage_order: stageOrder,
+      stage_total: layout.stages.length,
       stage_label: STAGE_LABEL[stage],
       mode: "IMAGE",
       approver_name: approverName,
-      target: useCustom ? "IN_PLACE" : "APPROVAL_SHEET",
-      slot_index: useCustom ? null : (STAGE_SLOT[stage] ?? 0),
+      target: useCustom ? "IN_PLACE" : (stageCfg ? "APPROVAL_SHEET" : "ARCHIVAL_FOOTER"),
+      slot_index: useCustom || !stageCfg ? null : stageOrder - 1,
       page_index: targetPageIndex,
       approval_sheet_appended: sheetCreated,
       pages_before: pagesBefore,
@@ -603,13 +619,27 @@ Deno.serve(async (req) => {
       output_path: newPath,
       stamped_at: stageDate.toISOString(),
     }, documentId, callerId);
+    await recordStampMeta(supabase, documentId, `${layout.name} v${layout.version}`, stageOrder);
+    await notifyTrainer(supabase, {
+      userId: doc.trainer_id,
+      documentId,
+      kind: "APPROVED",
+      stage,
+      stageOrder,
+      stageTotal: layout.stages.length,
+      stampVersion: STAMP_VERSION,
+      layoutVersion: `${layout.name} v${layout.version}`,
+      title: `${STAGE_LABEL[stage]} signed "${doc.file_name || doc.document_type}"`,
+      message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}.`,
+    });
 
     // Bucket is private — return the bare path. The client uses parseStorageRef
     // and createSignedUrl to build a fresh preview URL each time.
     return new Response(
-      JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION }),
+      JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION, layoutVersion: `${layout.name} v${layout.version}`, stageOrder }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (e) {
     console.error("stamp-document error:", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
