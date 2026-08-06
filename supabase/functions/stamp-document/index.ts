@@ -29,35 +29,75 @@ interface StampRequest {
 }
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
-const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "IQA Review", DP: "DP Academics", IQA: "IQA Archival" };
-const STAGE_TITLE: Record<string, string> = {
-  HOD: "1. VERIFIED BY HEAD OF DEPARTMENT",
-  IQA_REVIEW: "2. REVIEWED BY INTERNAL QUALITY ASSURANCE",
-  DP: "3. APPROVED BY DEPUTY PRINCIPAL — ACADEMICS",
-  IQA: "4. ARCHIVED BY INTERNAL QUALITY ASSURANCE",
-};
-const STAGE_SLOT: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
+const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance", DP: "Deputy Principal — Academics", IQA: "IQA Archival" };
 const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
 /** Bump whenever the approval-sheet layout or stamping logic changes. */
-const STAMP_VERSION = "2.0.0";
+const STAMP_VERSION = "3.0.0";
 
+/** A single signing slot on the approval sheet. */
+interface StageLayout {
+  stage: string;
+  order: number;
+  title: string;
+  slot_height: number;
+  sig_w: number;
+  sig_h: number;
+  stamp_size: number;
+  title_size: number;
+}
+
+/**
+ * Only three officers sign the appended sheet, in this order. IQA archival is
+ * recorded as a one-line footer (and in the audit trail) rather than a slot.
+ */
+const DEFAULT_STAGES: StageLayout[] = [
+  { stage: "HOD", order: 1, title: "1. VERIFIED BY HEAD OF DEPARTMENT", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
+  { stage: "IQA_REVIEW", order: 2, title: "2. VERIFIED BY INTERNAL QUALITY ASSURANCE", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
+  { stage: "DP", order: 3, title: "3. APPROVED BY DEPUTY PRINCIPAL - ACADEMICS", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
+];
+
+const SHEET_TOP_OFFSET = 110;
+const SLOT_GAP = 16;
+
+async function loadLayout(supabase: ReturnType<typeof createClient>) {
+  try {
+    const { data } = await supabase
+      .from("stamp_layouts")
+      .select("name, version, stages, header_title")
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+    const raw = (data?.stages ?? []) as StageLayout[];
+    const stages = Array.isArray(raw) && raw.length > 0
+      ? raw.map((s, i) => ({ ...DEFAULT_STAGES[i] ?? DEFAULT_STAGES[0], ...s })).sort((a, b) => a.order - b.order)
+      : DEFAULT_STAGES;
+    return {
+      name: (data?.name as string) || "Standard 2026",
+      version: (data?.version as number) ?? 1,
+      headerTitle: (data?.header_title as string) || "DOCUMENT APPROVAL & VERIFICATION SHEET",
+      stages,
+    };
+  } catch {
+    return { name: "Standard 2026", version: 1, headerTitle: "DOCUMENT APPROVAL & VERIFICATION SHEET", stages: DEFAULT_STAGES };
+  }
+}
 
 /**
  * Returns the dedicated approval sheet appended at the end of the document,
  * creating it on first use. The sheet is marked in the PDF subject so later
  * approval stages reuse the same page instead of appending a new one — this
- * keeps all four signatures ordered and evenly spaced without the approver
- * ever having to open the document.
+ * keeps all signatures ordered and evenly spaced without the approver ever
+ * having to open the document.
  */
 // deno-lint-ignore no-explicit-any
-function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any) {
+function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any, layout: { headerTitle: string; stages: StageLayout[]; name: string }) {
   const marked = (pdfDoc.getSubject() || "").includes(SHEET_MARKER);
   const pages = pdfDoc.getPages();
   if (marked && pages.length > 0) return { page: pages[pages.length - 1], created: false };
 
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
-  page.drawText("DOCUMENT APPROVAL & VERIFICATION SHEET", {
+  page.drawText(layout.headerTitle, {
     x: 40, y: height - 60, size: 14, font: bold, color: rgb(0.1, 0.25, 0.5),
   });
   page.drawText(
@@ -68,6 +108,24 @@ function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any) {
     start: { x: 40, y: height - 86 }, end: { x: width - 40, y: height - 86 },
     thickness: 1, color: rgb(0.1, 0.25, 0.5),
   });
+
+  // Pre-draw every empty slot so the sheet always reads as an ordered form,
+  // even when only the first officer has signed so far.
+  layout.stages.forEach((s) => {
+    const box = slotBox(page, s.stage, layout.stages);
+    if (!box) return;
+    page.drawRectangle({
+      x: box.x, y: box.y, width: box.w, height: box.h,
+      borderColor: rgb(0.7, 0.78, 0.88), borderWidth: 0.8,
+    });
+    page.drawText(s.title, {
+      x: box.x + 14, y: box.y + box.h - 20, size: s.title_size, font: bold, color: rgb(0.45, 0.55, 0.7),
+    });
+    page.drawText("Awaiting signature", {
+      x: box.x + 14, y: box.y + 14, size: 7.5, font: regular, color: rgb(0.6, 0.6, 0.6),
+    });
+  });
+
   pdfDoc.setSubject(`${pdfDoc.getSubject() || ""} ${SHEET_MARKER}`.trim());
   return { page, created: true };
 }
@@ -95,17 +153,28 @@ async function logStampOperation(
   }
 }
 
-/** Y coordinate of the bottom of a stage slot on the approval sheet. */
+/** Geometry of a stage slot on the approval sheet (null for non-signing stages). */
 // deno-lint-ignore no-explicit-any
-function slotBox(page: any, stage: string) {
+function slotBox(page: any, stage: string, stages: StageLayout[]) {
+  const idx = stages.findIndex((s) => s.stage === stage);
+  if (idx < 0) return null;
   const { width, height } = page.getSize();
-  const top = height - 110;
-  const slotH = 155;
-  const gap = 14;
-  const idx = STAGE_SLOT[stage] ?? 0;
-  const y = top - (idx + 1) * slotH - idx * gap;
-  return { x: 40, y, w: width - 80, h: slotH };
+  let y = height - SHEET_TOP_OFFSET;
+  for (let i = 0; i <= idx; i++) {
+    y -= stages[i].slot_height;
+    if (i < idx) y -= SLOT_GAP;
+  }
+  return { x: 40, y, w: width - 80, h: stages[idx].slot_height };
 }
+
+/** One-line archival footer written at the very bottom of the approval sheet. */
+// deno-lint-ignore no-explicit-any
+function drawArchivalFooter(page: any, font: any, text: string) {
+  const { width } = page.getSize();
+  page.drawLine({ start: { x: 40, y: 62 }, end: { x: width - 40, y: 62 }, thickness: 0.6, color: rgb(0.6, 0.6, 0.6) });
+  page.drawText(text, { x: 40, y: 48, size: 7.5, font, color: rgb(0.35, 0.35, 0.35) });
+}
+
 
 
 
