@@ -1,76 +1,65 @@
-## Status of the four items you asked me to check
+# Approval sheet v2, notifications, bulk preview, and bulk course upload
 
-| Item | State today |
-|---|---|
-| Role-based onboarding guide | Partly. `RoleGuideCard` shows per-role steps but is only dismissable — there is **no per-step checklist you can tick off**, and no "update your profile" step. |
-| Default grouping by academic year/term for higher roles | Partly. The `SESSION` grouping option exists in `GroupByControl`, but higher-role screens still default to no grouping / term-module. |
-| Admin template publishing + trainer download | Done. `/admin/templates` (multi-file upload, publish toggle) and `TemplateLibraryPanel` on the upload + approver screens. |
-| Records of Work Covered, twice per session | Done as a weekly type with an expected count of 2 per session. |
+## 1. Rebuild the approval sheet (3 approvers, no overlap)
 
-Verified in code this turn: `src/components/common/RoleGuideCard.tsx`, `src/components/common/GroupByControl.tsx`, `src/pages/admin/Templates.tsx`, `src/lib/sessions.ts`. There is currently **no courses table** in the database, and `gdrive-upload` is invoked immediately after a trainer upload (`src/hooks/useDocuments.ts`), which is what is filling Drive with unapproved files.
+The appended verification page becomes a clean three-slot layout:
 
----
+```text
+DOCUMENT APPROVAL & VERIFICATION SHEET
+------------------------------------------------
+1. VERIFIED BY HEAD OF DEPARTMENT
+   [signature area]                  [stamp box]
+   Name / Date & time
+------------------------------------------------
+2. VERIFIED BY INTERNAL QUALITY ASSURANCE
+   [signature area]                  [stamp box]
+   Name / Date & time
+------------------------------------------------
+3. APPROVED BY DEPUTY PRINCIPAL - ACADEMICS
+   [signature area]                  [stamp box]
+   Name / Date & time
+------------------------------------------------
+footer: archived by IQA on <date> · stamp v<x> · doc id
+```
 
-## 1. Department → Course → Unit hierarchy
+- IQA Archival loses its signature slot; archival is written as a one-line footer and stays in the audit trail.
+- Slot heights are computed from the active layout version so signature and stamp images are always clipped inside their own slot — no overlap between stages.
+- When an approver does not preview/position anything, the signature and stamp are auto-placed inside their slot at the default size for that stage.
 
-New tables: `courses` (department, code, name, active) and a rework of `unit_session_config` so every unit row references a course. Super Admin and HODs manage courses; HODs only for their own department.
+## 2. Stamp template versions (configurable per stage)
 
-The Units tab (`My Teaching`) becomes pure data entry:
-- Pick session (**locked to the admin's current session** — the current bug where it uses the device date is fixed by reading `useCurrentSession`).
-- Pick course (filtered to the trainer's department), then add units: code, name, class code, sessions/week, module number.
-- No document uploads there except one **Workload Allocation** per session, which is the only proof HODs use to confirm all units were keyed.
+New admin screen at `/admin/stamp-layouts`:
 
-## 2. Upload tab driven by units
+- Create named layout versions (e.g. "Standard 2026").
+- Per stage (HOD / IQA review / DP) set: slot height, signature width & height, stamp size, title font size, and stage order.
+- Mark one version as active; approvals use the active version and record its name + numeric version in the document and audit trail.
 
-- Unit field becomes a **dropdown of the trainer's own units** for the current session (name + code), replacing free text. No units keyed → the form points them to the Units tab.
-- Course, class code, sessions/week, module are auto-filled from the chosen unit and read-only.
-- **"Term (intake stage)" selector removed** from the submission form entirely; grouping uses session + module.
-- The templates panel stays right above the file picker so samples can be downloaded first.
-- Upload accepts **PDF and images only**. `.doc/.docx` is rejected up front with: "Signatures and approval pages can only be applied to PDFs — please export your document as PDF before uploading." (Word files can't be stamped, so allowing them would break the whole approval chain.)
+## 3. Notifications (in-app)
 
-## 3. HOD filters
+- New `notifications` table: recipient, document, kind (`APPROVED` / `REJECTED` / `RETURNED`), stage, stage order, stamp version, message, read flag.
+- Written automatically when a document is approved, rejected or returned.
+- `Notifications` page becomes a real feed with unread badge in the top bar; each entry shows stage ("Stage 2 of 3 — IQA review"), the stamp version applied, timestamp, and the rejection/return note when present.
 
-Department queue and HOD dashboard gain a **course filter** on top of the existing trainer grouping, so HOD works per course → per trainer.
+## 4. Bulk preview then bulk approve
 
-## 4. Re-ordered approval chain
+Extend the existing bulk sign flow:
 
-New pipeline: **Trainer → HOD verifies → IQA reviews → DP Academics approves → IQA archives.**
+- New "Preview & approve selected" action opens a stepper listing the selected documents with a rendered preview of the approval sheet as it will look for each one (including where this stage's signature lands).
+- Reviewer can deselect any document from the preview list, then approve the whole remaining set in one submit, reusing the existing sequential bulk approval with progress and per-document failure reporting.
 
-- Add an `IQA_REVIEWED` status between HOD approval and DP approval.
-- IQA gets a "Review queue" (HOD-verified docs) separate from its existing "Archive" screen (DP-approved docs).
-- DP queue now reads IQA-reviewed docs; DP return sends back to IQA, IQA return sends back to HOD.
-- Progress tracker, timeline, dashboards, SLA stages and efficiency metrics all updated to the four-stage order.
+## 5. Export stamping/audit trail as CSV
 
-## 5. Signatures without opening every document
+- On the admin document view, a "Export audit trail (CSV)" action per document downloads every audit event for that document: timestamp, action, stage, stage order, stamp version, performer name/email, mode, pages before/after, and details.
 
-- Manual drag-to-place stays for single approvals.
-- For **bulk approval**, the system appends an **auto-generated approval page** at the end of the PDF: a table of Stage / Name / PF / Date with each approver's signature image and stamp rendered into it. One page accumulates all four stages rather than one page per approver — later approvers append a row to the existing page.
-- HOD onboarding gains an explicit "Set up your signature and stamp" step linking to Profile Settings, and the HOD queue blocks sign-and-verify with a direct link if no signature is on file.
+## 6. Bulk course upload from Excel
 
-## 6. Google Drive: mirror only final documents
+- On `/admin/courses`: "Download template" (XLSX with `department`, `code`, `name`) and "Bulk upload" file picker.
+- Parsed client-side, validated (known department, non-empty code/name, duplicates flagged), shown in a confirm table with row-level errors, then upserted on `department,code` so re-uploads update instead of duplicating.
 
-- **Remove** the automatic `gdrive-upload` call on trainer upload — raw submissions never leave Lovable Cloud.
-- Mirror fires **once**, on DP Academics final approval (and again at IQA archival only if the file changed), so Drive holds the fully-stamped final PDF.
-- Mirroring is idempotent: the existing `gdrive_file_id` is **updated in place** rather than creating a second copy, so an approved file replaces the earlier version instead of duplicating.
-- Fix the **duplicated EDMS root folder**: `resolveRootFolder` will look up the mapped folder first and de-duplicate any existing EDMS folders into one mapped ID via the Re-link Drive folders action.
-- Folder structure simplified to your spec: `EDMS / <Session> / <Department> / <Trainer PF - Name>` (module drops out of the path; it stays in the file name).
+## Technical notes
 
-## 7. Onboarding checklist
-
-`RoleGuideCard` becomes a persisted checklist: each step has a tick box saved per user and role, with a progress bar and a "hide when complete" behaviour. A **mandatory profile step** is added for all roles ("Complete your profile: full name, PF number, department, phone, signature") — until the profile is complete, the card cannot be dismissed and the dashboard shows a banner.
-
-## 8. Default grouping
-
-Higher-role views (HOD queue, IQA review/archive, DP queue, `/admin/documents`, Reports) default to **grouping by academic session**, with module as the secondary grouping.
-
----
-
-## Performance notes
-
-Beyond the above, the main delays come from per-document Edge Function round trips. I will batch bulk stamping into a single function call per batch instead of one per document, and drop the synchronous Drive call from the upload path (item 6), which is the single biggest upload latency win.
-
-## Technical section
-
-- Migrations: `courses` table + grants/RLS; `unit_session_config.course_id`; `IQA_REVIEWED` status value and transition rules in `guard_document_update`; `onboarding_progress` table (user_id, role, step_key, done_at).
-- Edge functions touched: `stamp-document` (approval page renderer + batch mode), `gdrive-upload` (in-place update, simplified path), `drive-relink-folders` (EDMS de-dup).
-- Frontend: `MyTeaching`, `UploadDocuments`, `DepartmentQueue`, `ApprovalQueue`, new IQA review screen, `ArchiveScreen`, `RoleGuideCard`, `ProgressTracker`, `DocStatusTimeline`, `GroupByControl` defaults.
+- DB: `notifications` table (user-scoped RLS + grants), `stamp_layouts` table (admin write, authenticated read), plus `stamp_layout_version` / `stamp_stage_order` columns on `documents`.
+- `supabase/functions/stamp-document`: replace the 4-slot `slotBox`/`STAGE_SLOT` logic with layout-driven geometry, bump `STAMP_VERSION` to `3.0.0`, insert the notification row, and keep the existing `DOCUMENT_STAMPED` audit entry with layout name and stage order.
+- Rejection/return paths in `useDocuments.ts` also insert notification rows.
+- `ApprovalSheetPreview.tsx` is refactored to render from the active layout config so preview and generated PDF stay in sync; reused by the bulk preview stepper.
+- Excel parsing uses the `xlsx` package on the client; no backend involvement.
