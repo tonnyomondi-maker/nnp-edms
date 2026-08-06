@@ -356,6 +356,10 @@ Deno.serve(async (req) => {
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helvBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const layout = await loadLayout(supabase);
+    const stageCfg = layout.stages.find((s) => s.stage === stage) || null;
+    const stageOrder = stageCfg?.order ?? layout.stages.length + 1;
+    const stageTitle = stageCfg?.title ?? `${stageOrder}. ARCHIVED BY INTERNAL QUALITY ASSURANCE`;
 
     // Resolve a STABLE date for this stage so re-exports always render the same text
     const stageDateIso: string | null =
@@ -368,27 +372,33 @@ Deno.serve(async (req) => {
     // Text-only quick approval: write the stage block on the shared approval sheet
     if (mode === "TEXT_ONLY") {
       const pagesBefore = pdfDoc.getPageCount();
-      const { page: sheet, created: sheetCreated } = ensureApprovalSheet(pdfDoc, helvBold, helv);
-      const box = slotBox(sheet, stage);
-      sheet.drawRectangle({
-        x: box.x, y: box.y, width: box.w, height: box.h,
-        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
-        color: rgb(0.96, 0.98, 1), opacity: 0.9,
-      });
-      let ty = box.y + box.h - 20;
-      sheet.drawText(STAGE_TITLE[stage], { x: box.x + 14, y: ty, size: 10, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
-      ty -= 22;
-      sheet.drawText(`Name: ${approverName || "—"}`, { x: box.x + 14, y: ty, size: 9, font: helv });
-      ty -= 16;
-      sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: box.x + 14, y: ty, size: 9, font: helv });
-      ty -= 16;
-      sheet.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: box.x + 14, y: ty, size: 9, font: helv });
-      ty -= 16;
-      sheet.drawText(`Timestamp: ${stageDate.toLocaleString()}`, { x: box.x + 14, y: ty, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
-      sheet.drawText("Approved electronically in the EDMS — no wet signature supplied for this stage.", {
-        x: box.x + 14, y: box.y + 12, size: 7, font: helv, color: rgb(0.45, 0.45, 0.45),
-      });
-
+      const { page: sheet, created: sheetCreated } = ensureApprovalSheet(pdfDoc, helvBold, helv, layout);
+      const box = slotBox(sheet, stage, layout.stages);
+      if (box) {
+        sheet.drawRectangle({
+          x: box.x, y: box.y, width: box.w, height: box.h,
+          borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
+          color: rgb(0.96, 0.98, 1), opacity: 0.9,
+        });
+        let ty = box.y + box.h - 20;
+        sheet.drawText(stageTitle, { x: box.x + 14, y: ty, size: stageCfg?.title_size ?? 10, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
+        ty -= 26;
+        sheet.drawText(`Name: ${approverName || "—"}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+        ty -= 16;
+        sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+        ty -= 16;
+        sheet.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+        ty -= 16;
+        sheet.drawText(`Timestamp: ${stageDate.toLocaleString()}`, { x: box.x + 14, y: ty, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
+        sheet.drawText("Approved electronically in the EDMS — no wet signature supplied for this stage.", {
+          x: box.x + 14, y: box.y + 12, size: 7, font: helv, color: rgb(0.45, 0.45, 0.45),
+        });
+      } else {
+        drawArchivalFooter(
+          sheet, helv,
+          `Archived by Internal Quality Assurance — ${approverName || "IQA"} · ${stageDate.toLocaleString()} · layout ${layout.name} v${layout.version} · stamp v${STAMP_VERSION}`,
+        );
+      }
 
       const stampedBytes = await pdfDoc.save();
       const newPath = `${doc.trainer_id}/${doc.assignment_id || "unassigned"}/stamped_${stage}_${Date.now()}.pdf`;
@@ -397,8 +407,11 @@ Deno.serve(async (req) => {
       if (uploadErr) throw uploadErr;
       await logStampOperation(supabase, {
         stamp_version: STAMP_VERSION,
+        layout_name: layout.name,
+        layout_version: layout.version,
         stage,
-        stage_order: (STAGE_SLOT[stage] ?? 0) + 1,
+        stage_order: stageOrder,
+        stage_total: layout.stages.length,
         stage_label: STAGE_LABEL[stage],
         mode: "TEXT_ONLY",
         approver_name: approverName,
@@ -406,18 +419,32 @@ Deno.serve(async (req) => {
         approval_sheet_appended: sheetCreated,
         pages_before: pagesBefore,
         pages_after: pdfDoc.getPageCount(),
-        target: "APPROVAL_SHEET",
-        slot_index: STAGE_SLOT[stage] ?? 0,
+        target: box ? "APPROVAL_SHEET" : "ARCHIVAL_FOOTER",
+        slot_index: box ? stageOrder - 1 : null,
         signature_embedded: false,
         stamp_embedded: false,
         source_path: sourceRef.path,
         output_path: newPath,
         stamped_at: stageDate.toISOString(),
       }, documentId, callerId);
-      return new Response(JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION }), {
+      await recordStampMeta(supabase, documentId, `${layout.name} v${layout.version}`, stageOrder);
+      await notifyTrainer(supabase, {
+        userId: doc.trainer_id,
+        documentId,
+        kind: "APPROVED",
+        stage,
+        stageOrder,
+        stageTotal: layout.stages.length,
+        stampVersion: STAMP_VERSION,
+        layoutVersion: `${layout.name} v${layout.version}`,
+        title: `${STAGE_LABEL[stage]} signed "${doc.file_name || doc.document_type}"`,
+        message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}.`,
+      });
+      return new Response(JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION, layoutVersion: `${layout.name} v${layout.version}`, stageOrder }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     // Signature is mandatory in IMAGE mode; stamp is optional (signature-only
     // approvals are supported when the approver has no stamp configured).
