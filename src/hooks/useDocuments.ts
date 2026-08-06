@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { clearSignedUrlCache } from '@/hooks/useSignedDocUrl';
 import { assertSystemNotLocked } from '@/lib/systemLock';
 import { fetchPolicyFor } from '@/hooks/useDocTypePolicy';
+import { notifyDocumentEvent, stageForStatus, STAGE_ORDER, STAGE_LABEL, CLIENT_STAMP_VERSION } from '@/lib/notify';
 import type { Tables, TablesUpdate } from '@/integrations/supabase/types';
 import type { Database } from '@/integrations/supabase/types';
 
