@@ -153,6 +153,51 @@ async function logStampOperation(
   }
 }
 
+/** Stores which layout version and stage order produced the latest stamping. */
+async function recordStampMeta(
+  supabase: ReturnType<typeof createClient>,
+  documentId: string,
+  layoutVersion: string,
+  stageOrder: number,
+) {
+  try {
+    await supabase.from("documents")
+      .update({ stamp_layout_version: layoutVersion, stamp_stage_order: stageOrder })
+      .eq("id", documentId);
+  } catch (e) {
+    console.error("stamp meta update failed", e);
+  }
+}
+
+/** In-app notification for the document owner, carrying full traceability. */
+async function notifyTrainer(
+  supabase: ReturnType<typeof createClient>,
+  n: {
+    userId: string; documentId: string; kind: string; stage: string;
+    stageOrder: number; stageTotal: number; stampVersion: string;
+    layoutVersion: string; title: string; message: string; note?: string | null;
+  },
+) {
+  try {
+    await supabase.from("notifications").insert({
+      user_id: n.userId,
+      document_id: n.documentId,
+      kind: n.kind,
+      stage: n.stage,
+      stage_order: n.stageOrder,
+      stage_total: n.stageTotal,
+      stamp_version: n.stampVersion,
+      layout_version: n.layoutVersion,
+      title: n.title,
+      message: n.message,
+      note: n.note ?? null,
+    });
+  } catch (e) {
+    console.error("notification insert failed", e);
+  }
+}
+
+
 /** Geometry of a stage slot on the approval sheet (null for non-signing stages). */
 // deno-lint-ignore no-explicit-any
 function slotBox(page: any, stage: string, stages: StageLayout[]) {
