@@ -39,13 +39,15 @@ export function BulkSignButton({ docs, status, stage, label, onDone }: Props) {
   const { currentUser } = useAuth();
   const bulk = useBulkApproveWithPlacement();
   const [opening, setOpening] = useState(false);
+  const [preview, setPreview] = useState<{ index: number } | null>(null);
   const [placement, setPlacement] = useState<{ pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<{ succeeded: number; failed: number; failures: { docId: string; message: string }[] } | null>(null);
 
   const count = docs.length;
+  const sheetStage = stage === 'IQA' ? 'IQA' : stage;
 
-  const open = async () => {
+  const openPlacement = async () => {
     if (!currentUser || count === 0) return;
     setOpening(true);
     try {
@@ -66,6 +68,7 @@ export function BulkSignButton({ docs, status, stage, label, onDone }: Props) {
         resolveSignatureUrl(prof.signature_url),
         resolveSignatureUrl(prof.stamp_url),
       ]);
+      setPreview(null);
       setPlacement({ pdfUrl, sigUrl, stampUrl });
     } catch (e) {
       toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
@@ -73,6 +76,7 @@ export function BulkSignButton({ docs, status, stage, label, onDone }: Props) {
       setOpening(false);
     }
   };
+
 
   const run = async (p: ApprovalPlacement | null) => {
     setPlacement(null);
