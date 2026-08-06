@@ -2,7 +2,9 @@ import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { Bell, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useUnreadNotificationCount } from '@/hooks/useNotifications';
 import polytechnicLogo from '@/assets/polytechnic-logo.jpg';
+
 
 const roleLabels: Record<UserRole, string> = {
   TRAINER: 'Trainer',
