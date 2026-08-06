@@ -156,11 +156,27 @@ async function performApproval(
 
   if (status === 'REJECTED') {
     updates.rejection_reason = rejectionReason || 'Does not meet standards';
+    const { data: prev } = await supabase
+      .from('documents').select('status, trainer_id, document_type, file_name').eq('id', docId).single();
     const { data, error } = await supabase
       .from('documents').update(updates).eq('id', docId).select().single();
     if (error) throw error;
+    const p = prev as { status?: string; trainer_id?: string; document_type?: string; file_name?: string } | null;
+    if (p?.trainer_id) {
+      const stage = stageForStatus(p.status || 'SUBMITTED');
+      await notifyDocumentEvent({
+        userId: p.trainer_id,
+        documentId: docId,
+        kind: 'REJECTED',
+        stage,
+        title: `${p.document_type || 'Document'} rejected at stage ${STAGE_ORDER[stage]} (${STAGE_LABEL[stage]})`,
+        message: `${p.file_name || 'Your document'} was rejected. Edit and resubmit it from My Submissions. Approval sheet stamp version ${CLIENT_STAMP_VERSION}.`,
+        note: updates.rejection_reason,
+      });
+    }
     return data;
   }
+
 
   if (!APPROVAL_STATUSES.includes(status)) {
     const { data, error } = await supabase
