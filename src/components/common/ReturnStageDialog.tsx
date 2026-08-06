@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { RotateCcw, Loader2 } from 'lucide-react';
+import { notifyDocumentEvent, STAGE_LABEL, STAGE_ORDER, CLIENT_STAMP_VERSION } from '@/lib/notify';
 
 interface Props {
   open: boolean;
@@ -34,6 +35,8 @@ export function ReturnStageDialog({ open, onOpenChange, docId, fromStage }: Prop
     }
     setBusy(true);
     try {
+      const { data: prev } = await supabase
+        .from('documents').select('trainer_id, document_type, file_name').eq('id', docId).single();
       const { error } = await supabase
         .from('documents')
         .update({
@@ -44,10 +47,23 @@ export function ReturnStageDialog({ open, onOpenChange, docId, fromStage }: Prop
         } as never)
         .eq('id', docId);
       if (error) throw error;
+      const p = prev as { trainer_id?: string; document_type?: string; file_name?: string } | null;
+      if (p?.trainer_id) {
+        await notifyDocumentEvent({
+          userId: p.trainer_id,
+          documentId: docId,
+          kind: 'RETURNED',
+          stage: fromStage,
+          title: `${p.document_type || 'Document'} returned by ${STAGE_LABEL[fromStage]} to ${targetLabel}`,
+          message: `${p.file_name || 'Your document'} moved back to stage ${STAGE_ORDER[fromStage] ?? '-'} handling. Stamp version ${CLIENT_STAMP_VERSION}.`,
+          note: note.trim(),
+        });
+      }
       toast({ title: `Returned to ${targetLabel}` });
       qc.invalidateQueries({ queryKey: ['documents'] });
       onOpenChange(false);
       setNote('');
+
     } catch (e) {
       toast({ title: 'Return failed', description: e instanceof Error ? e.message : String(e), variant: 'destructive' });
     } finally {

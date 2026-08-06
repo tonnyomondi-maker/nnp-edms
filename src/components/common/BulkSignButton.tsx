@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { toast } from '@/hooks/use-toast';
-import { PenLine, Loader2 } from 'lucide-react';
+import { PenLine, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ApprovalSheetBody } from '@/components/common/ApprovalSheetPreview';
 
 type DocumentStatus = Database['public']['Enums']['document_status'];
 
@@ -39,13 +40,15 @@ export function BulkSignButton({ docs, status, stage, label, onDone }: Props) {
   const { currentUser } = useAuth();
   const bulk = useBulkApproveWithPlacement();
   const [opening, setOpening] = useState(false);
+  const [preview, setPreview] = useState<{ index: number } | null>(null);
   const [placement, setPlacement] = useState<{ pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<{ succeeded: number; failed: number; failures: { docId: string; message: string }[] } | null>(null);
 
   const count = docs.length;
+  const sheetStage = stage === 'IQA' ? 'IQA' : stage;
 
-  const open = async () => {
+  const openPlacement = async () => {
     if (!currentUser || count === 0) return;
     setOpening(true);
     try {
@@ -66,6 +69,7 @@ export function BulkSignButton({ docs, status, stage, label, onDone }: Props) {
         resolveSignatureUrl(prof.signature_url),
         resolveSignatureUrl(prof.stamp_url),
       ]);
+      setPreview(null);
       setPlacement({ pdfUrl, sigUrl, stampUrl });
     } catch (e) {
       toast({ title: 'Cannot open document', description: e instanceof Error ? e.message : 'Could not load PDF', variant: 'destructive' });
@@ -73,6 +77,7 @@ export function BulkSignButton({ docs, status, stage, label, onDone }: Props) {
       setOpening(false);
     }
   };
+
 
   const run = async (p: ApprovalPlacement | null) => {
     setPlacement(null);
@@ -98,6 +103,8 @@ export function BulkSignButton({ docs, status, stage, label, onDone }: Props) {
     }
   };
 
+  const current = preview ? docs[preview.index] : null;
+
   return (
     <>
       <ActionGuardButton
@@ -106,12 +113,57 @@ export function BulkSignButton({ docs, status, stage, label, onDone }: Props) {
         variant="secondary"
         className="gap-1 h-8"
         disabled={count === 0 || opening || bulk.isPending}
-        onClick={open}
-        title="Place your signature once and apply it to every selected document"
+        onClick={() => setPreview({ index: 0 })}
+        title="Preview the approval sheets, then place your signature once and apply it to every selected document"
       >
         {opening || bulk.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />}
         {label || 'Sign & approve selected'} ({count})
       </ActionGuardButton>
+
+      {/* Step 1 — walk through the approval sheet that will be appended to each document */}
+      <Dialog open={!!preview} onOpenChange={(o) => { if (!o) setPreview(null); }}>
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Preview approval sheets ({(preview?.index ?? 0) + 1} of {count})</DialogTitle>
+            <DialogDescription>
+              Check each document's appended approval &amp; verification sheet before submitting them all in one go.
+            </DialogDescription>
+          </DialogHeader>
+
+          <p className="text-xs font-medium truncate">
+            {current?.file_name || current?.document_type || current?.id}
+          </p>
+          <ApprovalSheetBody
+            docLabel={current?.document_type || undefined}
+            highlightStage={sheetStage}
+          />
+
+          <DialogFooter className="flex-row justify-between gap-2 sm:justify-between">
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={(preview?.index ?? 0) === 0}
+                onClick={() => setPreview((p) => (p ? { index: Math.max(0, p.index - 1) } : p))}
+              >
+                <ChevronLeft className="w-4 h-4" /> Prev
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={(preview?.index ?? 0) >= count - 1}
+                onClick={() => setPreview((p) => (p ? { index: Math.min(count - 1, p.index + 1) } : p))}
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+            <Button size="sm" onClick={openPlacement} disabled={opening}>
+              {opening && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Continue to signing ({count})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {placement && (
         <PlacementModal
@@ -124,6 +176,7 @@ export function BulkSignButton({ docs, status, stage, label, onDone }: Props) {
           onConfirm={run}
         />
       )}
+
 
       <Dialog open={!!progress} onOpenChange={() => { /* blocking */ }}>
         <DialogContent className="max-w-sm">

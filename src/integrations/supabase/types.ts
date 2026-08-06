@@ -355,6 +355,8 @@ export type Database = {
           session_year: number | null
           sessions_per_week: number | null
           signed_file_url: string | null
+          stamp_layout_version: string | null
+          stamp_stage_order: number | null
           status: Database["public"]["Enums"]["document_status"]
           storage_tier: string
           submission_type: Database["public"]["Enums"]["submission_type"]
@@ -459,6 +461,8 @@ export type Database = {
           session_year?: number | null
           sessions_per_week?: number | null
           signed_file_url?: string | null
+          stamp_layout_version?: string | null
+          stamp_stage_order?: number | null
           status?: Database["public"]["Enums"]["document_status"]
           storage_tier?: string
           submission_type: Database["public"]["Enums"]["submission_type"]
@@ -563,6 +567,8 @@ export type Database = {
           session_year?: number | null
           sessions_per_week?: number | null
           signed_file_url?: string | null
+          stamp_layout_version?: string | null
+          stamp_stage_order?: number | null
           status?: Database["public"]["Enums"]["document_status"]
           storage_tier?: string
           submission_type?: Database["public"]["Enums"]["submission_type"]
@@ -711,6 +717,65 @@ export type Database = {
           steps?: Json
         }
         Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          document_id: string | null
+          id: string
+          kind: string
+          layout_version: string | null
+          message: string | null
+          note: string | null
+          read_at: string | null
+          stage: string | null
+          stage_order: number | null
+          stage_total: number | null
+          stamp_version: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          kind: string
+          layout_version?: string | null
+          message?: string | null
+          note?: string | null
+          read_at?: string | null
+          stage?: string | null
+          stage_order?: number | null
+          stage_total?: number | null
+          stamp_version?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          kind?: string
+          layout_version?: string | null
+          message?: string | null
+          note?: string | null
+          read_at?: string | null
+          stage?: string | null
+          stage_order?: number | null
+          stage_total?: number | null
+          stamp_version?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       offload_schedules: {
         Row: {
@@ -928,6 +993,42 @@ export type Database = {
           target_hours?: number
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      stamp_layouts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          header_title: string
+          id: string
+          is_active: boolean
+          name: string
+          stages: Json
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          header_title?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          stages?: Json
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          header_title?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          stages?: Json
+          updated_at?: string
+          version?: number
         }
         Relationships: []
       }

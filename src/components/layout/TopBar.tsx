@@ -2,7 +2,9 @@ import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import { Bell, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useUnreadNotificationCount } from '@/hooks/useNotifications';
 import polytechnicLogo from '@/assets/polytechnic-logo.jpg';
+
 
 const roleLabels: Record<UserRole, string> = {
   TRAINER: 'Trainer',
@@ -14,6 +16,7 @@ const roleLabels: Record<UserRole, string> = {
 
 export function TopBar() {
   const { currentUser, activeRole, setActiveRole, signOut } = useAuth();
+  const unread = useUnreadNotificationCount();
 
   if (!currentUser) return null;
 
@@ -28,9 +31,15 @@ export function TopBar() {
           </div>
         </Link>
         <div className="flex items-center gap-2">
-          <Link to="/notifications" className="relative p-2">
+          <Link to="/notifications" className="relative p-2" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>
             <Bell className="w-5 h-5 text-muted-foreground" />
+            {unread > 0 && (
+              <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-semibold flex items-center justify-center">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
           </Link>
+
           <Link to="/profile" className="text-xs font-medium truncate max-w-[100px] flex items-center gap-1 hover:text-primary transition-colors">
             <User className="w-3.5 h-3.5" />
             {currentUser.name}

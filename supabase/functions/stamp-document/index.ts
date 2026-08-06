@@ -29,35 +29,75 @@ interface StampRequest {
 }
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
-const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "IQA Review", DP: "DP Academics", IQA: "IQA Archival" };
-const STAGE_TITLE: Record<string, string> = {
-  HOD: "1. VERIFIED BY HEAD OF DEPARTMENT",
-  IQA_REVIEW: "2. REVIEWED BY INTERNAL QUALITY ASSURANCE",
-  DP: "3. APPROVED BY DEPUTY PRINCIPAL — ACADEMICS",
-  IQA: "4. ARCHIVED BY INTERNAL QUALITY ASSURANCE",
-};
-const STAGE_SLOT: Record<string, number> = { HOD: 0, IQA_REVIEW: 1, DP: 2, IQA: 3 };
+const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance", DP: "Deputy Principal — Academics", IQA: "IQA Archival" };
 const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
 /** Bump whenever the approval-sheet layout or stamping logic changes. */
-const STAMP_VERSION = "2.0.0";
+const STAMP_VERSION = "3.0.0";
 
+/** A single signing slot on the approval sheet. */
+interface StageLayout {
+  stage: string;
+  order: number;
+  title: string;
+  slot_height: number;
+  sig_w: number;
+  sig_h: number;
+  stamp_size: number;
+  title_size: number;
+}
+
+/**
+ * Only three officers sign the appended sheet, in this order. IQA archival is
+ * recorded as a one-line footer (and in the audit trail) rather than a slot.
+ */
+const DEFAULT_STAGES: StageLayout[] = [
+  { stage: "HOD", order: 1, title: "1. VERIFIED BY HEAD OF DEPARTMENT", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
+  { stage: "IQA_REVIEW", order: 2, title: "2. VERIFIED BY INTERNAL QUALITY ASSURANCE", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
+  { stage: "DP", order: 3, title: "3. APPROVED BY DEPUTY PRINCIPAL - ACADEMICS", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
+];
+
+const SHEET_TOP_OFFSET = 110;
+const SLOT_GAP = 16;
+
+async function loadLayout(supabase: ReturnType<typeof createClient>) {
+  try {
+    const { data } = await supabase
+      .from("stamp_layouts")
+      .select("name, version, stages, header_title")
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+    const raw = (data?.stages ?? []) as StageLayout[];
+    const stages = Array.isArray(raw) && raw.length > 0
+      ? raw.map((s, i) => ({ ...DEFAULT_STAGES[i] ?? DEFAULT_STAGES[0], ...s })).sort((a, b) => a.order - b.order)
+      : DEFAULT_STAGES;
+    return {
+      name: (data?.name as string) || "Standard 2026",
+      version: (data?.version as number) ?? 1,
+      headerTitle: (data?.header_title as string) || "DOCUMENT APPROVAL & VERIFICATION SHEET",
+      stages,
+    };
+  } catch {
+    return { name: "Standard 2026", version: 1, headerTitle: "DOCUMENT APPROVAL & VERIFICATION SHEET", stages: DEFAULT_STAGES };
+  }
+}
 
 /**
  * Returns the dedicated approval sheet appended at the end of the document,
  * creating it on first use. The sheet is marked in the PDF subject so later
  * approval stages reuse the same page instead of appending a new one — this
- * keeps all four signatures ordered and evenly spaced without the approver
- * ever having to open the document.
+ * keeps all signatures ordered and evenly spaced without the approver ever
+ * having to open the document.
  */
 // deno-lint-ignore no-explicit-any
-function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any) {
+function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any, layout: { headerTitle: string; stages: StageLayout[]; name: string }) {
   const marked = (pdfDoc.getSubject() || "").includes(SHEET_MARKER);
   const pages = pdfDoc.getPages();
   if (marked && pages.length > 0) return { page: pages[pages.length - 1], created: false };
 
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
-  page.drawText("DOCUMENT APPROVAL & VERIFICATION SHEET", {
+  page.drawText(layout.headerTitle, {
     x: 40, y: height - 60, size: 14, font: bold, color: rgb(0.1, 0.25, 0.5),
   });
   page.drawText(
@@ -68,6 +108,24 @@ function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any) {
     start: { x: 40, y: height - 86 }, end: { x: width - 40, y: height - 86 },
     thickness: 1, color: rgb(0.1, 0.25, 0.5),
   });
+
+  // Pre-draw every empty slot so the sheet always reads as an ordered form,
+  // even when only the first officer has signed so far.
+  layout.stages.forEach((s) => {
+    const box = slotBox(page, s.stage, layout.stages);
+    if (!box) return;
+    page.drawRectangle({
+      x: box.x, y: box.y, width: box.w, height: box.h,
+      borderColor: rgb(0.7, 0.78, 0.88), borderWidth: 0.8,
+    });
+    page.drawText(s.title, {
+      x: box.x + 14, y: box.y + box.h - 20, size: s.title_size, font: bold, color: rgb(0.45, 0.55, 0.7),
+    });
+    page.drawText("Awaiting signature", {
+      x: box.x + 14, y: box.y + 14, size: 7.5, font: regular, color: rgb(0.6, 0.6, 0.6),
+    });
+  });
+
   pdfDoc.setSubject(`${pdfDoc.getSubject() || ""} ${SHEET_MARKER}`.trim());
   return { page, created: true };
 }
@@ -95,17 +153,73 @@ async function logStampOperation(
   }
 }
 
-/** Y coordinate of the bottom of a stage slot on the approval sheet. */
-// deno-lint-ignore no-explicit-any
-function slotBox(page: any, stage: string) {
-  const { width, height } = page.getSize();
-  const top = height - 110;
-  const slotH = 155;
-  const gap = 14;
-  const idx = STAGE_SLOT[stage] ?? 0;
-  const y = top - (idx + 1) * slotH - idx * gap;
-  return { x: 40, y, w: width - 80, h: slotH };
+/** Stores which layout version and stage order produced the latest stamping. */
+async function recordStampMeta(
+  supabase: ReturnType<typeof createClient>,
+  documentId: string,
+  layoutVersion: string,
+  stageOrder: number,
+) {
+  try {
+    await supabase.from("documents")
+      .update({ stamp_layout_version: layoutVersion, stamp_stage_order: stageOrder })
+      .eq("id", documentId);
+  } catch (e) {
+    console.error("stamp meta update failed", e);
+  }
 }
+
+/** In-app notification for the document owner, carrying full traceability. */
+async function notifyTrainer(
+  supabase: ReturnType<typeof createClient>,
+  n: {
+    userId: string; documentId: string; kind: string; stage: string;
+    stageOrder: number; stageTotal: number; stampVersion: string;
+    layoutVersion: string; title: string; message: string; note?: string | null;
+  },
+) {
+  try {
+    await supabase.from("notifications").insert({
+      user_id: n.userId,
+      document_id: n.documentId,
+      kind: n.kind,
+      stage: n.stage,
+      stage_order: n.stageOrder,
+      stage_total: n.stageTotal,
+      stamp_version: n.stampVersion,
+      layout_version: n.layoutVersion,
+      title: n.title,
+      message: n.message,
+      note: n.note ?? null,
+    });
+  } catch (e) {
+    console.error("notification insert failed", e);
+  }
+}
+
+
+/** Geometry of a stage slot on the approval sheet (null for non-signing stages). */
+// deno-lint-ignore no-explicit-any
+function slotBox(page: any, stage: string, stages: StageLayout[]) {
+  const idx = stages.findIndex((s) => s.stage === stage);
+  if (idx < 0) return null;
+  const { width, height } = page.getSize();
+  let y = height - SHEET_TOP_OFFSET;
+  for (let i = 0; i <= idx; i++) {
+    y -= stages[i].slot_height;
+    if (i < idx) y -= SLOT_GAP;
+  }
+  return { x: 40, y, w: width - 80, h: stages[idx].slot_height };
+}
+
+/** One-line archival footer written at the very bottom of the approval sheet. */
+// deno-lint-ignore no-explicit-any
+function drawArchivalFooter(page: any, font: any, text: string) {
+  const { width } = page.getSize();
+  page.drawLine({ start: { x: 40, y: 62 }, end: { x: width - 40, y: 62 }, thickness: 0.6, color: rgb(0.6, 0.6, 0.6) });
+  page.drawText(text, { x: 40, y: 48, size: 7.5, font, color: rgb(0.35, 0.35, 0.35) });
+}
+
 
 
 
@@ -287,6 +401,10 @@ Deno.serve(async (req) => {
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const helvBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const layout = await loadLayout(supabase);
+    const stageCfg = layout.stages.find((s) => s.stage === stage) || null;
+    const stageOrder = stageCfg?.order ?? layout.stages.length + 1;
+    const stageTitle = stageCfg?.title ?? `${stageOrder}. ARCHIVED BY INTERNAL QUALITY ASSURANCE`;
 
     // Resolve a STABLE date for this stage so re-exports always render the same text
     const stageDateIso: string | null =
@@ -299,27 +417,33 @@ Deno.serve(async (req) => {
     // Text-only quick approval: write the stage block on the shared approval sheet
     if (mode === "TEXT_ONLY") {
       const pagesBefore = pdfDoc.getPageCount();
-      const { page: sheet, created: sheetCreated } = ensureApprovalSheet(pdfDoc, helvBold, helv);
-      const box = slotBox(sheet, stage);
-      sheet.drawRectangle({
-        x: box.x, y: box.y, width: box.w, height: box.h,
-        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
-        color: rgb(0.96, 0.98, 1), opacity: 0.9,
-      });
-      let ty = box.y + box.h - 20;
-      sheet.drawText(STAGE_TITLE[stage], { x: box.x + 14, y: ty, size: 10, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
-      ty -= 22;
-      sheet.drawText(`Name: ${approverName || "—"}`, { x: box.x + 14, y: ty, size: 9, font: helv });
-      ty -= 16;
-      sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: box.x + 14, y: ty, size: 9, font: helv });
-      ty -= 16;
-      sheet.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: box.x + 14, y: ty, size: 9, font: helv });
-      ty -= 16;
-      sheet.drawText(`Timestamp: ${stageDate.toLocaleString()}`, { x: box.x + 14, y: ty, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
-      sheet.drawText("Approved electronically in the EDMS — no wet signature supplied for this stage.", {
-        x: box.x + 14, y: box.y + 12, size: 7, font: helv, color: rgb(0.45, 0.45, 0.45),
-      });
-
+      const { page: sheet, created: sheetCreated } = ensureApprovalSheet(pdfDoc, helvBold, helv, layout);
+      const box = slotBox(sheet, stage, layout.stages);
+      if (box) {
+        sheet.drawRectangle({
+          x: box.x, y: box.y, width: box.w, height: box.h,
+          borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
+          color: rgb(0.96, 0.98, 1), opacity: 0.9,
+        });
+        let ty = box.y + box.h - 20;
+        sheet.drawText(stageTitle, { x: box.x + 14, y: ty, size: stageCfg?.title_size ?? 10, font: helvBold, color: rgb(0.1, 0.25, 0.5) });
+        ty -= 26;
+        sheet.drawText(`Name: ${approverName || "—"}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+        ty -= 16;
+        sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+        ty -= 16;
+        sheet.drawText(`Date: ${stageDate.toLocaleDateString()}`, { x: box.x + 14, y: ty, size: 9, font: helv });
+        ty -= 16;
+        sheet.drawText(`Timestamp: ${stageDate.toLocaleString()}`, { x: box.x + 14, y: ty, size: 7, font: helv, color: rgb(0.3, 0.3, 0.3) });
+        sheet.drawText("Approved electronically in the EDMS — no wet signature supplied for this stage.", {
+          x: box.x + 14, y: box.y + 12, size: 7, font: helv, color: rgb(0.45, 0.45, 0.45),
+        });
+      } else {
+        drawArchivalFooter(
+          sheet, helv,
+          `Archived by Internal Quality Assurance — ${approverName || "IQA"} · ${stageDate.toLocaleString()} · layout ${layout.name} v${layout.version} · stamp v${STAMP_VERSION}`,
+        );
+      }
 
       const stampedBytes = await pdfDoc.save();
       const newPath = `${doc.trainer_id}/${doc.assignment_id || "unassigned"}/stamped_${stage}_${Date.now()}.pdf`;
@@ -328,8 +452,11 @@ Deno.serve(async (req) => {
       if (uploadErr) throw uploadErr;
       await logStampOperation(supabase, {
         stamp_version: STAMP_VERSION,
+        layout_name: layout.name,
+        layout_version: layout.version,
         stage,
-        stage_order: (STAGE_SLOT[stage] ?? 0) + 1,
+        stage_order: stageOrder,
+        stage_total: layout.stages.length,
         stage_label: STAGE_LABEL[stage],
         mode: "TEXT_ONLY",
         approver_name: approverName,
@@ -337,18 +464,32 @@ Deno.serve(async (req) => {
         approval_sheet_appended: sheetCreated,
         pages_before: pagesBefore,
         pages_after: pdfDoc.getPageCount(),
-        target: "APPROVAL_SHEET",
-        slot_index: STAGE_SLOT[stage] ?? 0,
+        target: box ? "APPROVAL_SHEET" : "ARCHIVAL_FOOTER",
+        slot_index: box ? stageOrder - 1 : null,
         signature_embedded: false,
         stamp_embedded: false,
         source_path: sourceRef.path,
         output_path: newPath,
         stamped_at: stageDate.toISOString(),
       }, documentId, callerId);
-      return new Response(JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION }), {
+      await recordStampMeta(supabase, documentId, `${layout.name} v${layout.version}`, stageOrder);
+      await notifyTrainer(supabase, {
+        userId: doc.trainer_id,
+        documentId,
+        kind: "APPROVED",
+        stage,
+        stageOrder,
+        stageTotal: layout.stages.length,
+        stampVersion: STAMP_VERSION,
+        layoutVersion: `${layout.name} v${layout.version}`,
+        title: `${STAGE_LABEL[stage]} signed "${doc.file_name || doc.document_type}"`,
+        message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}.`,
+      });
+      return new Response(JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION, layoutVersion: `${layout.name} v${layout.version}`, stageOrder }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     // Signature is mandatory in IMAGE mode; stamp is optional (signature-only
     // approvals are supported when the approver has no stamp configured).
@@ -430,50 +571,63 @@ Deno.serve(async (req) => {
     } else {
       // No custom placement (typical for bulk approvals): render the stage on
       // the shared, ordered approval sheet appended at the end of the PDF.
-      const ensured = ensureApprovalSheet(pdfDoc, helvBold, helv);
+      const ensured = ensureApprovalSheet(pdfDoc, helvBold, helv, layout);
       const sheet = ensured.page;
       sheetCreated = ensured.created;
       targetPageIndex = pdfDoc.getPageCount();
-      const box = slotBox(sheet, stage);
-      sheet.drawRectangle({
-        x: box.x, y: box.y, width: box.w, height: box.h,
-        borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
-        color: rgb(0.98, 0.99, 1), opacity: 0.9,
-      });
-      sheet.drawText(STAGE_TITLE[stage], {
-        x: box.x + 14, y: box.y + box.h - 20, size: 10, font: helvBold, color: rgb(0.1, 0.25, 0.5),
-      });
+      const box = slotBox(sheet, stage, layout.stages);
 
-      const sigDims = sigImage.scaleToFit(SIG_W, SIG_H);
-      const stampDims = stampImage ? stampImage.scaleToFit(STAMP_W, STAMP_H) : { width: STAMP_W, height: STAMP_H };
-      const sigX = box.x + 14;
-      const sigY = box.y + 52;
-      const lineY = sigY - 4;
-
-      if (autofill) {
-        sheet.drawImage(sigImage, { x: sigX, y: sigY, width: sigDims.width, height: sigDims.height });
-        sheet.drawLine({ start: { x: sigX, y: lineY }, end: { x: sigX + Math.max(sigDims.width, 160), y: lineY }, thickness: 0.6 });
-        sheet.drawText(`Name: ${approverName}`, { x: sigX, y: lineY - 14, size: 9, font: helv });
-        sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: sigX, y: lineY - 27, size: 9, font: helv });
-        sheet.drawText(`Date: ${stageDate.toLocaleDateString()} · ${stageDate.toLocaleTimeString()}`, {
-          x: sigX, y: lineY - 40, size: 7.5, font: helv, color: rgb(0.35, 0.35, 0.35),
-        });
-        if (stampImage) {
-          sheet.drawImage(stampImage, {
-            x: box.x + box.w - stampDims.width - 24,
-            y: box.y + 22,
-            width: stampDims.width,
-            height: stampDims.height,
-          });
-        }
+      if (!box) {
+        // IQA archival has no signing slot — record it as the sheet footer.
+        drawArchivalFooter(
+          sheet, helv,
+          `Archived by Internal Quality Assurance — ${approverName || "IQA"} · ${stageDate.toLocaleString()} · layout ${layout.name} v${layout.version} · stamp v${STAMP_VERSION}`,
+        );
       } else {
-        sheet.drawText('Sign: ______________________________', { x: sigX, y: box.y + box.h - 55, size: 9, font: helv });
-        sheet.drawText('Name: ______________________________', { x: sigX, y: box.y + box.h - 78, size: 9, font: helv });
-        sheet.drawText('Date: ______________________________', { x: sigX, y: box.y + box.h - 101, size: 9, font: helv });
-        if (stampImage) {
-          const cx = box.x + box.w - 70, cy = box.y + box.h / 2;
-          sheet.drawCircle({ x: cx, y: cy, size: 35, borderWidth: 1, borderColor: rgb(0.3, 0.3, 0.3) });
-          sheet.drawText('STAMP', { x: cx - 14, y: cy - 3, size: 8, font: helvBold, color: rgb(0.4, 0.4, 0.4) });
+        sheet.drawRectangle({
+          x: box.x, y: box.y, width: box.w, height: box.h,
+          borderColor: rgb(0.15, 0.35, 0.6), borderWidth: 1,
+          color: rgb(0.98, 0.99, 1), opacity: 0.9,
+        });
+        sheet.drawText(stageTitle, {
+          x: box.x + 14, y: box.y + box.h - 20, size: stageCfg?.title_size ?? 10, font: helvBold, color: rgb(0.1, 0.25, 0.5),
+        });
+
+        // Keep every mark inside its own slot so stages can never overlap.
+        const maxSigW = Math.min(stageCfg?.sig_w ?? SIG_W, box.w * 0.5);
+        const maxSigH = Math.min(stageCfg?.sig_h ?? SIG_H, box.h - 110);
+        const maxStamp = Math.min(stageCfg?.stamp_size ?? STAMP_W, box.h - 60);
+        const sigDims = sigImage.scaleToFit(maxSigW, maxSigH);
+        const stampDims = stampImage ? stampImage.scaleToFit(maxStamp, maxStamp) : { width: maxStamp, height: maxStamp };
+        const sigX = box.x + 14;
+        const sigY = box.y + box.h - 34 - sigDims.height;
+        const lineY = sigY - 6;
+
+        if (autofill) {
+          sheet.drawImage(sigImage, { x: sigX, y: sigY, width: sigDims.width, height: sigDims.height });
+          sheet.drawLine({ start: { x: sigX, y: lineY }, end: { x: sigX + Math.max(sigDims.width, 180), y: lineY }, thickness: 0.6 });
+          sheet.drawText(`Name: ${approverName}`, { x: sigX, y: lineY - 15, size: 9, font: helv });
+          sheet.drawText(`Role: ${STAGE_LABEL[stage]}`, { x: sigX, y: lineY - 29, size: 9, font: helv });
+          sheet.drawText(`Date: ${stageDate.toLocaleDateString()} · ${stageDate.toLocaleTimeString()}`, {
+            x: sigX, y: lineY - 43, size: 7.5, font: helv, color: rgb(0.35, 0.35, 0.35),
+          });
+          if (stampImage) {
+            sheet.drawImage(stampImage, {
+              x: box.x + box.w - stampDims.width - 24,
+              y: box.y + (box.h - 30 - stampDims.height) / 2,
+              width: stampDims.width,
+              height: stampDims.height,
+            });
+          }
+        } else {
+          sheet.drawText('Sign: ______________________________', { x: sigX, y: box.y + box.h - 55, size: 9, font: helv });
+          sheet.drawText('Name: ______________________________', { x: sigX, y: box.y + box.h - 80, size: 9, font: helv });
+          sheet.drawText('Date: ______________________________', { x: sigX, y: box.y + box.h - 105, size: 9, font: helv });
+          if (stampImage) {
+            const cx = box.x + box.w - 70, cy = box.y + box.h / 2;
+            sheet.drawCircle({ x: cx, y: cy, size: Math.min(35, box.h / 2 - 20), borderWidth: 1, borderColor: rgb(0.3, 0.3, 0.3) });
+            sheet.drawText('STAMP', { x: cx - 14, y: cy - 3, size: 8, font: helvBold, color: rgb(0.4, 0.4, 0.4) });
+          }
         }
       }
     }
@@ -489,13 +643,16 @@ Deno.serve(async (req) => {
 
     await logStampOperation(supabase, {
       stamp_version: STAMP_VERSION,
+      layout_name: layout.name,
+      layout_version: layout.version,
       stage,
-      stage_order: (STAGE_SLOT[stage] ?? 0) + 1,
+      stage_order: stageOrder,
+      stage_total: layout.stages.length,
       stage_label: STAGE_LABEL[stage],
       mode: "IMAGE",
       approver_name: approverName,
-      target: useCustom ? "IN_PLACE" : "APPROVAL_SHEET",
-      slot_index: useCustom ? null : (STAGE_SLOT[stage] ?? 0),
+      target: useCustom ? "IN_PLACE" : (stageCfg ? "APPROVAL_SHEET" : "ARCHIVAL_FOOTER"),
+      slot_index: useCustom || !stageCfg ? null : stageOrder - 1,
       page_index: targetPageIndex,
       approval_sheet_appended: sheetCreated,
       pages_before: pagesBefore,
@@ -507,13 +664,27 @@ Deno.serve(async (req) => {
       output_path: newPath,
       stamped_at: stageDate.toISOString(),
     }, documentId, callerId);
+    await recordStampMeta(supabase, documentId, `${layout.name} v${layout.version}`, stageOrder);
+    await notifyTrainer(supabase, {
+      userId: doc.trainer_id,
+      documentId,
+      kind: "APPROVED",
+      stage,
+      stageOrder,
+      stageTotal: layout.stages.length,
+      stampVersion: STAMP_VERSION,
+      layoutVersion: `${layout.name} v${layout.version}`,
+      title: `${STAGE_LABEL[stage]} signed "${doc.file_name || doc.document_type}"`,
+      message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}.`,
+    });
 
     // Bucket is private — return the bare path. The client uses parseStorageRef
     // and createSignedUrl to build a fresh preview URL each time.
     return new Response(
-      JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION }),
+      JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION, layoutVersion: `${layout.name} v${layout.version}`, stageOrder }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (e) {
     console.error("stamp-document error:", e);
     return new Response(JSON.stringify({ error: (e as Error).message }), {
