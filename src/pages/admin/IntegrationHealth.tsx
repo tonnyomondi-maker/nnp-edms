@@ -65,16 +65,26 @@ export default function IntegrationHealth() {
     } finally { setLoading((s) => ({ ...s, health: false })); }
   }
 
-  async function runSmoke() {
+  async function runSmoke(multi: boolean) {
     setLoading((s) => ({ ...s, smoke: true }));
     try {
-      const d = await invoke('drive-smoke-test');
-      toast({ title: d.ok ? 'Smoke test passed' : 'Smoke test failed', description: d.error ?? undefined, variant: d.ok ? 'default' : 'destructive' });
+      const depts = multi ? (selectedDepts.length ? selectedDepts : mappedDepartments) : [];
+      if (multi && depts.length === 0) {
+        toast({ title: 'No departments selected', description: 'Map or pick at least one department first.', variant: 'destructive' });
+        return;
+      }
+      const d = await invoke('drive-smoke-test', multi ? { departments: depts } : {});
+      toast({
+        title: d.ok ? 'Smoke test passed' : 'Smoke test failed',
+        description: d.error ?? (multi ? `${depts.length} department(s) tested` : undefined),
+        variant: d.ok ? 'default' : 'destructive',
+      });
       await refresh();
     } catch (e) {
       toast({ title: 'Smoke test error', description: String(e), variant: 'destructive' });
     } finally { setLoading((s) => ({ ...s, smoke: false })); }
   }
+
 
   async function relink(mode: 'discover' | 'create') {
     if (mode === 'create' && !confirm('Create/overwrite the Drive folder map for this workspace?')) return;
