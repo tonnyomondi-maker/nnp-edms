@@ -156,12 +156,138 @@ Deno.serve(async (req) => {
   const { data: isSuper } = await admin.rpc("has_role", { _user_id: userId, _role: "SUPER_ADMIN" });
   if (!isSuper) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+  const body = await req.json().catch(() => ({})) as { departments?: string[] };
+  const departments = Array.isArray(body?.departments)
+    ? body.departments.filter((d) => typeof d === "string" && d.trim()).slice(0, 12)
+    : [];
+
   const steps: Array<Record<string, unknown>> = [];
   const startedAt = new Date().toISOString();
   let uploadedId: string | null = null;
   let overall = false;
   let errorMsg: string | null = null;
 
+  // ---- Multi-department isolation test -------------------------------------
+  if (departments.length > 0) {
+    const created: { department: string; fileId: string; folderId: string }[] = [];
+    try {
+      if (!lovableKey || !gdriveKey) throw new Error("Missing LOVABLE_API_KEY or GOOGLE_DRIVE_API_KEY");
+
+      const { data: rootFolder } = await admin
+        .from("drive_folder_map").select("folder_id").eq("scope", "root").maybeSingle();
+      let rootId = rootFolder?.folder_id as string | undefined;
+      if (!rootId) rootId = await ensureFolder(lovableKey, gdriveKey, "EDMS", null);
+      steps.push({ name: "resolve_root", ok: true, detail: { folder_id: rootId } });
+
+      const { data: deptRows } = await admin
+        .from("drive_folder_map").select("department, folder_id").eq("scope", "department");
+      const mapped = new Map<string, string>(
+        ((deptRows || []) as { department: string | null; folder_id: string }[])
+          .filter((r) => r.department)
+          .map((r) => [r.department as string, r.folder_id]),
+      );
+
+      // Phase 1 — upload one test PDF per department and verify placement + sharing.
+      for (const dept of departments) {
+        const stamp = Date.now();
+        const detail: Record<string, unknown> = { department: dept };
+        let ok = true;
+        const t0 = Date.now();
+        try {
+          const folderId = mapped.get(dept) ?? await ensureFolder(lovableKey, gdriveKey, dept, rootId!);
+          detail.folder_id = folderId;
+
+          const pdf = makeTinyPdf(`EDMS smoke test ${dept} ${startedAt}`);
+          const uploaded = await driveUpload(lovableKey, gdriveKey, `smoke_${dept.replace(/[^\w]+/g, "_")}_${stamp}.pdf`, folderId, pdf);
+          detail.file_id = uploaded.id;
+          created.push({ department: dept, fileId: uploaded.id, folderId });
+
+          const meta = await driveMeta(lovableKey, gdriveKey, uploaded.id);
+          const placedOk = (meta.parents ?? []).includes(folderId);
+          detail.placement_ok = placedOk;
+          detail.parents = meta.parents ?? [];
+          if (!placedOk) ok = false;
+
+          const back = await driveDownload(lovableKey, gdriveKey, uploaded.id);
+          const roundTripOk = back.length === pdf.length;
+          detail.download_ok = roundTripOk;
+          detail.bytes = { uploaded: pdf.length, downloaded: back.length };
+          if (!roundTripOk) ok = false;
+
+          const perms = await drivePermissions(lovableKey, gdriveKey, uploaded.id);
+          const publicPerm = perms.find((p) => p.type === "anyone" || p.type === "domain");
+          detail.permissions = perms.map((p) => `${p.type}:${p.role}`);
+          detail.private_ok = !publicPerm;
+          if (publicPerm) ok = false;
+        } catch (e) {
+          ok = false;
+          detail.error = e instanceof Error ? e.message : String(e);
+        }
+        steps.push({ name: `dept:${dept}`, ok, latency_ms: Date.now() - t0, detail });
+      }
+
+      // Phase 2 — delete each test file and confirm the others are untouched.
+      for (let i = 0; i < created.length; i++) {
+        const cur = created[i];
+        const detail: Record<string, unknown> = { department: cur.department, file_id: cur.fileId };
+        let ok = true;
+        try {
+          await driveDelete(lovableKey, gdriveKey, cur.fileId);
+          let gone = false;
+          try {
+            const meta = await driveMeta(lovableKey, gdriveKey, cur.fileId);
+            gone = !!meta.trashed;
+          } catch { gone = true; }
+          detail.deleted = gone;
+          if (!gone) ok = false;
+
+          const survivors: Record<string, boolean> = {};
+          for (const other of created.slice(i + 1)) {
+            try {
+              const m = await driveMeta(lovableKey, gdriveKey, other.fileId);
+              survivors[other.department] = !m.trashed;
+              if (m.trashed) ok = false;
+            } catch {
+              survivors[other.department] = false;
+              ok = false;
+            }
+          }
+          detail.other_departments_intact = survivors;
+        } catch (e) {
+          ok = false;
+          detail.error = e instanceof Error ? e.message : String(e);
+        }
+        steps.push({ name: `delete_isolation:${cur.department}`, ok, detail });
+      }
+
+      overall = steps.every((s) => s.ok !== false);
+      if (!overall) errorMsg = "One or more departments failed the isolation test";
+    } catch (e) {
+      errorMsg = e instanceof Error ? e.message : String(e);
+      steps.push({ name: "error", ok: false, detail: errorMsg });
+      // best-effort cleanup of anything left behind
+      for (const c of created) {
+        try { await driveDelete(lovableKey, gdriveKey, c.fileId); } catch { /* ignore */ }
+      }
+    }
+
+    const finishedAtMulti = new Date().toISOString();
+    await admin.from("integration_health_runs").insert({
+      kind: "smoke_test",
+      status: overall ? "success" : "failed",
+      started_at: startedAt,
+      finished_at: finishedAtMulti,
+      actor: userId,
+      steps,
+      error: errorMsg,
+    });
+
+    return new Response(JSON.stringify({ ok: overall, steps, error: errorMsg, departments }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // ---- Legacy single-file root test ----------------------------------------
   try {
     if (!lovableKey || !gdriveKey) throw new Error("Missing LOVABLE_API_KEY or GOOGLE_DRIVE_API_KEY");
 
@@ -194,6 +320,7 @@ Deno.serve(async (req) => {
       catch (e) { steps.push({ name: "cleanup", ok: false, detail: e instanceof Error ? e.message : String(e) }); }
     }
   }
+
 
   const finishedAt = new Date().toISOString();
   await admin.from("integration_health_runs").insert({
