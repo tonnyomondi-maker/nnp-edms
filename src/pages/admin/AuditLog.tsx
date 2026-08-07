@@ -213,6 +213,10 @@ export default function AuditLog() {
           <SelectContent>{ACTION_FILTERS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
         </Select>
         <Input className="flex-1 min-w-[200px] h-9" placeholder="Search email / details / user id" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Button size="sm" variant="destructive" onClick={exportDenied} disabled={exportingDenied}>
+          {exportingDenied ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ShieldAlert className="w-4 h-4 mr-1" />}
+          Export denied attempts (CSV)
+        </Button>
         <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
           <FileDown className="w-4 h-4 mr-1" /> Export CSV
         </Button>
