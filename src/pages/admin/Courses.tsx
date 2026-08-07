@@ -11,6 +11,7 @@ import { useCourses, useUpsertCourse, useDeleteCourse } from '@/hooks/useCourses
 import { DEPARTMENTS } from '@/lib/sessions';
 import { toast } from '@/hooks/use-toast';
 import { GraduationCap, Loader2, Plus, Trash2 } from 'lucide-react';
+import { CourseBulkImport } from '@/components/admin/CourseBulkImport';
 
 /**
  * Courses sit between a department and the units trainers key in.
@@ -87,6 +88,8 @@ export default function Courses() {
           </Button>
         </CardContent>
       </Card>
+
+      <CourseBulkImport existing={courses} lockedDepartment={isHodScoped ? currentUser?.department || null : null} />
 
       {!isHodScoped && (
         <div className="mb-3 flex justify-end">

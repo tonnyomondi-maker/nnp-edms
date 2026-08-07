@@ -9,7 +9,10 @@ import { DocumentCard } from '@/components/common/DocumentCard';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
-import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { buildAuditCsv, downloadCsv } from '@/lib/auditCsv';
+import { toast } from '@/hooks/use-toast';
+import { Loader2, Sheet } from 'lucide-react';
 
 export default function AllDocuments() {
   const { data, isLoading } = useAllDocuments();
@@ -40,6 +43,10 @@ export default function AllDocuments() {
     <div>
       <PageHeader title="All Documents" subtitle={`${docs.length} document(s) across the institution`} />
       <div className="mb-3 flex flex-wrap justify-end gap-2">
+        <Button size="sm" variant="outline" onClick={exportCsv} disabled={exporting || docs.length === 0}>
+          {exporting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sheet className="w-3.5 h-3.5 mr-1" />}
+          Audit CSV ({docs.length})
+        </Button>
         <GroupByControl value={groupBy} onChange={setGroupBy} />
         <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
       </div>
