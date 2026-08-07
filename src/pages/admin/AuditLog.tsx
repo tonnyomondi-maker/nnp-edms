@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FileDown, Loader2 } from 'lucide-react';
+import { FileDown, Loader2, ShieldAlert } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 import { DeniedAttemptsAlert } from '@/components/admin/DeniedAttemptsAlert';
 
 type UnifiedRow = {
@@ -50,6 +51,7 @@ export default function AuditLog() {
   const [busy, setBusy] = useState(true);
   const [filter, setFilter] = useState(searchParams.get('denied') === '1' ? DENIED_FILTER : 'ALL');
   const [q, setQ] = useState('');
+  const [exportingDenied, setExportingDenied] = useState(false);
 
   useEffect(() => {
     (async () => {
