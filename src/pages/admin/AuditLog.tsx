@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FileDown, Loader2 } from 'lucide-react';
+import { FileDown, Loader2, ShieldAlert } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 import { DeniedAttemptsAlert } from '@/components/admin/DeniedAttemptsAlert';
 
 type UnifiedRow = {
@@ -50,6 +51,7 @@ export default function AuditLog() {
   const [busy, setBusy] = useState(true);
   const [filter, setFilter] = useState(searchParams.get('denied') === '1' ? DENIED_FILTER : 'ALL');
   const [q, setQ] = useState('');
+  const [exportingDenied, setExportingDenied] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -146,6 +148,61 @@ export default function AuditLog() {
     a.click(); URL.revokeObjectURL(url);
   };
 
+  const toCsv = (rowsIn: (string | number)[][]) =>
+    rowsIn.map((row) =>
+      row.map((v) => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v)).join(',')
+    ).join('\n');
+
+  const download = (csv: string, name: string) => {
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  // Dedicated export of security_events (denied notification inserts, denied pack
+  // deletions, etc.) straight from the source table so nothing is lost to UI filters.
+  const exportDenied = async () => {
+    setExportingDenied(true);
+    try {
+      const { data, error } = await supabase
+        .from('security_events' as never)
+        .select('*')
+        .order('created_at' as never, { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      const events = (data ?? []) as unknown as {
+        id: string; created_at: string; actor_id: string | null; actor_email: string | null;
+        action: string; target_table: string | null; target_id: string | null;
+        reason: string | null; details: Record<string, unknown> | null;
+      }[];
+      if (events.length === 0) {
+        toast({ title: 'Nothing to export', description: 'No security events recorded yet.' });
+        return;
+      }
+      const headers = ['Event ID', 'When (local)', 'When (ISO)', 'Action', 'Actor user ID', 'Actor email', 'Target table', 'Target ID', 'Reason', 'Details JSON'];
+      const body = events.map((e) => [
+        e.id,
+        new Date(e.created_at).toLocaleString(),
+        e.created_at,
+        e.action,
+        e.actor_id ?? '',
+        e.actor_email ?? '',
+        e.target_table ?? '',
+        e.target_id ?? '',
+        e.reason ?? '',
+        e.details ? JSON.stringify(e.details) : '',
+      ]);
+      download(toCsv([headers, ...body]), `denied-attempts-${new Date().toISOString().slice(0, 10)}.csv`);
+      toast({ title: `Exported ${events.length} security event(s)` });
+    } catch (e) {
+      toast({ title: 'Export failed', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setExportingDenied(false);
+    }
+  };
+
+
   return (
     <div className="space-y-3 pb-8">
       <PageHeader title="Audit Log" subtitle="Every create, role change, reset, export, delete, and denied attempt" />
@@ -156,6 +213,10 @@ export default function AuditLog() {
           <SelectContent>{ACTION_FILTERS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
         </Select>
         <Input className="flex-1 min-w-[200px] h-9" placeholder="Search email / details / user id" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Button size="sm" variant="destructive" onClick={exportDenied} disabled={exportingDenied}>
+          {exportingDenied ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ShieldAlert className="w-4 h-4 mr-1" />}
+          Export denied attempts (CSV)
+        </Button>
         <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
           <FileDown className="w-4 h-4 mr-1" /> Export CSV
         </Button>
