@@ -3,6 +3,7 @@
 // what changed on their document.
 
 import { supabase } from '@/integrations/supabase/client';
+import { logSecurityEvent, isPermissionDenied } from '@/lib/securityEvents';
 
 /** Keep in sync with STAMP_VERSION in supabase/functions/stamp-document. */
 export const CLIENT_STAMP_VERSION = '3.0.0';
