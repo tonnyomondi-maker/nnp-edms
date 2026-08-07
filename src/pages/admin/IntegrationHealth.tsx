@@ -128,11 +128,76 @@ export default function IntegrationHealth() {
           {loading.health ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           Run health check
         </Button>
-        <Button onClick={runSmoke} disabled={loading.smoke} variant="secondary" className="gap-2">
+        <Button onClick={() => runSmoke(false)} disabled={loading.smoke} variant="secondary" className="gap-2">
           {loading.smoke ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
           Run smoke test
         </Button>
       </div>
+
+      <DriveRetryPanel />
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Multi-department Drive test</CardTitle></CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p className="text-xs text-muted-foreground">
+            Uploads a test PDF into each selected department folder, verifies it landed in the right folder,
+            checks it is not publicly shared, then deletes only that file and confirms the other departments'
+            files are untouched.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {DEPARTMENTS.map((d) => {
+              const on = selectedDepts.includes(d);
+              const isMapped = mappedDepartments.includes(d);
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setSelectedDepts((s) => (on ? s.filter((x) => x !== d) : [...s, d]))}
+                  className={`text-[11px] px-2 py-1 rounded border transition-colors ${on ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/40 hover:bg-muted'}`}
+                >
+                  {d}{isMapped ? '' : ' *'}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" className="gap-2" onClick={() => runSmoke(true)} disabled={loading.smoke}>
+              {loading.smoke ? <Loader2 className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
+              Run department test ({(selectedDepts.length ? selectedDepts : mappedDepartments).length})
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setSelectedDepts(mappedDepartments)}>Select mapped</Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedDepts([])}>Clear</Button>
+            <span className="text-[11px] text-muted-foreground">* folder will be created on first run</span>
+          </div>
+
+          {deptResults.length > 0 && (
+            <div className="border rounded divide-y">
+              {deptResults.map((s, i) => {
+                const d = (s.detail ?? {}) as Record<string, unknown>;
+                return (
+                  <div key={i} className="p-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium truncate">{String(d.department ?? s.name)}</span>
+                      <span className="flex items-center gap-2">
+                        {s.latency_ms != null && <span className="text-muted-foreground">{s.latency_ms}ms</span>}
+                        <StatusPill ok={s.ok !== false} />
+                      </span>
+                    </div>
+                    <div className="text-muted-foreground mt-0.5 flex flex-wrap gap-x-3">
+                      <span>placement: {d.placement_ok === true ? 'ok' : d.placement_ok === false ? 'wrong folder' : '—'}</span>
+                      <span>download: {d.download_ok === true ? 'ok' : d.download_ok === false ? 'failed' : '—'}</span>
+                      <span>sharing: {d.private_ok === true ? 'private' : d.private_ok === false ? 'PUBLIC' : '—'}</span>
+                      <span>delete isolated: {deleteIsolationOf(String(d.department ?? ''))}</span>
+                    </div>
+                    {d.error != null && <div className="text-destructive mt-0.5">{String(d.error)}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
 
       <Card>
         <CardHeader><CardTitle className="text-base">Environment variables</CardTitle></CardHeader>
