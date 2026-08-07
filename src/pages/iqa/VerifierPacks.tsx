@@ -342,6 +342,11 @@ export default function VerifierPacks() {
                       <Ban className="w-3 h-3" /> Revoke
                     </Button>
                   )}
+                  {currentUser?.roles.includes('SUPER_ADMIN') && (
+                    <Button size="sm" variant="ghost" onClick={() => destroy(r.id)} className="h-7 gap-1 text-destructive">
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </Button>
+                  )}
                 </div>
                 <div className="text-muted-foreground">
                   Expires {new Date(r.expires_at).toLocaleString()}
