@@ -15,16 +15,20 @@ type UnifiedRow = {
   id: string;
   when: string;
   action: string;
-  source: 'audit_logs' | 'role_change_audit';
+  source: 'audit_logs' | 'role_change_audit' | 'security_events';
   affected_user_id: string | null;
   affected_email: string | null;
   performed_by: string | null;
   performed_by_email: string | null;
   details: string;
+  denied?: boolean;
 };
+
+const DENIED_FILTER = 'DENIED (security)';
 
 const ACTION_FILTERS = [
   'ALL',
+  DENIED_FILTER,
   'STATUS_CHANGE',
   'DOCUMENT_STAMPED',
   'ROLE_ADDED',
