@@ -173,6 +173,7 @@ export function SuperAdminBlock() {
 
   return (
     <div className="space-y-4">
+      <DeniedAttemptsAlert />
       <Card>
         <CardHeader><CardTitle className="text-sm flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-primary" /> System overview</CardTitle></CardHeader>
         <CardContent className="space-y-3">
