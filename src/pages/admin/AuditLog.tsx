@@ -178,9 +178,12 @@ export default function AuditLog() {
               </TableHeader>
               <TableBody>
                 {filtered.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} className={r.denied ? 'bg-destructive/5' : undefined}>
                     <TableCell className="text-xs whitespace-nowrap">{new Date(r.when).toLocaleString()}</TableCell>
-                    <TableCell><Badge variant="secondary" className="text-[10px]">{r.action}</Badge></TableCell>
+                    <TableCell className="space-x-1">
+                      {r.denied && <Badge variant="destructive" className="text-[10px]">DENIED</Badge>}
+                      <Badge variant="secondary" className="text-[10px]">{r.action}</Badge>
+                    </TableCell>
                     <TableCell className="text-xs">
                       {r.affected_email || r.affected_user_id || <span className="text-muted-foreground">—</span>}
                     </TableCell>
