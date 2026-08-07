@@ -35,6 +35,23 @@ export default function AllDocuments() {
     [baseDocs, termFilter, filter],
   );
 
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const csv = await buildAuditCsv({ documentIds: docs.map((d) => d.id) });
+      downloadCsv(csv, `audit-trail-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch (e) {
+      toast({
+        title: 'Could not export audit CSV',
+        description: e instanceof Error ? e.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
