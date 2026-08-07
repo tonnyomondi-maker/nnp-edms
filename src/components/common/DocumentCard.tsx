@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import { DocPreviewLink } from './DocPreviewLink';
 import { DocStatusTimeline } from './DocStatusTimeline';
 import { AuditTrailButton } from './AuditTrailButton';
+import { AuditCsvButton } from './AuditCsvButton';
 import { RetryDriveSyncButton } from './RetryDriveSyncButton';
 import { ProgressTracker } from './ProgressTracker';
 import { AiSummaryButton } from './AiSummaryButton';
@@ -129,6 +130,7 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                   <ShieldCheck className="w-2.5 h-2.5" /> Verify
                 </Link>
                 <AuditTrailButton documentId={doc.id} fileNameHint={unitCode || doc.file_name} />
+                <AuditCsvButton documentId={doc.id} fileNameHint={unitCode || doc.file_name} />
                 <button
                   type="button"
                   onClick={() => setShowTimeline((v) => !v)}

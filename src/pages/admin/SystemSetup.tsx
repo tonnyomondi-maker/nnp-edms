@@ -367,6 +367,11 @@ export default function SystemSetup() {
                   <Link to="/admin/policies">Approval policies</Link>
                 </Button>
               )}
+              {isSuperAdmin && (
+                <Button asChild variant="outline">
+                  <Link to="/admin/stamp-layouts">Stamp layouts</Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
