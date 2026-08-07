@@ -147,7 +147,8 @@ export default function AuditLog() {
 
   return (
     <div className="space-y-3 pb-8">
-      <PageHeader title="Audit Log" subtitle="Every create, role change, reset, export, and delete action" />
+      <PageHeader title="Audit Log" subtitle="Every create, role change, reset, export, delete, and denied attempt" />
+      <DeniedAttemptsAlert />
       <Card><CardContent className="p-3 flex flex-wrap gap-2 items-center">
         <Select value={filter} onValueChange={setFilter}>
           <SelectTrigger className="w-[200px] h-9"><SelectValue /></SelectTrigger>
