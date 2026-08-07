@@ -146,6 +146,61 @@ export default function AuditLog() {
     a.click(); URL.revokeObjectURL(url);
   };
 
+  const toCsv = (rowsIn: (string | number)[][]) =>
+    rowsIn.map((row) =>
+      row.map((v) => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v)).join(',')
+    ).join('\n');
+
+  const download = (csv: string, name: string) => {
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  // Dedicated export of security_events (denied notification inserts, denied pack
+  // deletions, etc.) straight from the source table so nothing is lost to UI filters.
+  const exportDenied = async () => {
+    setExportingDenied(true);
+    try {
+      const { data, error } = await supabase
+        .from('security_events' as never)
+        .select('*')
+        .order('created_at' as never, { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      const events = (data ?? []) as unknown as {
+        id: string; created_at: string; actor_id: string | null; actor_email: string | null;
+        action: string; target_table: string | null; target_id: string | null;
+        reason: string | null; details: Record<string, unknown> | null;
+      }[];
+      if (events.length === 0) {
+        toast({ title: 'Nothing to export', description: 'No security events recorded yet.' });
+        return;
+      }
+      const headers = ['Event ID', 'When (local)', 'When (ISO)', 'Action', 'Actor user ID', 'Actor email', 'Target table', 'Target ID', 'Reason', 'Details JSON'];
+      const body = events.map((e) => [
+        e.id,
+        new Date(e.created_at).toLocaleString(),
+        e.created_at,
+        e.action,
+        e.actor_id ?? '',
+        e.actor_email ?? '',
+        e.target_table ?? '',
+        e.target_id ?? '',
+        e.reason ?? '',
+        e.details ? JSON.stringify(e.details) : '',
+      ]);
+      download(toCsv([headers, ...body]), `denied-attempts-${new Date().toISOString().slice(0, 10)}.csv`);
+      toast({ title: `Exported ${events.length} security event(s)` });
+    } catch (e) {
+      toast({ title: 'Export failed', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setExportingDenied(false);
+    }
+  };
+
+
   return (
     <div className="space-y-3 pb-8">
       <PageHeader title="Audit Log" subtitle="Every create, role change, reset, export, delete, and denied attempt" />
