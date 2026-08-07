@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -7,7 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, CheckCircle2, XCircle, RefreshCw, PlayCircle, FolderCog, Search } from 'lucide-react';
+import { DEPARTMENTS } from '@/lib/sessions';
+import { DriveRetryPanel } from '@/components/admin/DriveRetryPanel';
+import { Loader2, CheckCircle2, XCircle, RefreshCw, PlayCircle, FolderCog, Search, Building2 } from 'lucide-react';
+
 
 type Step = { name: string; ok?: boolean; latency_ms?: number; detail?: unknown };
 type Run = {
@@ -34,6 +37,7 @@ export default function IntegrationHealth() {
   const [loading, setLoading] = useState({ health: false, smoke: false, relink: false });
   const [rootName, setRootName] = useState('EDMS');
   const [discovered, setDiscovered] = useState<{ scope: string; department: string | null; folder_id: string; folder_name: string }[] | null>(null);
+  const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
 
   const isSuper = activeRole === 'SUPER_ADMIN';
 
