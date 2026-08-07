@@ -126,6 +126,16 @@ export default function IntegrationHealth() {
   const lastHealth = runs.find((r) => r.kind === 'healthcheck');
   const lastSmoke = runs.find((r) => r.kind === 'smoke_test');
 
+  // Per-department steps from the most recent smoke test run.
+  const deptResults = (lastSmoke?.steps ?? []).filter((s) => s.name.startsWith('dept:'));
+  const deleteIsolationOf = (dept: string) => {
+    const step = (lastSmoke?.steps ?? []).find((s) => s.name === `delete_isolation:${dept}`);
+    if (!step) return '—';
+    return step.ok === false ? 'FAILED' : 'ok';
+  };
+
+
+
   return (
     <div className="p-4 pb-24 space-y-4">
       <PageHeader title="Integration Health" subtitle="Google Drive connection status, folders, and smoke tests" />
