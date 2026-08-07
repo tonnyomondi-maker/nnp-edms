@@ -41,6 +41,13 @@ export default function IntegrationHealth() {
 
   const isSuper = activeRole === 'SUPER_ADMIN';
 
+  // Departments that already have a Drive folder mapped — default target set for the test.
+  const mappedDepartments = useMemo(
+    () => folders.filter((f) => f.scope === 'department' && f.department).map((f) => f.department as string),
+    [folders],
+  );
+
+
   async function refresh() {
     const [{ data: r }, { data: f }] = await Promise.all([
       supabase.from('integration_health_runs').select('*').order('started_at', { ascending: false }).limit(20),
