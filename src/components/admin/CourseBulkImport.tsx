@@ -62,7 +62,7 @@ export function CourseBulkImport({ existing, lockedDepartment, onImported }: Pro
       const seen = new Set<string>();
       const existingKeys = new Set(existing.map((c) => `${c.department}|${c.code.toUpperCase()}`));
 
-      const parsed: ParsedRow[] = raw.map((r, i) => {
+      const parsed: ParsedRow[] = raw.map((r, i): ParsedRow => {
         const pick = (k: string) => {
           const key = Object.keys(r).find((kk) => kk.trim().toLowerCase() === k);
           return key ? String(r[key] ?? '').trim() : '';
