@@ -159,8 +159,36 @@ export default function VerifierPacks() {
       .from('verification_packs' as never)
       .update({ revoked_at: new Date().toISOString() } as never)
       .eq('id' as never, id as never);
-    if (error) { toast.error('Revoke failed', { description: error.message }); return; }
+    if (error) {
+      if (isPermissionDenied(error)) {
+        await logSecurityEvent({
+          action: 'DENIED_PACK_REVOKE', targetTable: 'verification_packs',
+          targetId: id, reason: error.message,
+        });
+      }
+      toast.error('Revoke failed', { description: error.message }); return;
+    }
     toast.success('Pack revoked');
+    load();
+  };
+
+  const destroy = async (id: string) => {
+    if (!window.confirm('Permanently delete this pack? Revoking is usually enough — this cannot be undone.')) return;
+    const { error } = await supabase
+      .from('verification_packs' as never)
+      .delete()
+      .eq('id' as never, id as never);
+    if (error) {
+      if (isPermissionDenied(error)) {
+        await logSecurityEvent({
+          action: 'DENIED_PACK_DELETE', targetTable: 'verification_packs',
+          targetId: id, reason: error.message,
+        });
+      }
+      toast.error('Delete failed', { description: 'Only a Super Admin can permanently delete packs. This attempt has been logged.' });
+      return;
+    }
+    toast.success('Pack deleted permanently');
     load();
   };
 
