@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileDown, Loader2 } from 'lucide-react';
+import { DeniedAttemptsAlert } from '@/components/admin/DeniedAttemptsAlert';
 
 type UnifiedRow = {
   id: string;
