@@ -44,17 +44,19 @@ const ACTION_FILTERS = [
 
 export default function AuditLog() {
   const { currentUser, activeRole, loading } = useAuth();
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<UnifiedRow[]>([]);
   const [busy, setBusy] = useState(true);
-  const [filter, setFilter] = useState('ALL');
+  const [filter, setFilter] = useState(searchParams.get('denied') === '1' ? DENIED_FILTER : 'ALL');
   const [q, setQ] = useState('');
 
   useEffect(() => {
     (async () => {
       setBusy(true);
-      const [{ data: a }, { data: r }, { data: profiles }] = await Promise.all([
+      const [{ data: a }, { data: r }, { data: s }, { data: profiles }] = await Promise.all([
         supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(2000),
         supabase.from('role_change_audit' as never).select('*').order('created_at', { ascending: false }).limit(2000),
+        supabase.from('security_events' as never).select('*').order('created_at' as never, { ascending: false }).limit(2000),
         supabase.from('profiles').select('user_id, email'),
       ]);
       const emailOf = new Map((profiles || []).map((p: any) => [p.user_id, p.email]));
@@ -81,6 +83,18 @@ export default function AuditLog() {
           performed_by_email: x.changed_by_email,
           details: `${x.old_value ?? ''} → ${x.new_value ?? ''}`,
         }))),
+        ...(((s as any[]) || []).map((x: any) => ({
+          id: `s-${x.id}`,
+          when: x.created_at,
+          action: x.action,
+          source: 'security_events' as const,
+          affected_user_id: x.details?.target_user_id ?? x.target_id ?? null,
+          affected_email: emailOf.get(x.details?.target_user_id) ?? null,
+          performed_by: x.actor_id,
+          performed_by_email: x.actor_email ?? emailOf.get(x.actor_id) ?? null,
+          details: `${x.target_table ?? ''} ${x.target_id ?? ''} — ${x.reason ?? 'blocked by access policy'}`.trim(),
+          denied: true,
+        }))),
       ].sort((a, b) => (a.when < b.when ? 1 : -1));
       setRows(merged);
       setBusy(false);
@@ -89,7 +103,8 @@ export default function AuditLog() {
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
-      if (filter !== 'ALL' && r.action !== filter) return false;
+      if (filter === DENIED_FILTER) { if (!r.denied) return false; }
+      else if (filter !== 'ALL' && r.action !== filter) return false;
       if (q) {
         const needle = q.toLowerCase();
         return [r.action, r.affected_email, r.performed_by_email, r.details, r.affected_user_id]
@@ -98,6 +113,7 @@ export default function AuditLog() {
       return true;
     });
   }, [rows, filter, q]);
+
 
   if (loading) return null;
   if (!currentUser?.roles.includes('SUPER_ADMIN')) return <Navigate to="/" replace />;
