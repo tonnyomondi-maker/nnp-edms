@@ -21,6 +21,7 @@ import { Copy, Loader2, ShieldCheck, Link2, Ban, Users, MessageSquare, Settings2
 import { PackAnalyticsPanel } from '@/components/iqa/PackAnalyticsPanel';
 import { AssignVerifiersModal } from '@/components/iqa/AssignVerifiersModal';
 import { useDocTypePolicies, policyFor } from '@/hooks/useDocTypePolicy';
+import { logSecurityEvent, isPermissionDenied } from '@/lib/securityEvents';
 
 interface PackRow {
   id: string; department: string; session_year: number; session_term: string;
