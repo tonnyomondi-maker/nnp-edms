@@ -73,6 +73,70 @@ async function driveDelete(lovableKey: string, gdriveKey: string, fileId: string
   });
 }
 
+function driveHeaders(lovableKey: string, gdriveKey: string) {
+  return { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey };
+}
+
+/** Metadata incl. parents so we can prove a file landed in the right folder. */
+async function driveMeta(lovableKey: string, gdriveKey: string, fileId: string) {
+  const resp = await fetch(
+    `${GATEWAY}/drive/v3/files/${fileId}?fields=id,name,parents,mimeType,trashed`,
+    { headers: driveHeaders(lovableKey, gdriveKey) },
+  );
+  const txt = await resp.text();
+  if (!resp.ok) throw new Error(`Drive metadata ${resp.status}: ${txt.slice(0, 200)}`);
+  return JSON.parse(txt) as { id: string; name: string; parents?: string[]; trashed?: boolean };
+}
+
+/** Sharing state — the test fails the file if it is public ("anyone"/"domain"). */
+async function drivePermissions(lovableKey: string, gdriveKey: string, fileId: string) {
+  const resp = await fetch(
+    `${GATEWAY}/drive/v3/files/${fileId}/permissions?fields=permissions(id,type,role,emailAddress)`,
+    { headers: driveHeaders(lovableKey, gdriveKey) },
+  );
+  const txt = await resp.text();
+  if (!resp.ok) throw new Error(`Drive permissions ${resp.status}: ${txt.slice(0, 200)}`);
+  const parsed = JSON.parse(txt) as { permissions?: { type: string; role: string; emailAddress?: string }[] };
+  return parsed.permissions ?? [];
+}
+
+const FOLDER_MIME = "application/vnd.google-apps.folder";
+
+/** Find a child folder by exact name under a parent, creating it when missing. */
+async function ensureFolder(
+  lovableKey: string,
+  gdriveKey: string,
+  name: string,
+  parentId: string | null,
+): Promise<string> {
+  const safe = name.replace(/'/g, "\\'");
+  const q = [
+    `name='${safe}'`,
+    `mimeType='${FOLDER_MIME}'`,
+    "trashed=false",
+    parentId ? `'${parentId}' in parents` : null,
+  ].filter(Boolean).join(" and ");
+  const findRes = await fetch(
+    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=1`,
+    { headers: driveHeaders(lovableKey, gdriveKey) },
+  );
+  if (findRes.ok) {
+    const found = await findRes.json();
+    if (found.files?.[0]?.id) return found.files[0].id as string;
+  }
+  const meta: Record<string, unknown> = { name, mimeType: FOLDER_MIME };
+  if (parentId) meta.parents = [parentId];
+  const createRes = await fetch(`${GATEWAY}/drive/v3/files`, {
+    method: "POST",
+    headers: { ...driveHeaders(lovableKey, gdriveKey), "Content-Type": "application/json" },
+    body: JSON.stringify(meta),
+  });
+  const txt = await createRes.text();
+  if (!createRes.ok) throw new Error(`Drive create folder "${name}" ${createRes.status}: ${txt.slice(0, 200)}`);
+  return (JSON.parse(txt) as { id: string }).id;
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
