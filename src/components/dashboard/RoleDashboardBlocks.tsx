@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ShieldAlert, Archive, Users, Clock, RotateCcw } from 'lucide-react';
 import { SystemResetCard } from '@/components/admin/SystemResetCard';
+import { DeniedAttemptsAlert } from '@/components/admin/DeniedAttemptsAlert';
 
 function hoursSince(iso: string): number {
   return (Date.now() - new Date(iso).getTime()) / 36e5;
