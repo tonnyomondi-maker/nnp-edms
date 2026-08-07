@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ShieldAlert, Archive, Users, Clock, RotateCcw } from 'lucide-react';
 import { SystemResetCard } from '@/components/admin/SystemResetCard';
+import { DeniedAttemptsAlert } from '@/components/admin/DeniedAttemptsAlert';
 
 function hoursSince(iso: string): number {
   return (Date.now() - new Date(iso).getTime()) / 36e5;
@@ -173,6 +174,7 @@ export function SuperAdminBlock() {
 
   return (
     <div className="space-y-4">
+      <DeniedAttemptsAlert />
       <Card>
         <CardHeader><CardTitle className="text-sm flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-primary" /> System overview</CardTitle></CardHeader>
         <CardContent className="space-y-3">

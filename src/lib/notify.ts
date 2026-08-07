@@ -3,6 +3,7 @@
 // what changed on their document.
 
 import { supabase } from '@/integrations/supabase/client';
+import { logSecurityEvent, isPermissionDenied } from '@/lib/securityEvents';
 
 /** Keep in sync with STAMP_VERSION in supabase/functions/stamp-document. */
 export const CLIENT_STAMP_VERSION = '3.0.0';
@@ -34,7 +35,7 @@ export interface NotifyInput {
 
 export async function notifyDocumentEvent(input: NotifyInput) {
   try {
-    await supabase.from('notifications' as never).insert({
+    const { error } = await supabase.from('notifications' as never).insert({
       user_id: input.userId,
       document_id: input.documentId,
       kind: input.kind,
@@ -47,6 +48,15 @@ export async function notifyDocumentEvent(input: NotifyInput) {
       message: input.message,
       note: input.note ?? null,
     } as never);
+    if (isPermissionDenied(error)) {
+      await logSecurityEvent({
+        action: 'DENIED_NOTIFICATION_INSERT',
+        targetTable: 'notifications',
+        targetId: input.documentId,
+        reason: error?.message ?? 'Blocked by access policy',
+        details: { target_user_id: input.userId, kind: input.kind, stage: input.stage },
+      });
+    }
   } catch {
     /* notifications are best-effort — never block the workflow */
   }

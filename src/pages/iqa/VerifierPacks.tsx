@@ -17,10 +17,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { DEPARTMENTS } from '@/lib/sessions';
-import { Copy, Loader2, ShieldCheck, Link2, Ban, Users, MessageSquare, Settings2, ListChecks } from 'lucide-react';
+import { Copy, Loader2, ShieldCheck, Link2, Ban, Users, MessageSquare, Settings2, ListChecks, Trash2 } from 'lucide-react';
 import { PackAnalyticsPanel } from '@/components/iqa/PackAnalyticsPanel';
 import { AssignVerifiersModal } from '@/components/iqa/AssignVerifiersModal';
 import { useDocTypePolicies, policyFor } from '@/hooks/useDocTypePolicy';
+import { logSecurityEvent, isPermissionDenied } from '@/lib/securityEvents';
 
 interface PackRow {
   id: string; department: string; session_year: number; session_term: string;
@@ -159,8 +160,36 @@ export default function VerifierPacks() {
       .from('verification_packs' as never)
       .update({ revoked_at: new Date().toISOString() } as never)
       .eq('id' as never, id as never);
-    if (error) { toast.error('Revoke failed', { description: error.message }); return; }
+    if (error) {
+      if (isPermissionDenied(error)) {
+        await logSecurityEvent({
+          action: 'DENIED_PACK_REVOKE', targetTable: 'verification_packs',
+          targetId: id, reason: error.message,
+        });
+      }
+      toast.error('Revoke failed', { description: error.message }); return;
+    }
     toast.success('Pack revoked');
+    load();
+  };
+
+  const destroy = async (id: string) => {
+    if (!window.confirm('Permanently delete this pack? Revoking is usually enough — this cannot be undone.')) return;
+    const { error } = await supabase
+      .from('verification_packs' as never)
+      .delete()
+      .eq('id' as never, id as never);
+    if (error) {
+      if (isPermissionDenied(error)) {
+        await logSecurityEvent({
+          action: 'DENIED_PACK_DELETE', targetTable: 'verification_packs',
+          targetId: id, reason: error.message,
+        });
+      }
+      toast.error('Delete failed', { description: 'Only a Super Admin can permanently delete packs. This attempt has been logged.' });
+      return;
+    }
+    toast.success('Pack deleted permanently');
     load();
   };
 
@@ -311,6 +340,11 @@ export default function VerifierPacks() {
                   {active && (
                     <Button size="sm" variant="destructive" onClick={() => revoke(r.id)} className="h-7 gap-1">
                       <Ban className="w-3 h-3" /> Revoke
+                    </Button>
+                  )}
+                  {currentUser?.roles.includes('SUPER_ADMIN') && (
+                    <Button size="sm" variant="ghost" onClick={() => destroy(r.id)} className="h-7 gap-1 text-destructive">
+                      <Trash2 className="w-3 h-3" /> Delete
                     </Button>
                   )}
                 </div>

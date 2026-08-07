@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -10,21 +10,26 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileDown, Loader2 } from 'lucide-react';
+import { DeniedAttemptsAlert } from '@/components/admin/DeniedAttemptsAlert';
 
 type UnifiedRow = {
   id: string;
   when: string;
   action: string;
-  source: 'audit_logs' | 'role_change_audit';
+  source: 'audit_logs' | 'role_change_audit' | 'security_events';
   affected_user_id: string | null;
   affected_email: string | null;
   performed_by: string | null;
   performed_by_email: string | null;
   details: string;
+  denied?: boolean;
 };
+
+const DENIED_FILTER = 'DENIED (security)';
 
 const ACTION_FILTERS = [
   'ALL',
+  DENIED_FILTER,
   'STATUS_CHANGE',
   'DOCUMENT_STAMPED',
   'ROLE_ADDED',
@@ -40,17 +45,19 @@ const ACTION_FILTERS = [
 
 export default function AuditLog() {
   const { currentUser, activeRole, loading } = useAuth();
+  const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<UnifiedRow[]>([]);
   const [busy, setBusy] = useState(true);
-  const [filter, setFilter] = useState('ALL');
+  const [filter, setFilter] = useState(searchParams.get('denied') === '1' ? DENIED_FILTER : 'ALL');
   const [q, setQ] = useState('');
 
   useEffect(() => {
     (async () => {
       setBusy(true);
-      const [{ data: a }, { data: r }, { data: profiles }] = await Promise.all([
+      const [{ data: a }, { data: r }, { data: s }, { data: profiles }] = await Promise.all([
         supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(2000),
         supabase.from('role_change_audit' as never).select('*').order('created_at', { ascending: false }).limit(2000),
+        supabase.from('security_events' as never).select('*').order('created_at' as never, { ascending: false }).limit(2000),
         supabase.from('profiles').select('user_id, email'),
       ]);
       const emailOf = new Map((profiles || []).map((p: any) => [p.user_id, p.email]));
@@ -77,6 +84,18 @@ export default function AuditLog() {
           performed_by_email: x.changed_by_email,
           details: `${x.old_value ?? ''} → ${x.new_value ?? ''}`,
         }))),
+        ...(((s as any[]) || []).map((x: any) => ({
+          id: `s-${x.id}`,
+          when: x.created_at,
+          action: x.action,
+          source: 'security_events' as const,
+          affected_user_id: x.details?.target_user_id ?? x.target_id ?? null,
+          affected_email: emailOf.get(x.details?.target_user_id) ?? null,
+          performed_by: x.actor_id,
+          performed_by_email: x.actor_email ?? emailOf.get(x.actor_id) ?? null,
+          details: `${x.target_table ?? ''} ${x.target_id ?? ''} — ${x.reason ?? 'blocked by access policy'}`.trim(),
+          denied: true,
+        }))),
       ].sort((a, b) => (a.when < b.when ? 1 : -1));
       setRows(merged);
       setBusy(false);
@@ -85,7 +104,8 @@ export default function AuditLog() {
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
-      if (filter !== 'ALL' && r.action !== filter) return false;
+      if (filter === DENIED_FILTER) { if (!r.denied) return false; }
+      else if (filter !== 'ALL' && r.action !== filter) return false;
       if (q) {
         const needle = q.toLowerCase();
         return [r.action, r.affected_email, r.performed_by_email, r.details, r.affected_user_id]
@@ -94,6 +114,7 @@ export default function AuditLog() {
       return true;
     });
   }, [rows, filter, q]);
+
 
   if (loading) return null;
   if (!currentUser?.roles.includes('SUPER_ADMIN')) return <Navigate to="/" replace />;
@@ -127,7 +148,8 @@ export default function AuditLog() {
 
   return (
     <div className="space-y-3 pb-8">
-      <PageHeader title="Audit Log" subtitle="Every create, role change, reset, export, and delete action" />
+      <PageHeader title="Audit Log" subtitle="Every create, role change, reset, export, delete, and denied attempt" />
+      <DeniedAttemptsAlert />
       <Card><CardContent className="p-3 flex flex-wrap gap-2 items-center">
         <Select value={filter} onValueChange={setFilter}>
           <SelectTrigger className="w-[200px] h-9"><SelectValue /></SelectTrigger>
@@ -156,9 +178,12 @@ export default function AuditLog() {
               </TableHeader>
               <TableBody>
                 {filtered.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} className={r.denied ? 'bg-destructive/5' : undefined}>
                     <TableCell className="text-xs whitespace-nowrap">{new Date(r.when).toLocaleString()}</TableCell>
-                    <TableCell><Badge variant="secondary" className="text-[10px]">{r.action}</Badge></TableCell>
+                    <TableCell className="space-x-1">
+                      {r.denied && <Badge variant="destructive" className="text-[10px]">DENIED</Badge>}
+                      <Badge variant="secondary" className="text-[10px]">{r.action}</Badge>
+                    </TableCell>
                     <TableCell className="text-xs">
                       {r.affected_email || r.affected_user_id || <span className="text-muted-foreground">—</span>}
                     </TableCell>
