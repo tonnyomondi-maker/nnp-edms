@@ -176,7 +176,7 @@ export default function UploadDocuments() {
       }]);
       toast({
         title: 'Editing rejected submission',
-        description: `Rejection reason: ${data.rejection_reason || '—'}. Re-attach the corrected PDF and submit — a new SUBMITTED version will be created.`,
+        description: `Rejection reason: ${data.rejection_reason || '—'}. Re-attach the corrected PDF and submit — this updates the same document record so its history stays continuous.`,
       });
     })();
   }, [resubmitId]);
