@@ -11,7 +11,7 @@ export function RejectedResubmitButton({ docId }: Props) {
       size="sm"
       variant="outline"
       className="mt-2 gap-1"
-      onClick={() => navigate(`/trainer/upload?resubmit=${docId}`)}
+      onClick={() => navigate(`/upload?resubmit=${docId}`)}
     >
       <RefreshCw className="w-3.5 h-3.5" /> Edit & Resubmit
     </Button>
