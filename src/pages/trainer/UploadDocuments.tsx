@@ -353,7 +353,18 @@ export default function UploadDocuments() {
   const fileErrors = files.map((f) => ({ id: f.id, error: validateFile(f) }));
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
   const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
-  const canSubmit = headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked && !profileBlocked;
+  // Continuity lock: a rejected document for the same unit + type must be fixed
+  // through "Edit & resubmit", never re-uploaded as a brand new submission.
+  const rejectedBlocks = useMemo(() => {
+    if (resubmitId) return [] as { id: string; documentType: string; reason: string | null }[];
+    return (existingDocs || [])
+      .filter((d) => d.status === 'REJECTED'
+        && (d.unit_code || '').toLowerCase() === unitCode.toLowerCase()
+        && files.some((f) => f.documentType === d.document_type))
+      .map((d) => ({ id: d.id, documentType: d.document_type as string, reason: d.rejection_reason }));
+  }, [existingDocs, unitCode, files, resubmitId]);
+
+  const canSubmit = rejectedBlocks.length === 0 && headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked && !profileBlocked;
 
   const submitReasons = useMemo(() => {
     const r: string[] = [];
@@ -373,10 +384,11 @@ export default function UploadDocuments() {
       const f = files.find((x) => x.id === e.id);
       r.push(`${f?.fileName || 'File'}: ${e.error}`);
     });
+    rejectedBlocks.forEach((b) => r.push(`${b.documentType} was rejected for this unit — use "Edit & resubmit" instead of a new upload.`));
     if (anyInFlight) r.push('Wait for in-flight uploads to finish.');
     if (submitDoc.isPending) r.push('Submission in progress…');
     return r;
-  }, [canUpload, profileBlocked, profile.missing, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
+  }, [rejectedBlocks, canUpload, profileBlocked, profile.missing, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
 
 
   function setStage(id: string, patch: Partial<FileEntry>) {
@@ -435,6 +447,7 @@ export default function UploadDocuments() {
         courseType,
         moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
         courseId: courseId || null,
+        resubmitOf: entry.id.startsWith('resubmit-') ? resubmitId : null,
       });
       setStage(entry.id, { stage: 'storage_ok', documentId: submitted.id, stageMessage: 'Uploaded — mirroring…' });
       // Mirror in the same loop so the user sees Drive status before navigating away.
