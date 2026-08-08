@@ -712,7 +712,7 @@ export default function EfficiencyDashboard() {
                     <Select value={newSla.document_type} onValueChange={(v) => setNewSla({ ...newSla, document_type: v })}>
                       <SelectTrigger className="h-8 w-[220px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {['Learning Plan','Personal Timetable','Workload Allocation','Scheme of Work','Session Plan','Class Attendance','Course Outline'].map((t) => (
+                        {['Learning Plan','Personal Timetable','Workload Allocation','Session Plan','Class Attendance','Course Outline'].map((t) => (
                           <SelectItem key={t} value={t}>{t}</SelectItem>
                         ))}
                       </SelectContent>

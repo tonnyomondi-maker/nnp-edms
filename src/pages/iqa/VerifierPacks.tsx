@@ -36,7 +36,7 @@ interface ReviewCount { pack_id: string; count: number }
 const TERMS = ['JAN_APR', 'MAY_AUG', 'SEP_DEC'];
 const DOC_TYPES = [
   'Learning Plan', 'Personal Timetable', 'Workload Allocation',
-  'Scheme of Work', 'Session Plan', 'Class Attendance', 'Course Outline',
+  'Session Plan', 'Class Attendance', 'Course Outline',
 ];
 
 export default function VerifierPacks() {
