@@ -26,10 +26,12 @@ Trainer submits
 Current behaviour: any custom placement completely overrides the layout-driven approval sheet, so the ordered sheet is skipped, and the placement dialog closes on sign leaving no confirmation of where marks landed.
 
 Changes:
+
 - The active stamp layout becomes the default: signing without opening placement always fills that stage's slot on the approval sheet.
 - The placement dialog becomes an explicit, optional "place on document page instead" mode with a "Use approval sheet layout" toggle that is on by default.
 - Keep the placement preview mounted while the sign request runs (spinner inside the dialog, close only on success) so the placement no longer disappears mid-action, and show a post-sign confirmation of which layout/slot was used.
 - Bulk signing follows the same rule: layout slot by default, custom placement only when explicitly chosen.
+- But during the aproval or verification or review they should still be able to preview the document to check is it is okay then the approvall sheet takes over by default
 
 ## 4. Rejection, resubmission and re-upload lock
 
