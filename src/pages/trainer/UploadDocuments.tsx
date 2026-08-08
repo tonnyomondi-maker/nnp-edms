@@ -905,6 +905,18 @@ export default function UploadDocuments() {
         </CardContent>
       </Card>
 
+      {rejectedBlocks.length > 0 && (
+        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs space-y-2">
+          <p className="font-semibold text-destructive">Rejected document must be resubmitted, not re-uploaded</p>
+          {rejectedBlocks.map((b) => (
+            <div key={b.id} className="space-y-1">
+              <p><strong>{b.documentType}</strong> for {unitCode} was rejected{b.reason ? `: ${b.reason}` : ''}.</p>
+              <Link to={`/upload?resubmit=${b.id}`} className="underline font-medium">Edit &amp; resubmit this document</Link>
+            </div>
+          ))}
+        </div>
+      )}
+
       <ActionGuardButton
         action="upload"
         onClick={handleSubmit}
