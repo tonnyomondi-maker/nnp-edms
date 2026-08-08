@@ -460,6 +460,7 @@ export function useSubmitDocument() {
       courseType,
       moduleNumber,
       courseId,
+      resubmitOf,
     }: {
       file: File;
       assignmentId?: string | null;
@@ -478,6 +479,8 @@ export function useSubmitDocument() {
       courseType?: 'CYCLE' | 'MODULAR';
       moduleNumber?: number | null;
       courseId?: string | null;
+      /** When set, the rejected document is updated in place instead of a new row. */
+      resubmitOf?: string | null;
     }) => {
       await assertSystemNotLocked(user?.id);
       const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -519,6 +522,27 @@ export function useSubmitDocument() {
         module_number: courseType === 'MODULAR' ? (moduleNumber ?? null) : null,
         course_id: courseId ?? null,
       };
+
+      if (resubmitOf) {
+        // Continuity: keep one document record across rejection + resubmission so
+        // the audit trail, notifications and timeline stay on a single history.
+        const { data: updated, error: updErr } = await supabase
+          .from('documents')
+          .update({
+            ...insertPayload,
+            status: 'SUBMITTED',
+            rejection_reason: null,
+            return_note: null,
+            returned_at: null,
+            signed_file_url: null,
+            submitted_at: new Date().toISOString(),
+          } as never)
+          .eq('id', resubmitOf)
+          .select()
+          .single();
+        if (updErr) throw updErr;
+        return updated;
+      }
 
       const { data, error } = await supabase
         .from('documents')
