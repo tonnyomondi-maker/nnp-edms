@@ -164,6 +164,7 @@ export default function ApprovalQueue() {
             docs={actionable.filter((d) => selected.has(d.id))}
             status="DP_APPROVED"
             stage="DP"
+          busy={updateStatus.isPending}
             onDone={() => setSelected(new Set())}
           />
         </div>

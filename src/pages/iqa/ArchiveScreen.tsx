@@ -151,7 +151,10 @@ export default function ArchiveScreen() {
   const performArchiveWithPlacement = (placement: ApprovalPlacement | null) => {
     if (!placementDoc) return;
     updateStatus.mutate({ docId: placementDoc.id, status: 'ARCHIVED', placement }, {
-      onSuccess: () => toast({ title: 'Document Archived', description: 'Document moved to final repository.' }),
+      onSuccess: () => {
+        setPlacementDoc(null);
+        toast({ title: 'Archived by IQAO', description: 'Final approved copy stored and mirrored to Google Drive.' });
+      },
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };
@@ -471,6 +474,7 @@ export default function ArchiveScreen() {
           signatureUrl={placementDoc.sigUrl}
           stampUrl={placementDoc.stampUrl}
           stage="IQA"
+          busy={updateStatus.isPending}
           onConfirm={performArchiveWithPlacement}
         />
       )}
