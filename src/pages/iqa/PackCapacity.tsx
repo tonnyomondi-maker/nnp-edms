@@ -1,4 +1,4 @@
-// IQA / Super Admin — per-department active-pack capacity limits.
+// IQAO / Super Admin — per-department active-pack capacity limits.
 
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';

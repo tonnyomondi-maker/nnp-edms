@@ -1,4 +1,4 @@
-// IQA / Super Admin — CRUD directory of external verifiers.
+// IQAO / Super Admin — CRUD directory of external verifiers.
 // Tagged per-department so we can filter them when assigning to packs.
 
 import { useEffect, useState } from 'react';
@@ -57,7 +57,7 @@ export default function Verifiers() {
   }
   if (!canUse) {
     return <div className="p-4"><Card><CardContent className="p-4 text-sm text-muted-foreground">
-      Switch to <strong>IQA</strong> or <strong>Super Admin</strong> to manage verifiers.
+      Switch to <strong>IQAO</strong> or <strong>Super Admin</strong> to manage verifiers.
     </CardContent></Card></div>;
   }
 

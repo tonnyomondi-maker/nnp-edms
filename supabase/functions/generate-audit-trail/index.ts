@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
 
     stageInfo("2. HOD Approval", doc.hod_approved_at, doc.hod_approved_by);
     stageInfo("3. DP Academics Approval", doc.dp_approved_at, doc.dp_approved_by);
-    stageInfo("4. IQA Archive", doc.archived_at, doc.iqa_archived_by);
+    stageInfo("4. IQAO Archive", doc.archived_at, doc.iqa_archived_by);
 
     if (doc.status === "REJECTED" && doc.rejection_reason) {
       sep();

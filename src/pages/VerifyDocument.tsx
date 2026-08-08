@@ -178,7 +178,7 @@ export default function VerifyDocument() {
             stampUrl={doc.dp_stamp_url}
           />
           <StageRow
-            label="4. IQA Archive"
+            label="4. IQAO Archive"
             approvedAt={doc.archived_at}
             approver={doc.iqa_archived_by ? profiles.get(doc.iqa_archived_by) : null}
             signatureUrl={doc.iqa_signature_url}

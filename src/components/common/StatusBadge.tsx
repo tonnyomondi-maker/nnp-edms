@@ -16,7 +16,7 @@ const statusStyles: Record<DocumentStatus, string> = {
 const statusLabels: Record<DocumentStatus, string> = {
   SUBMITTED: 'Submitted',
   HOD_APPROVED: 'HOD Verified',
-  IQA_REVIEWED: 'IQA Reviewed',
+  IQA_REVIEWED: 'IQAO Reviewed',
   DP_APPROVED: 'DP Approved',
   ARCHIVED: 'Archived',
   REJECTED: 'Rejected',

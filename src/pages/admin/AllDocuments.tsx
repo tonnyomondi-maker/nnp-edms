@@ -1,5 +1,5 @@
 // Super Admin institution-wide document browser.
-// Same grouping controls as the DP and IQA queues so every oversight role sees
+// Same grouping controls as the DP and IQAO queues so every oversight role sees
 // documents organised per module/term, department, trainer or document type.
 
 import { useState, useMemo, useEffect } from 'react';

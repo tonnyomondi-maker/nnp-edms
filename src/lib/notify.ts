@@ -8,7 +8,7 @@ import { logSecurityEvent, isPermissionDenied } from '@/lib/securityEvents';
 /** Keep in sync with STAMP_VERSION in supabase/functions/stamp-document. */
 export const CLIENT_STAMP_VERSION = '3.0.0';
 
-/** Signing stages on the approval sheet, in order. IQA archival is stage 4 (footer only). */
+/** Signing stages on the approval sheet, in order. IQAO archival is stage 4 (footer only). */
 export const STAGE_ORDER: Record<string, number> = { HOD: 1, IQA_REVIEW: 2, DP: 3, IQA: 4 };
 export const SIGNING_STAGE_TOTAL = 3;
 
@@ -16,7 +16,7 @@ export const STAGE_LABEL: Record<string, string> = {
   HOD: 'Head of Department',
   IQA_REVIEW: 'Internal Quality Assurance',
   DP: 'Deputy Principal — Academics',
-  IQA: 'IQA Archival',
+  IQA: 'IQAO Archival',
 };
 
 export type NotificationKind = 'APPROVED' | 'REJECTED' | 'RETURNED';

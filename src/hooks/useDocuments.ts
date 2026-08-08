@@ -343,12 +343,12 @@ async function performApproval(
   if (error) throw error;
 
   // Google Drive is a backup of FINAL documents only — mirror once the document
-  // is approved by DP Academics (and again after IQA archival, which replaces
+  // is approved by DP Academics (and again after IQAO archival, which replaces
   // the mirrored copy with the fully signed version).
   if (status === 'DP_APPROVED' || status === 'ARCHIVED') {
     supabase.functions
       .invoke('gdrive-upload', { body: { documentId: docId, replace: true } })
-      .catch(() => { /* logged server-side; retryable from the IQA screen */ });
+      .catch(() => { /* logged server-side; retryable from the IQAO screen */ });
   }
   return data;
 }

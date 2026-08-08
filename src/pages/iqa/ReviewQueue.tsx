@@ -19,7 +19,7 @@ import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl
 import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
 
 /**
- * IQA review stage — sits between HOD verification and DP Academics approval.
+ * IQAO review stage — sits between HOD verification and DP Academics approval.
  * Reviewed documents move to IQA_REVIEWED and appear in the DP queue.
  */
 export default function ReviewQueue() {
@@ -112,12 +112,12 @@ export default function ReviewQueue() {
 
   return (
     <div>
-      <PageHeader title="IQA Review Queue" subtitle={`${actionable.length} document(s) awaiting quality review`} />
+      <PageHeader title="IQAO Review Queue" subtitle={`${actionable.length} document(s) awaiting quality review`} />
       <TemplateLibraryPanel />
 
       {!canAct && (
         <div className="mb-3 p-2 rounded border border-amber-500/40 bg-amber-50 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-100">
-          You are viewing as <strong>{activeRole}</strong>. Switch to <strong>IQA</strong> to review documents.
+          You are viewing as <strong>{activeRole}</strong>. Switch to <strong>IQAO</strong> to review documents.
         </div>
       )}
 

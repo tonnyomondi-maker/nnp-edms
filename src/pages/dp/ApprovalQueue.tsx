@@ -102,14 +102,14 @@ export default function ApprovalQueue() {
   const performApproveWithPlacement = (placement: ApprovalPlacement | null) => {
     if (!placementDoc) return;
     updateStatus.mutate({ docId: placementDoc.id, status: 'DP_APPROVED', placement }, {
-      onSuccess: () => toast({ title: 'Document Approved', description: 'Forwarded to IQA for archiving.' }),
+      onSuccess: () => toast({ title: 'Document Approved', description: 'Forwarded to IQAO for archiving.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };
 
   const handleQuickApprove = (docId: string) => {
     updateStatus.mutate({ docId, status: 'DP_APPROVED', mode: 'TEXT_ONLY' }, {
-      onSuccess: () => toast({ title: 'Approved by DP Academics', description: 'Quick-approved and forwarded to IQA.' }),
+      onSuccess: () => toast({ title: 'Approved by DP Academics', description: 'Quick-approved and forwarded to IQAO.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };

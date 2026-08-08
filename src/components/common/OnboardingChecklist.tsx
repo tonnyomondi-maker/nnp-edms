@@ -45,7 +45,7 @@ const CHECKLISTS: Record<UserRole, Step[]> = {
     { id: 'units', title: 'Key in your units for the session', detail: 'Add every unit you teach, linked to its course. The upload form only offers units you have keyed in.', to: '/teaching', cta: 'My Units' },
     { id: 'templates', title: 'Download the approved templates', detail: 'Use the published sample for each document type so verification is straightforward.', to: '/upload', cta: 'Templates' },
     { id: 'upload', title: 'Upload your documents as PDF', detail: 'Pick the unit, then attach PDFs. Word files must be exported to PDF first.', to: '/upload', cta: 'Upload' },
-    { id: 'track', title: 'Track approvals and fix rejections', detail: 'Follow HOD → IQA review → DP Academics → IQA archival, and resubmit anything rejected.', to: '/submissions', cta: 'My Submissions' },
+    { id: 'track', title: 'Track approvals and fix rejections', detail: 'Follow HOD → IQAO review → DP Academics → IQAO archival, and resubmit anything rejected.', to: '/submissions', cta: 'My Submissions' },
   ],
   HOD: [
     PROFILE_STEP,
@@ -56,7 +56,7 @@ const CHECKLISTS: Record<UserRole, Step[]> = {
   DP_ACADEMICS: [
     PROFILE_STEP,
     SIGNATURE_STEP,
-    { id: 'queue', title: 'Approve IQA-reviewed documents', detail: 'Only documents reviewed by IQA reach you. Group by module or department.', to: '/dp/queue', cta: 'Approvals' },
+    { id: 'queue', title: 'Approve IQAO-reviewed documents', detail: 'Only documents reviewed by IQAO reach you. Group by module or department.', to: '/dp/queue', cta: 'Approvals' },
   ],
   IQA: [
     PROFILE_STEP,

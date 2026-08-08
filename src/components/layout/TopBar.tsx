@@ -10,7 +10,7 @@ const roleLabels: Record<UserRole, string> = {
   TRAINER: 'Trainer',
   HOD: 'Head of Dept',
   DP_ACADEMICS: 'DP Academics',
-  IQA: 'IQA Officer',
+  IQA: 'IQAO',
   SUPER_ADMIN: 'Super Admin',
 };
 

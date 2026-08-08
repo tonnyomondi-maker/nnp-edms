@@ -95,7 +95,7 @@ export default function ArchiveScreen() {
           reason: earlyReason.trim(),
           document_status: earlyDoc.status,
           document_type: earlyDoc.documentType,
-          dpa_basis: 'Kenya Data Protection Act 2019, s.30(1)(b) & (e) — performance of public duty / legitimate interest of IQA oversight',
+          dpa_basis: 'Kenya Data Protection Act 2019, s.30(1)(b) & (e) — performance of public duty / legitimate interest of IQAO oversight',
           dpa_acknowledged: true,
           downloaded_at: new Date().toISOString(),
         },
@@ -279,7 +279,7 @@ export default function ArchiveScreen() {
 
   return (
     <div>
-      <PageHeader title="IQA Archive" subtitle={`Final document repository${termFilter !== 'ALL' ? ` • ${termFilter.startsWith('M') ? 'Module ' + termFilter.slice(1) : 'Term ' + termFilter.slice(1)}` : ''}`} />
+      <PageHeader title="IQAO Archive" subtitle={`Final document repository${termFilter !== 'ALL' ? ` • ${termFilter.startsWith('M') ? 'Module ' + termFilter.slice(1) : 'Term ' + termFilter.slice(1)}` : ''}`} />
       <div className="mb-3 flex flex-wrap items-center gap-2 justify-end">
         <Link to="/iqa/verifier-packs" className="text-xs underline text-primary flex items-center gap-1">
           <ExternalLink className="w-3 h-3" /> Verifier packs
@@ -388,7 +388,7 @@ export default function ArchiveScreen() {
         </TabsContent>
         <TabsContent value="early" className="space-y-3">
           <div className="rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">
-            <p className="font-semibold mb-1 flex items-center gap-1"><ShieldAlert className="w-3.5 h-3.5" /> Early access — IQA oversight</p>
+            <p className="font-semibold mb-1 flex items-center gap-1"><ShieldAlert className="w-3.5 h-3.5" /> Early access — IQAO oversight</p>
             <p>Download once-per-term submissions (Schemes of Work, Course Outlines, etc.) before HOD verification or DP approval. Every download requires a written reason and is recorded in the immutable audit trail per Kenya DPA 2019 (s.30(1)(b)&(e)).</p>
           </div>
           {earlyPool.length > 0 ? (
@@ -437,7 +437,7 @@ export default function ArchiveScreen() {
           <div className="space-y-3">
             <div className="rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs space-y-1">
               <p className="font-semibold">Kenya Data Protection Act 2019 — Acknowledgement</p>
-              <p>By proceeding I confirm I am downloading this record under s.30(1)(b)&(e) for IQA oversight, will use it only for that purpose (s.25 — purpose limitation), keep it confidential (s.41), and not retain it beyond what is necessary (s.39).</p>
+              <p>By proceeding I confirm I am downloading this record under s.30(1)(b)&(e) for IQAO oversight, will use it only for that purpose (s.25 — purpose limitation), keep it confidential (s.41), and not retain it beyond what is necessary (s.39).</p>
             </div>
             <label className="flex items-start gap-2 text-xs cursor-pointer">
               <Checkbox checked={dpaAck} onCheckedChange={(c) => setDpaAck(!!c)} />

@@ -100,7 +100,7 @@ export function DpBlock() {
   );
 }
 
-/* ---------------- IQA ---------------- */
+/* ---------------- IQAO ---------------- */
 export function IqaBlock() {
   const { data, isLoading } = useQuery({
     queryKey: ['dash-iqa'],

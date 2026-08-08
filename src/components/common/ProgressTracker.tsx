@@ -10,7 +10,7 @@ type Doc = Tables<'documents'> & {
 const STAGES = [
   { key: 'SUBMITTED', label: 'Submitted' },
   { key: 'HOD_APPROVED', label: 'HOD' },
-  { key: 'IQA_REVIEWED', label: 'IQA review' },
+  { key: 'IQA_REVIEWED', label: 'IQAO review' },
   { key: 'DP_APPROVED', label: 'DP' },
   { key: 'ARCHIVED', label: 'Archived' },
 ] as const;

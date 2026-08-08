@@ -1,4 +1,4 @@
-// Bulk "Sign & approve" for HOD / DP / IQA.
+// Bulk "Sign & approve" for HOD / DP / IQAO.
 // The approver positions their signature + stamp ONCE on a representative
 // document; that placement is then applied to every selected document
 // sequentially, continuing past individual failures.

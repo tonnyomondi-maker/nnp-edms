@@ -23,8 +23,8 @@ export function ReturnStageDialog({ open, onOpenChange, docId, fromStage }: Prop
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Workflow: Trainer → HOD verify → IQA review → DP approve → IQA archive.
-  const targetLabel = fromStage === 'IQA_REVIEW' ? 'HOD' : fromStage === 'DP' ? 'IQA review' : 'DP Academics';
+  // Workflow: Trainer → HOD verify → IQAO review → DP approve → IQAO archive.
+  const targetLabel = fromStage === 'IQA_REVIEW' ? 'HOD' : fromStage === 'DP' ? 'IQAO review' : 'DP Academics';
   const targetStatus = fromStage === 'IQA_REVIEW' ? 'SUBMITTED' : fromStage === 'DP' ? 'HOD_APPROVED' : 'IQA_REVIEWED';
 
 

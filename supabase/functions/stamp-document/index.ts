@@ -29,7 +29,7 @@ interface StampRequest {
 }
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
-const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance", DP: "Deputy Principal — Academics", IQA: "IQA Archival" };
+const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance", DP: "Deputy Principal — Academics", IQA: "IQAO Archival" };
 const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
 /** Bump whenever the approval-sheet layout or stamping logic changes. */
 const STAMP_VERSION = "3.0.0";
@@ -47,7 +47,7 @@ interface StageLayout {
 }
 
 /**
- * Only three officers sign the appended sheet, in this order. IQA archival is
+ * Only three officers sign the appended sheet, in this order. IQAO archival is
  * recorded as a one-line footer (and in the audit trail) rather than a slot.
  */
 const DEFAULT_STAGES: StageLayout[] = [
@@ -578,7 +578,7 @@ Deno.serve(async (req) => {
       const box = slotBox(sheet, stage, layout.stages);
 
       if (!box) {
-        // IQA archival has no signing slot — record it as the sheet footer.
+        // IQAO archival has no signing slot — record it as the sheet footer.
         drawArchivalFooter(
           sheet, helv,
           `Archived by Internal Quality Assurance — ${approverName || "IQA"} · ${stageDate.toLocaleString()} · layout ${layout.name} v${layout.version} · stamp v${STAMP_VERSION}`,
