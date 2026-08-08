@@ -102,7 +102,10 @@ export default function ApprovalQueue() {
   const performApproveWithPlacement = (placement: ApprovalPlacement | null) => {
     if (!placementDoc) return;
     updateStatus.mutate({ docId: placementDoc.id, status: 'DP_APPROVED', placement }, {
-      onSuccess: () => toast({ title: 'Approved by Deputy Principal — Academics', description: 'Returned to IQAO for archiving.' }),
+      onSuccess: () => {
+        setPlacementDoc(null);
+        toast({ title: 'Approved by Deputy Principal — Academics', description: 'Signed on the approval sheet (slot 3). Returned to IQAO for archiving.' });
+      },
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };

@@ -173,7 +173,15 @@ export default function DepartmentQueue() {
     if (!placementDoc) return;
     const docId = placementDoc.id;
     updateStatus.mutate({ docId, status: 'HOD_APPROVED', placement }, {
-      onSuccess: () => toast({ title: 'Verified by HOD', description: 'Forwarded to IQAO for review.' }),
+      onSuccess: () => {
+        setPlacementDoc(null);
+        toast({
+          title: 'Verified by HOD',
+          description: placement && 'sigX' in (placement || {})
+            ? 'Signed at your chosen position. Forwarded to IQAO for review.'
+            : 'Signed on the approval sheet (slot 1). Forwarded to IQAO for review.',
+        });
+      },
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };
@@ -271,6 +279,7 @@ export default function DepartmentQueue() {
                 docs={actionable.filter((d) => selected.has(d.id))}
                 status="HOD_APPROVED"
                 stage="HOD"
+          busy={updateStatus.isPending}
                 label="Sign & verify selected"
                 onDone={() => setSelected(new Set())}
               />

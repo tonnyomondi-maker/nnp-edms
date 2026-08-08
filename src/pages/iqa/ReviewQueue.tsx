@@ -87,7 +87,10 @@ export default function ReviewQueue() {
   const performWithPlacement = (placement: ApprovalPlacement | null) => {
     if (!placementDoc) return;
     updateStatus.mutate({ docId: placementDoc.id, status: 'IQA_REVIEWED', placement }, {
-      onSuccess: () => toast({ title: 'Reviewed by IQAO', description: 'Forwarded to Deputy Principal — Academics for approval.' }),
+      onSuccess: () => {
+        setPlacementDoc(null);
+        toast({ title: 'Reviewed by IQAO', description: 'Signed on the approval sheet (slot 2). Forwarded to Deputy Principal — Academics for approval.' });
+      },
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };
@@ -194,7 +197,8 @@ export default function ReviewQueue() {
           pdfUrl={placementDoc.pdfUrl}
           signatureUrl={placementDoc.sigUrl}
           stampUrl={placementDoc.stampUrl}
-          stage="IQA"
+          stage="IQA_REVIEW"
+          busy={updateStatus.isPending}
           onConfirm={performWithPlacement}
         />
       )}
