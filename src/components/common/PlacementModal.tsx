@@ -24,6 +24,8 @@ interface PlacementModalProps {
   signatureOnlyAllowed?: boolean;
   /** Optional policy notes shown inline. */
   policyNote?: string | null;
+  /** True while the sign request is running — keeps the dialog mounted with a spinner. */
+  busy?: boolean;
   onConfirm: (placement: ApprovalPlacement | null) => void;
 }
 
@@ -62,7 +64,7 @@ type DragState =
 
 export function PlacementModal({
   open, onOpenChange, pdfUrl, signatureUrl, stampUrl, stage,
-  stampMandatory = false, signatureOnlyAllowed = false, policyNote, onConfirm,
+  stampMandatory = false, signatureOnlyAllowed = false, policyNote, busy = false, onConfirm,
 }: PlacementModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -75,6 +77,9 @@ export function PlacementModal({
   const [sig, setSig] = useState<Box>(DEFAULT_SIG);
   const [stamp, setStamp] = useState<Box>(DEFAULT_STAMP);
   const [autofill, setAutofill] = useState(true);
+  // Layout-first: the active approval-sheet layout is used unless the approver
+  // explicitly opts into placing marks on the document page itself.
+  const [useLayout, setUseLayout] = useState(true);
   const [drag, setDrag] = useState<DragState | null>(null);
 
   useEffect(() => {
@@ -84,10 +89,12 @@ export function PlacementModal({
       setSig(stored.sig);
       setStamp(stored.stamp);
       setAutofill(stored.autofill ?? true);
+      setUseLayout(true);
     } else {
       setSig(DEFAULT_SIG);
       setStamp(DEFAULT_STAMP);
       setAutofill(true);
+      setUseLayout(true);
     }
   }, [open, stage]);
 
@@ -194,7 +201,6 @@ export function PlacementModal({
         autofill,
       });
     }
-    onOpenChange(false);
   };
 
   const handleResetDefaults = () => {
@@ -235,9 +241,11 @@ export function PlacementModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle>Position your {stage} {hasStamp ? 'signature & stamp' : 'signature'}</DialogTitle>
+          <DialogTitle>Review document &amp; sign</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Drag to move, drag the corner to resize. Use the controls to rotate, resize and adjust opacity.
+            {useLayout
+              ? 'Preview the document, then sign — your signature and stamp are placed automatically in this stage\u2019s slot on the approval sheet.'
+              : 'Drag to move, drag the corner to resize. Use the controls to rotate, resize and adjust opacity.'}
           </p>
           {stampMandatory && !stampUrl && (
             <p className="text-xs text-destructive">Stamp is required for this document type — add one in Profile Settings before approving.</p>
@@ -259,6 +267,12 @@ export function PlacementModal({
             </Button>
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Switch id="uselayout" checked={useLayout} onCheckedChange={setUseLayout} />
+              <Label htmlFor="uselayout" className="text-xs cursor-pointer">
+                {useLayout ? 'Use approval sheet layout' : 'Place on this page instead'}
+              </Label>
+            </div>
             <div className="flex items-center gap-2">
               <Switch id="autofill" checked={autofill} onCheckedChange={setAutofill} />
               <Label htmlFor="autofill" className="text-xs cursor-pointer">
@@ -283,6 +297,7 @@ export function PlacementModal({
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
               )}
+              {!useLayout && (
               <div
                 onPointerDown={onMovePointerDown('sig')}
                 className="absolute border-2 border-primary bg-primary/15 cursor-move flex items-center justify-center select-none"
@@ -299,7 +314,8 @@ export function PlacementModal({
                   className="absolute -right-1 -bottom-1 w-3 h-3 bg-primary border border-background cursor-se-resize"
                   style={{ touchAction: 'none' }} />
               </div>
-              {hasStamp && (
+              )}
+              {!useLayout && hasStamp && (
                 <div
                   onPointerDown={onMovePointerDown('stamp')}
                   className="absolute border-2 border-accent-foreground bg-accent cursor-move flex items-center justify-center select-none"
@@ -320,15 +336,39 @@ export function PlacementModal({
             </div>
           </div>
           <div className="w-52 shrink-0 space-y-2 overflow-auto">
-            {renderControls('sig', 'Signature')}
-            {hasStamp && renderControls('stamp', 'Stamp')}
+            {useLayout ? (
+              <div className="border rounded p-2 text-[11px] text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground text-xs">Approval sheet layout</p>
+                <p>Your signature and stamp go into the ordered slot for this stage:</p>
+                <ol className="list-decimal pl-4">
+                  <li>Verified by Head of Department</li>
+                  <li>Reviewed by IQAO</li>
+                  <li>Approved by Deputy Principal — Academics</li>
+                </ol>
+                <p>Turn off the toggle above to place marks on this page instead.</p>
+              </div>
+            ) : (
+              <>
+                {renderControls('sig', 'Signature')}
+                {hasStamp && renderControls('stamp', 'Stamp')}
+              </>
+            )}
           </div>
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="secondary" onClick={() => handleConfirm(true)}>Use default (bottom)</Button>
-          <Button onClick={() => handleConfirm(false)}>Confirm placement</Button>
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>Cancel</Button>
+          {useLayout ? (
+            <Button disabled={busy} onClick={() => handleConfirm(true)}>
+              {busy && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Sign on approval sheet
+            </Button>
+          ) : (
+            <Button disabled={busy} onClick={() => handleConfirm(false)}>
+              {busy && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
+              Sign at this position
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
