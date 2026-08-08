@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useMyDocuments } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
@@ -95,17 +96,55 @@ export default function MySubmissions() {
         </TabsContent>
         <TabsContent value="rejected" className="space-y-3">
           {rejected.map(d => (
-            <div key={d.id}>
+            <div key={d.id} className="rounded-lg border border-destructive/40 bg-destructive/5 p-2">
               <DocumentCard doc={d} />
-              {d.rejection_reason && (
-                <p className="text-xs text-destructive mt-1 ml-1">Reason: {d.rejection_reason}</p>
-              )}
+              <RejectionDetail doc={d} />
               <RejectedResubmitButton docId={d.id} />
             </div>
           ))}
           {rejected.length === 0 && <EmptyState text="No rejected documents" />}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function RejectionDetail({ doc }: { doc: { rejection_reason: string | null; return_note?: string | null; status: string; hod_approved_at: string | null; iqa_reviewed_at?: string | null; dp_approved_at: string | null; updated_at: string; hod_approved_by: string | null; dp_approved_by: string | null } }) {
+  const [who, setWho] = useState<{ name: string; role: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // The stage the document was sitting at when it was rejected tells us who acted.
+      const stage = doc.dp_approved_at ? { role: 'IQAO', id: null }
+        : doc.iqa_reviewed_at ? { role: 'Deputy Principal — Academics', id: null }
+        : doc.hod_approved_at ? { role: 'IQAO', id: null }
+        : { role: 'Head of Department', id: null };
+      const { data } = await supabase
+        .from('audit_logs')
+        .select('performed_by, created_at, details')
+        .eq('document_id', (doc as unknown as { id: string }).id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      const rejectLog = (data || []).find((l) => (l.details as { new_status?: string } | null)?.new_status === 'REJECTED');
+      let name = '';
+      if (rejectLog?.performed_by) {
+        const { data: prof } = await supabase
+          .from('profiles').select('full_name').eq('user_id', rejectLog.performed_by).maybeSingle();
+        name = prof?.full_name || '';
+      }
+      if (!cancelled) setWho({ name: name || 'Approver', role: stage.role });
+    })();
+    return () => { cancelled = true; };
+  }, [doc]);
+
+  return (
+    <div className="mt-2 rounded-md border border-destructive/40 bg-background p-3 text-xs space-y-1">
+      <p className="font-semibold text-destructive">Rejected by {who?.name || '…'} ({who?.role || '…'})</p>
+      <p className="text-muted-foreground">{new Date(doc.updated_at).toLocaleString()}</p>
+      <p><span className="font-medium">Reason: </span>{doc.rejection_reason || 'No comment provided'}</p>
+      {doc.return_note && <p><span className="font-medium">Return note: </span>{doc.return_note}</p>}
+      <p className="text-muted-foreground">Use “Edit &amp; Resubmit” below — this keeps one continuous history for the document.</p>
     </div>
   );
 }
