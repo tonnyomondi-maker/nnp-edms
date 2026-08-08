@@ -21,7 +21,6 @@ const ALL_TYPES: DocumentType[] = [
   'Learning Plan',
   'Personal Timetable',
   'Workload Allocation',
-  'Scheme of Work',
   'Session Plan',
   'Class Attendance',
   'Course Outline',

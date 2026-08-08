@@ -176,7 +176,7 @@ export default function UploadDocuments() {
       }]);
       toast({
         title: 'Editing rejected submission',
-        description: `Rejection reason: ${data.rejection_reason || '—'}. Re-attach the corrected PDF and submit — a new SUBMITTED version will be created.`,
+        description: `Rejection reason: ${data.rejection_reason || '—'}. Re-attach the corrected PDF and submit — this updates the same document record so its history stays continuous.`,
       });
     })();
   }, [resubmitId]);
@@ -353,7 +353,18 @@ export default function UploadDocuments() {
   const fileErrors = files.map((f) => ({ id: f.id, error: validateFile(f) }));
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
   const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
-  const canSubmit = headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked && !profileBlocked;
+  // Continuity lock: a rejected document for the same unit + type must be fixed
+  // through "Edit & resubmit", never re-uploaded as a brand new submission.
+  const rejectedBlocks = useMemo(() => {
+    if (resubmitId) return [] as { id: string; documentType: string; reason: string | null }[];
+    return (existingDocs || [])
+      .filter((d) => d.status === 'REJECTED'
+        && (d.unit_code || '').toLowerCase() === unitCode.toLowerCase()
+        && files.some((f) => f.documentType === d.document_type))
+      .map((d) => ({ id: d.id, documentType: d.document_type as string, reason: d.rejection_reason }));
+  }, [existingDocs, unitCode, files, resubmitId]);
+
+  const canSubmit = rejectedBlocks.length === 0 && headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked && !profileBlocked;
 
   const submitReasons = useMemo(() => {
     const r: string[] = [];
@@ -373,10 +384,11 @@ export default function UploadDocuments() {
       const f = files.find((x) => x.id === e.id);
       r.push(`${f?.fileName || 'File'}: ${e.error}`);
     });
+    rejectedBlocks.forEach((b) => r.push(`${b.documentType} was rejected for this unit — use "Edit & resubmit" instead of a new upload.`));
     if (anyInFlight) r.push('Wait for in-flight uploads to finish.');
     if (submitDoc.isPending) r.push('Submission in progress…');
     return r;
-  }, [canUpload, profileBlocked, profile.missing, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
+  }, [rejectedBlocks, canUpload, profileBlocked, profile.missing, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
 
 
   function setStage(id: string, patch: Partial<FileEntry>) {
@@ -435,6 +447,7 @@ export default function UploadDocuments() {
         courseType,
         moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
         courseId: courseId || null,
+        resubmitOf: entry.id.startsWith('resubmit-') ? resubmitId : null,
       });
       setStage(entry.id, { stage: 'storage_ok', documentId: submitted.id, stageMessage: 'Uploaded — mirroring…' });
       // Mirror in the same loop so the user sees Drive status before navigating away.
@@ -700,7 +713,7 @@ export default function UploadDocuments() {
           <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-[11px] text-amber-900 dark:text-amber-200 flex items-start gap-2">
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             <div>
-              <strong>Word files (.doc / .docx) are rejected.</strong> Only PDFs can carry the HOD, IQA and
+              <strong>Word files (.doc / .docx) are rejected.</strong> Only PDFs can carry the HOD, IQAO and
               DP Academics signatures and stamps. In Word use <em>File → Save As / Export → PDF</em>
               {' '}(or print to “Microsoft Print to PDF”), then upload the PDF here.
             </div>
@@ -891,6 +904,18 @@ export default function UploadDocuments() {
           )}
         </CardContent>
       </Card>
+
+      {rejectedBlocks.length > 0 && (
+        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs space-y-2">
+          <p className="font-semibold text-destructive">Rejected document must be resubmitted, not re-uploaded</p>
+          {rejectedBlocks.map((b) => (
+            <div key={b.id} className="space-y-1">
+              <p><strong>{b.documentType}</strong> for {unitCode} was rejected{b.reason ? `: ${b.reason}` : ''}.</p>
+              <Link to={`/upload?resubmit=${b.id}`} className="underline font-medium">Edit &amp; resubmit this document</Link>
+            </div>
+          ))}
+        </div>
+      )}
 
       <ActionGuardButton
         action="upload"

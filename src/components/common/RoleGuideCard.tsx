@@ -18,8 +18,8 @@ const GUIDES: Record<UserRole, { headline: string; steps: GuideStep[] }> = {
     steps: [
       { title: '1. Set up your units', detail: 'Add the units you teach for the open session, with course type (Cycle or Modular) and sessions per week.', to: '/teaching', cta: 'My Units' },
       { title: '2. Download the approved samples', detail: 'Open the Sample templates panel on the upload screen and use the published format for each document type.', to: '/upload', cta: 'Templates' },
-      { title: '3. Upload your documents', detail: 'One-time documents (Learning Plan, Scheme of Work, etc.) plus weekly ones — Session Plan, Class Attendance and Records of Work Covered (twice per session).', to: '/upload', cta: 'Upload' },
-      { title: '4. Track and fix rejections', detail: 'Follow each document from HOD to DP Academics to IQA. If rejected, read the comment, edit and resubmit.', to: '/submissions', cta: 'My Submissions' },
+      { title: '3. Upload your documents', detail: 'One-time documents (Learning Plan, Course Outline, etc.) plus weekly ones — Session Plan, Class Attendance and Records of Work Covered (twice per session).', to: '/upload', cta: 'Upload' },
+      { title: '4. Track and fix rejections', detail: 'Follow each document from HOD to DP Academics to IQAO. If rejected, read the comment, edit and resubmit.', to: '/submissions', cta: 'My Submissions' },
     ],
   },
   HOD: {
@@ -40,7 +40,7 @@ const GUIDES: Record<UserRole, { headline: string; steps: GuideStep[] }> = {
     ],
   },
   IQA: {
-    headline: 'As IQA Officer you archive approved documents and manage external verification.',
+    headline: 'As IQAO you archive approved documents and manage external verification.',
     steps: [
       { title: '1. Archive DP-approved documents', detail: 'Sign and archive individually or in bulk; a nested Department/Trainer ZIP is produced for your records.', to: '/iqa/archive', cta: 'Archive' },
       { title: '2. Build verification packs', detail: 'Create department packs, choose which document types they contain, and share secure links with verifiers.', to: '/iqa/verifier-packs', cta: 'Packs' },

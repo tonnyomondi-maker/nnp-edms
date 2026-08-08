@@ -76,9 +76,9 @@ export function useRoleGuard() {
     }
     if (action === 'approve' || action === 'reject') {
       if (doc?.status === 'SUBMITTED') return 'Switch to your HOD role (and department) to verify this document.';
-      if (doc?.status === 'HOD_APPROVED') return 'Switch to your IQA role to review this document.';
+      if (doc?.status === 'HOD_APPROVED') return 'Switch to your IQAO role to review this document.';
       if (doc?.status === 'IQA_REVIEWED') return 'Switch to your DP Academics role to approve this document.';
-      if (doc?.status === 'DP_APPROVED') return 'Switch to your IQA role to archive this document.';
+      if (doc?.status === 'DP_APPROVED') return 'Switch to your IQAO role to archive this document.';
       return 'Switch to the role that owns this approval stage.';
     }
     if (action === 'delete') return 'Only Super Admin can delete documents.';

@@ -19,7 +19,7 @@ import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl
 import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
 
 /**
- * IQA review stage — sits between HOD verification and DP Academics approval.
+ * IQAO review stage — sits between HOD verification and DP Academics approval.
  * Reviewed documents move to IQA_REVIEWED and appear in the DP queue.
  */
 export default function ReviewQueue() {
@@ -87,14 +87,17 @@ export default function ReviewQueue() {
   const performWithPlacement = (placement: ApprovalPlacement | null) => {
     if (!placementDoc) return;
     updateStatus.mutate({ docId: placementDoc.id, status: 'IQA_REVIEWED', placement }, {
-      onSuccess: () => toast({ title: 'Reviewed by IQA', description: 'Forwarded to DP Academics for final approval.' }),
+      onSuccess: () => {
+        setPlacementDoc(null);
+        toast({ title: 'Reviewed by IQAO', description: 'Signed on the approval sheet (slot 2). Forwarded to Deputy Principal — Academics for approval.' });
+      },
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };
 
   const handleQuickReview = (docId: string) => {
     updateStatus.mutate({ docId, status: 'IQA_REVIEWED', mode: 'TEXT_ONLY' }, {
-      onSuccess: () => toast({ title: 'Reviewed by IQA', description: 'Forwarded to DP Academics.' }),
+      onSuccess: () => toast({ title: 'Reviewed by IQAO', description: 'Forwarded to Deputy Principal — Academics for approval.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };
@@ -112,12 +115,12 @@ export default function ReviewQueue() {
 
   return (
     <div>
-      <PageHeader title="IQA Review Queue" subtitle={`${actionable.length} document(s) awaiting quality review`} />
+      <PageHeader title="IQAO Review Queue" subtitle={`${actionable.length} document(s) awaiting quality review`} />
       <TemplateLibraryPanel />
 
       {!canAct && (
         <div className="mb-3 p-2 rounded border border-amber-500/40 bg-amber-50 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-100">
-          You are viewing as <strong>{activeRole}</strong>. Switch to <strong>IQA</strong> to review documents.
+          You are viewing as <strong>{activeRole}</strong>. Switch to <strong>IQAO</strong> to review documents.
         </div>
       )}
 
@@ -194,7 +197,8 @@ export default function ReviewQueue() {
           pdfUrl={placementDoc.pdfUrl}
           signatureUrl={placementDoc.sigUrl}
           stampUrl={placementDoc.stampUrl}
-          stage="IQA"
+          stage="IQA_REVIEW"
+          busy={updateStatus.isPending}
           onConfirm={performWithPlacement}
         />
       )}

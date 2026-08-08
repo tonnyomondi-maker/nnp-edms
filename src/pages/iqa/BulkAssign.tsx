@@ -1,4 +1,4 @@
-// IQA / Super Admin — assign one verifier set to multiple packs at once.
+// IQAO / Super Admin — assign one verifier set to multiple packs at once.
 
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';

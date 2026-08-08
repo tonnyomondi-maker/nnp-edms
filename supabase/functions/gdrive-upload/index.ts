@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     // Load document row
     const { data: doc, error: docErr } = await admin
       .from("documents")
-      .select("id, file_url, signed_file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, session_year, session_term, term_number, module_number, course_type")
+      .select("id, status, file_url, signed_file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, session_year, session_term, term_number, module_number, course_type")
       .eq("id", documentId)
       .single();
     if (docErr || !doc) return json({ error: "Document not found" }, 404);
@@ -59,6 +59,14 @@ Deno.serve(async (req) => {
       allowed = ["HOD", "DP_ACADEMICS", "IQA", "SUPER_ADMIN"].some((r) => roles.has(r));
     }
     if (!allowed) return json({ error: "Forbidden" }, 403);
+
+    // Google Drive holds APPROVED documents only — raw trainer submissions and
+    // in-flight approvals are never mirrored, even via manual retry.
+    if (!["DP_APPROVED", "ARCHIVED", "EXPORTED"].includes(String(doc.status))) {
+      return json({
+        error: `Only DP-approved or archived documents are mirrored to Google Drive (this one is ${doc.status}).`,
+      }, 400);
+    }
 
     if (doc.gdrive_file_id && !replace) {
       // Already mirrored — return cached info

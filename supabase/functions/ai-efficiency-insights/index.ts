@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", userData.user.id);
     const roleSet = new Set((roles || []).map((r: { role: string }) => r.role));
     if (!roleSet.has("SUPER_ADMIN") && !roleSet.has("IQA")) {
-      return json({ error: "Only Super Admin or IQA can request efficiency insights" }, 403);
+      return json({ error: "Only Super Admin or IQAO can request efficiency insights" }, 403);
     }
 
     const { snapshot } = await req.json();

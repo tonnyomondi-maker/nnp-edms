@@ -24,7 +24,7 @@ export default function Templates() {
   const toggle = useToggleTemplate();
   const del = useDeleteTemplate();
 
-  const [documentType, setDocumentType] = useState<string>('Scheme of Work');
+  const [documentType, setDocumentType] = useState<string>('Learning Plan');
   const [department, setDepartment] = useState<string>('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -163,7 +163,7 @@ export default function Templates() {
             </div>
             <div className="md:col-span-2">
               <Label>Title {files.length > 1 && <span className="text-xs text-muted-foreground">(used as a prefix for each file)</span>}</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Scheme of Work — CDACC compliant sample" />
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Learning Plan — CDACC compliant sample" />
             </div>
             <div className="md:col-span-2">
               <Label>Description</Label>

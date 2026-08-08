@@ -1,6 +1,6 @@
 // Retry button for a failed Google Drive mirror. Only rendered when:
 //   - syncStatus === 'failed'  AND
-//   - the active role is IQA or SUPER_ADMIN
+//   - the active role is IQAO or SUPER_ADMIN
 // This concentrates retry traffic on the archival role and hides the button
 // entirely once the mirror succeeds.
 

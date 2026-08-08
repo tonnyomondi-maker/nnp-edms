@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // Authorize: must be IQA, DP_ACADEMICS or SUPER_ADMIN (admin recovery re-runs)
+    // Authorize: must be IQAO, DP_ACADEMICS or SUPER_ADMIN (admin recovery re-runs)
     const [{ data: isIqa }, { data: isDp }, { data: isSuper }] = await Promise.all([
       admin.rpc("has_role", { _user_id: userId, _role: "IQA" }),
       admin.rpc("has_role", { _user_id: userId, _role: "DP_ACADEMICS" }),

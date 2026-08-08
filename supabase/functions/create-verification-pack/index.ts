@@ -1,5 +1,5 @@
 // Creates a shareable verification pack for an external verifier.
-// Auth: authenticated caller must hold IQA or SUPER_ADMIN role.
+// Auth: authenticated caller must hold IQAO or SUPER_ADMIN role.
 // Body: { department, session_year, session_term, included_document_types?, include_text_only_fallbacks? }
 // Returns: { id, token, expires_at }
 
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     const { data: rolesRows } = await admin.from("user_roles").select("role").eq("user_id", u.user.id);
     const roles = new Set((rolesRows || []).map((r) => r.role));
     if (!roles.has("IQA") && !roles.has("SUPER_ADMIN")) {
-      return json({ error: "Forbidden — IQA or SUPER_ADMIN required" }, 403);
+      return json({ error: "Forbidden — IQAO or SUPER_ADMIN required" }, 403);
     }
 
     const body = await req.json().catch(() => ({}));

@@ -29,9 +29,17 @@ interface StampRequest {
 }
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
-const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance", DP: "Deputy Principal — Academics", IQA: "IQA Archival" };
+const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance Officer (IQAO)", DP: "Deputy Principal — Academics", IQA: "IQAO Archival" };
 const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
 /** Bump whenever the approval-sheet layout or stamping logic changes. */
+// Plain-language hand-off note appended to each approval notification.
+const NEXT_STAGE_NOTE: Record<string, string> = {
+  HOD: "Forwarded to IQAO for review.",
+  IQA_REVIEW: "Forwarded to the Deputy Principal — Academics for approval.",
+  DP: "Returned to IQAO for archiving.",
+  IQA: "Archived — your approved copy is now available under My Approved Documents.",
+};
+
 const STAMP_VERSION = "3.0.0";
 
 /** A single signing slot on the approval sheet. */
@@ -47,12 +55,12 @@ interface StageLayout {
 }
 
 /**
- * Only three officers sign the appended sheet, in this order. IQA archival is
+ * Only three officers sign the appended sheet, in this order. IQAO archival is
  * recorded as a one-line footer (and in the audit trail) rather than a slot.
  */
 const DEFAULT_STAGES: StageLayout[] = [
   { stage: "HOD", order: 1, title: "1. VERIFIED BY HEAD OF DEPARTMENT", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
-  { stage: "IQA_REVIEW", order: 2, title: "2. VERIFIED BY INTERNAL QUALITY ASSURANCE", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
+  { stage: "IQA_REVIEW", order: 2, title: "2. REVIEWED BY INTERNAL QUALITY ASSURANCE OFFICER (IQAO)", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
   { stage: "DP", order: 3, title: "3. APPROVED BY DEPUTY PRINCIPAL - ACADEMICS", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
 ];
 
@@ -483,7 +491,7 @@ Deno.serve(async (req) => {
         stampVersion: STAMP_VERSION,
         layoutVersion: `${layout.name} v${layout.version}`,
         title: `${STAGE_LABEL[stage]} signed "${doc.file_name || doc.document_type}"`,
-        message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}.`,
+        message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}. ${NEXT_STAGE_NOTE[stage] || ""}`,
       });
       return new Response(JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION, layoutVersion: `${layout.name} v${layout.version}`, stageOrder }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -578,7 +586,7 @@ Deno.serve(async (req) => {
       const box = slotBox(sheet, stage, layout.stages);
 
       if (!box) {
-        // IQA archival has no signing slot — record it as the sheet footer.
+        // IQAO archival has no signing slot — record it as the sheet footer.
         drawArchivalFooter(
           sheet, helv,
           `Archived by Internal Quality Assurance — ${approverName || "IQA"} · ${stageDate.toLocaleString()} · layout ${layout.name} v${layout.version} · stamp v${STAMP_VERSION}`,
@@ -675,7 +683,7 @@ Deno.serve(async (req) => {
       stampVersion: STAMP_VERSION,
       layoutVersion: `${layout.name} v${layout.version}`,
       title: `${STAGE_LABEL[stage]} signed "${doc.file_name || doc.document_type}"`,
-      message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}.`,
+      message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}. ${NEXT_STAGE_NOTE[stage] || ""}`,
     });
 
     // Bucket is private — return the bare path. The client uses parseStorageRef

@@ -1,4 +1,4 @@
-// IQA / Super Admin — read-only summary of verifier reviews for a single pack.
+// IQAO / Super Admin — read-only summary of verifier reviews for a single pack.
 
 import { useEffect, useState } from 'react';
 import { Navigate, useParams, Link } from 'react-router-dom';

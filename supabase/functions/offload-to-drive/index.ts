@@ -2,7 +2,7 @@
 // Google Drive mirror exists. Sets storage_tier='drive'.
 //
 // Body: { documentIds: string[] } OR { department: string, sessionYear: number, sessionTerm: string }
-// Only IQA / SUPER_ADMIN may call this.
+// Only IQAO / SUPER_ADMIN may call this.
 
 import { corsHeaders } from "npm:@supabase/supabase-js@2.95.0/cors";
 import { createClient } from "npm:@supabase/supabase-js@2.95.0";

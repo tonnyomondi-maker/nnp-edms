@@ -1,4 +1,4 @@
-// IQA / Super Admin — generate shareable verifier packs per department.
+// IQAO / Super Admin — generate shareable verifier packs per department.
 // Also hosts the analytics panel, composition controls, verifier assignments,
 // and per-pack review summary.
 
@@ -36,7 +36,7 @@ interface ReviewCount { pack_id: string; count: number }
 const TERMS = ['JAN_APR', 'MAY_AUG', 'SEP_DEC'];
 const DOC_TYPES = [
   'Learning Plan', 'Personal Timetable', 'Workload Allocation',
-  'Scheme of Work', 'Session Plan', 'Class Attendance', 'Course Outline',
+  'Session Plan', 'Class Attendance', 'Course Outline',
 ];
 
 export default function VerifierPacks() {
@@ -125,7 +125,7 @@ export default function VerifierPacks() {
   }
   if (!canUse) {
     return <div className="p-4"><Card><CardContent className="p-4 text-sm text-muted-foreground">
-      Switch to <strong>IQA</strong> or <strong>Super Admin</strong> to manage verifier packs.
+      Switch to <strong>IQAO</strong> or <strong>Super Admin</strong> to manage verifier packs.
     </CardContent></Card></div>;
   }
 
@@ -265,7 +265,7 @@ export default function VerifierPacks() {
             <div className="text-xs">
               <p>Include DP-approved (not yet archived)</p>
               <p className="text-muted-foreground text-[10px]">
-                Lets external verifiers review documents before final IQA archival. Off = only fully archived docs.
+                Lets external verifiers review documents before final IQAO archival. Off = only fully archived docs.
               </p>
             </div>
           </div>

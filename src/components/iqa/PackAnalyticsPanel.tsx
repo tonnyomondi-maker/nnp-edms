@@ -1,4 +1,4 @@
-// IQA / Super Admin — analytics panel for verifier packs.
+// IQAO / Super Admin — analytics panel for verifier packs.
 // Shows per-department pack activity so the archivist can throttle new requests.
 
 import { useEffect, useState } from 'react';

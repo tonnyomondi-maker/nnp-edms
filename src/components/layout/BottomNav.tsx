@@ -8,6 +8,8 @@ const trainerItems = [
   { to: '/teaching', icon: BookOpen, label: 'Units' },
   { to: '/upload', icon: Upload, label: 'Upload' },
   { to: '/submissions', icon: FileText, label: 'Submissions' },
+  { to: '/approved', icon: FileArchive, label: 'Approved' },
+
 ];
 
 const hodItems = [

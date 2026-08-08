@@ -361,7 +361,7 @@ export default function EfficiencyDashboard() {
     const header = ['Department', 'Total', 'Archived', 'Rejected',
       'HOD Queue', 'HOD Avg (h)', 'HOD Oldest (h)', 'HOD SLA Breaches',
       'DP Queue', 'DP Avg (h)', 'DP Oldest (h)', 'DP SLA Breaches',
-      'IQA Queue', 'IQA Avg (h)', 'IQA Oldest (h)', 'IQA SLA Breaches',
+      'IQAO Queue', 'IQAO Avg (h)', 'IQAO Oldest (h)', 'IQAO SLA Breaches',
       'Bottleneck'];
     const body = rows.map((r) => [
       r.department, r.totals.submitted, r.totals.approved, r.totals.rejected,
@@ -712,7 +712,7 @@ export default function EfficiencyDashboard() {
                     <Select value={newSla.document_type} onValueChange={(v) => setNewSla({ ...newSla, document_type: v })}>
                       <SelectTrigger className="h-8 w-[220px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {['Learning Plan','Personal Timetable','Workload Allocation','Scheme of Work','Session Plan','Class Attendance','Course Outline'].map((t) => (
+                        {['Learning Plan','Personal Timetable','Workload Allocation','Session Plan','Class Attendance','Course Outline'].map((t) => (
                           <SelectItem key={t} value={t}>{t}</SelectItem>
                         ))}
                       </SelectContent>

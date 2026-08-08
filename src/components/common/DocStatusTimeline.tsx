@@ -115,7 +115,7 @@ export function DocStatusTimeline({ doc, compact = false }: DocStatusTimelinePro
     },
     {
       key: 'archived',
-      label: 'IQA Archived',
+      label: 'IQAO Archived',
       at: doc.archived_at,
       approverId: doc.iqa_archived_by,
       done: !!doc.archived_at,

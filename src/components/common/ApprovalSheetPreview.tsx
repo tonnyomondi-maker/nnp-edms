@@ -104,7 +104,7 @@ export function ApprovalSheetPreview({ docLabel, trainerName, triggerLabel, clas
 
           <p className="text-xs text-muted-foreground">
             Approvers may instead place their signature directly on a page of the document. In that case this
-            sheet still records the stage details for audit purposes. IQA archival is recorded in the footer.
+            sheet still records the stage details for audit purposes. IQAO archival is recorded in the footer.
           </p>
         </DialogContent>
       </Dialog>
