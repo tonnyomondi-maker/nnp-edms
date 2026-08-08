@@ -227,7 +227,6 @@ export default function ApprovalQueue() {
           onOpenChange={(o) => { if (!o) setRejectDoc(null); }}
           docLabel={rejectDoc.label}
           stage="DP"
-          busy={updateStatus.isPending}
           onConfirm={confirmReject}
           isPending={updateStatus.isPending}
         />

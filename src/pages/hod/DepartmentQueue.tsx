@@ -351,7 +351,6 @@ export default function DepartmentQueue() {
           onOpenChange={(o) => { if (!o) setRejectDoc(null); }}
           docLabel={rejectDoc.label}
           stage="HOD"
-          busy={updateStatus.isPending}
           onConfirm={confirmReject}
           isPending={updateStatus.isPending}
         />
