@@ -50,7 +50,6 @@ export const ONE_TIME_DOC_TYPES = [
   'Learning Plan',
   'Personal Timetable',
   'Workload Allocation',
-  'Scheme of Work',
   'Course Outline',
 ] as const;
 

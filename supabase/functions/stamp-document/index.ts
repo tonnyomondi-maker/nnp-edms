@@ -29,7 +29,7 @@ interface StampRequest {
 }
 
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
-const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance", DP: "Deputy Principal — Academics", IQA: "IQAO Archival" };
+const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance Officer (IQAO)", DP: "Deputy Principal — Academics", IQA: "IQAO Archival" };
 const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
 /** Bump whenever the approval-sheet layout or stamping logic changes. */
 const STAMP_VERSION = "3.0.0";
@@ -52,7 +52,7 @@ interface StageLayout {
  */
 const DEFAULT_STAGES: StageLayout[] = [
   { stage: "HOD", order: 1, title: "1. VERIFIED BY HEAD OF DEPARTMENT", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
-  { stage: "IQA_REVIEW", order: 2, title: "2. VERIFIED BY INTERNAL QUALITY ASSURANCE", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
+  { stage: "IQA_REVIEW", order: 2, title: "2. REVIEWED BY INTERNAL QUALITY ASSURANCE OFFICER (IQAO)", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
   { stage: "DP", order: 3, title: "3. APPROVED BY DEPUTY PRINCIPAL - ACADEMICS", slot_height: 200, sig_w: 150, sig_h: 55, stamp_size: 95, title_size: 10 },
 ];
 

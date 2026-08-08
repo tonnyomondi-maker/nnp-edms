@@ -87,14 +87,14 @@ export default function ReviewQueue() {
   const performWithPlacement = (placement: ApprovalPlacement | null) => {
     if (!placementDoc) return;
     updateStatus.mutate({ docId: placementDoc.id, status: 'IQA_REVIEWED', placement }, {
-      onSuccess: () => toast({ title: 'Reviewed by IQA', description: 'Forwarded to DP Academics for final approval.' }),
+      onSuccess: () => toast({ title: 'Reviewed by IQAO', description: 'Forwarded to Deputy Principal — Academics for approval.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };
 
   const handleQuickReview = (docId: string) => {
     updateStatus.mutate({ docId, status: 'IQA_REVIEWED', mode: 'TEXT_ONLY' }, {
-      onSuccess: () => toast({ title: 'Reviewed by IQA', description: 'Forwarded to DP Academics.' }),
+      onSuccess: () => toast({ title: 'Reviewed by IQAO', description: 'Forwarded to Deputy Principal — Academics for approval.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };

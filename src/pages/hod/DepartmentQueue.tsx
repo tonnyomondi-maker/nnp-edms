@@ -173,14 +173,14 @@ export default function DepartmentQueue() {
     if (!placementDoc) return;
     const docId = placementDoc.id;
     updateStatus.mutate({ docId, status: 'HOD_APPROVED', placement }, {
-      onSuccess: () => toast({ title: 'Document Approved', description: 'Forwarded to DP Academics.' }),
+      onSuccess: () => toast({ title: 'Verified by HOD', description: 'Forwarded to IQAO for review.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };
 
   const handleQuickApprove = (docId: string) => {
     updateStatus.mutate({ docId, status: 'HOD_APPROVED', mode: 'TEXT_ONLY' }, {
-      onSuccess: () => toast({ title: 'Verified by HOD', description: 'Quick-verified and forwarded to DP Academics.' }),
+      onSuccess: () => toast({ title: 'Verified by HOD', description: 'Quick-verified and forwarded to IQAO for review.' }),
       onError: (e) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
     });
   };

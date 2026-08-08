@@ -14,7 +14,7 @@ export const SIGNING_STAGE_TOTAL = 3;
 
 export const STAGE_LABEL: Record<string, string> = {
   HOD: 'Head of Department',
-  IQA_REVIEW: 'Internal Quality Assurance',
+  IQA_REVIEW: 'IQAO — Internal Quality Assurance Officer',
   DP: 'Deputy Principal — Academics',
   IQA: 'IQAO Archival',
 };
