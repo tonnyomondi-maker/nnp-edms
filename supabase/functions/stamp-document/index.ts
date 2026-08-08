@@ -32,6 +32,14 @@ const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
 const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance Officer (IQAO)", DP: "Deputy Principal — Academics", IQA: "IQAO Archival" };
 const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
 /** Bump whenever the approval-sheet layout or stamping logic changes. */
+// Plain-language hand-off note appended to each approval notification.
+const NEXT_STAGE_NOTE: Record<string, string> = {
+  HOD: "Forwarded to IQAO for review.",
+  IQA_REVIEW: "Forwarded to the Deputy Principal — Academics for approval.",
+  DP: "Returned to IQAO for archiving.",
+  IQA: "Archived — your approved copy is now available under My Approved Documents.",
+};
+
 const STAMP_VERSION = "3.0.0";
 
 /** A single signing slot on the approval sheet. */
@@ -483,7 +491,7 @@ Deno.serve(async (req) => {
         stampVersion: STAMP_VERSION,
         layoutVersion: `${layout.name} v${layout.version}`,
         title: `${STAGE_LABEL[stage]} signed "${doc.file_name || doc.document_type}"`,
-        message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}.`,
+        message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}. ${NEXT_STAGE_NOTE[stage] || ""}`,
       });
       return new Response(JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION, layoutVersion: `${layout.name} v${layout.version}`, stageOrder }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -675,7 +683,7 @@ Deno.serve(async (req) => {
       stampVersion: STAMP_VERSION,
       layoutVersion: `${layout.name} v${layout.version}`,
       title: `${STAGE_LABEL[stage]} signed "${doc.file_name || doc.document_type}"`,
-      message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}.`,
+      message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}. ${NEXT_STAGE_NOTE[stage] || ""}`,
     });
 
     // Bucket is private — return the bare path. The client uses parseStorageRef
