@@ -164,7 +164,6 @@ export default function ApprovalQueue() {
             docs={actionable.filter((d) => selected.has(d.id))}
             status="DP_APPROVED"
             stage="DP"
-          busy={updateStatus.isPending}
             onDone={() => setSelected(new Set())}
           />
         </div>
@@ -215,6 +214,7 @@ export default function ApprovalQueue() {
           signatureUrl={placementDoc.sigUrl}
           stampUrl={placementDoc.stampUrl}
           stage="DP"
+          busy={updateStatus.isPending}
           onConfirm={performApproveWithPlacement}
         />
       )}
@@ -227,6 +227,7 @@ export default function ApprovalQueue() {
           onOpenChange={(o) => { if (!o) setRejectDoc(null); }}
           docLabel={rejectDoc.label}
           stage="DP"
+          busy={updateStatus.isPending}
           onConfirm={confirmReject}
           isPending={updateStatus.isPending}
         />

@@ -279,7 +279,6 @@ export default function DepartmentQueue() {
                 docs={actionable.filter((d) => selected.has(d.id))}
                 status="HOD_APPROVED"
                 stage="HOD"
-          busy={updateStatus.isPending}
                 label="Sign & verify selected"
                 onDone={() => setSelected(new Set())}
               />
@@ -342,6 +341,7 @@ export default function DepartmentQueue() {
           signatureUrl={placementDoc.sigUrl}
           stampUrl={placementDoc.stampUrl}
           stage="HOD"
+          busy={updateStatus.isPending}
           onConfirm={performApproveWithPlacement}
         />
       )}
@@ -351,6 +351,7 @@ export default function DepartmentQueue() {
           onOpenChange={(o) => { if (!o) setRejectDoc(null); }}
           docLabel={rejectDoc.label}
           stage="HOD"
+          busy={updateStatus.isPending}
           onConfirm={confirmReject}
           isPending={updateStatus.isPending}
         />
