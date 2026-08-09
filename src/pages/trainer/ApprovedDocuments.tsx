@@ -49,6 +49,17 @@ export default function ApprovedDocuments() {
   const active = session === ALL ? ALL : session;
   const filtered = active === ALL ? approved : approved.filter((d) => `${d.session_year}_${d.session_term}` === active);
 
+  // Within the chosen session, group by unit so trainers find copies fast.
+  const byUnit = useMemo(() => {
+    const m = new Map<string, typeof filtered>();
+    for (const d of filtered) {
+      const key = [d.unit_code, d.unit_name].filter(Boolean).join(' — ') || 'Unspecified unit';
+      m.set(key, [...(m.get(key) || []), d]);
+    }
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filtered]);
+
+
   const open = async (doc: { id: string; signed_file_url?: string | null; file_url?: string | null; file_name?: string | null }, download: boolean) => {
     const ref = doc.signed_file_url || doc.file_url;
     if (!ref) {
