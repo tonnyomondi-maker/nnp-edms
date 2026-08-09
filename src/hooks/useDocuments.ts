@@ -158,25 +158,55 @@ async function performApproval(
   if (status === 'REJECTED') {
     updates.rejection_reason = rejectionReason || 'Does not meet standards';
     const { data: prev } = await supabase
-      .from('documents').select('status, trainer_id, document_type, file_name').eq('id', docId).single();
+      .from('documents')
+      .select('status, trainer_id, document_type, file_name, rejection_count, version')
+      .eq('id', docId)
+      .single();
+    const p = prev as {
+      status?: string; trainer_id?: string; document_type?: string; file_name?: string;
+      rejection_count?: number | null; version?: number | null;
+    } | null;
+    const stage = stageForStatus(p?.status || 'SUBMITTED');
+    const nowIso = new Date().toISOString();
+    const rejUpdates = {
+      ...updates,
+      rejection_count: (p?.rejection_count ?? 0) + 1,
+      last_rejected_stage: stage,
+      last_rejected_by: userId,
+      last_rejected_at: nowIso,
+      last_rejection_reason: updates.rejection_reason,
+    } as TablesUpdate<'documents'>;
     const { data, error } = await supabase
-      .from('documents').update(updates).eq('id', docId).select().single();
+      .from('documents').update(rejUpdates).eq('id', docId).select().single();
     if (error) throw error;
-    const p = prev as { status?: string; trainer_id?: string; document_type?: string; file_name?: string } | null;
+
+    // Immutable rejection history so every later approver can compare rounds.
+    const { data: actor } = await supabase
+      .from('profiles').select('full_name, email').eq('user_id', userId).maybeSingle();
+    await supabase.from('document_rejections' as never).insert({
+      document_id: docId,
+      stage,
+      reason: updates.rejection_reason,
+      rejected_by: userId,
+      rejected_by_name: actor?.full_name ?? null,
+      rejected_by_email: actor?.email ?? null,
+      document_version: p?.version ?? 1,
+    } as never);
+
     if (p?.trainer_id) {
-      const stage = stageForStatus(p.status || 'SUBMITTED');
       await notifyDocumentEvent({
         userId: p.trainer_id,
         documentId: docId,
         kind: 'REJECTED',
         stage,
         title: `${p.document_type || 'Document'} rejected at stage ${STAGE_ORDER[stage]} (${STAGE_LABEL[stage]})`,
-        message: `${p.file_name || 'Your document'} was rejected. Edit and resubmit it from My Submissions. Approval sheet stamp version ${CLIENT_STAMP_VERSION}.`,
+        message: `${p.file_name || 'Your document'} was rejected by ${actor?.full_name || STAGE_LABEL[stage]}. Edit and resubmit it from My Submissions. Approval sheet stamp version ${CLIENT_STAMP_VERSION}.`,
         note: updates.rejection_reason,
       });
     }
     return data;
   }
+
 
 
   if (!APPROVAL_STATUSES.includes(status)) {
@@ -461,6 +491,8 @@ export function useSubmitDocument() {
       moduleNumber,
       courseId,
       resubmitOf,
+      resubmissionNote,
+
     }: {
       file: File;
       assignmentId?: string | null;
@@ -481,7 +513,11 @@ export function useSubmitDocument() {
       courseId?: string | null;
       /** When set, the rejected document is updated in place instead of a new row. */
       resubmitOf?: string | null;
+      /** Optional "what I changed" note shown to approvers on the rejection banner. */
+      resubmissionNote?: string | null;
     }) => {
+
+
       await assertSystemNotLocked(user?.id);
       const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
       const filePath = `${user!.id}/${sessionYear}_${sessionTerm}/${safeUnit}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}${sessionIndex ? `_S${sessionIndex}` : ''}_${Date.now()}.pdf`;
@@ -526,6 +562,11 @@ export function useSubmitDocument() {
       if (resubmitOf) {
         // Continuity: keep one document record across rejection + resubmission so
         // the audit trail, notifications and timeline stay on a single history.
+        // The superseded file is kept as previous_file_url (read-only) and the
+        // version is bumped so approvers can see this is a corrected round.
+        const { data: old } = await supabase
+          .from('documents').select('file_url, version').eq('id', resubmitOf).maybeSingle();
+        const oldRow = old as { file_url?: string | null; version?: number | null } | null;
         const { data: updated, error: updErr } = await supabase
           .from('documents')
           .update({
@@ -536,6 +577,9 @@ export function useSubmitDocument() {
             returned_at: null,
             signed_file_url: null,
             submitted_at: new Date().toISOString(),
+            version: (oldRow?.version ?? 1) + 1,
+            previous_file_url: oldRow?.file_url ?? null,
+            resubmission_note: resubmissionNote?.trim() || null,
           } as never)
           .eq('id', resubmitOf)
           .select()
@@ -543,6 +587,7 @@ export function useSubmitDocument() {
         if (updErr) throw updErr;
         return updated;
       }
+
 
       const { data, error } = await supabase
         .from('documents')

@@ -10,6 +10,8 @@ import { PlacementModal } from '@/components/common/PlacementModal';
 import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
 import { RejectDialog } from '@/components/common/RejectDialog';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
+import { HierarchyView, hierarchyFor } from '@/components/common/HierarchyGroups';
+
 import { BulkSignButton } from '@/components/common/BulkSignButton';
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
@@ -34,7 +36,7 @@ export default function ReviewQueue() {
   const [returnDocId, setReturnDocId] = useState<string | null>(null);
   const [rejectDoc, setRejectDoc] = useState<{ id: string; label: string } | null>(null);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'HOD_APPROVED' });
-  const [groupBy, setGroupBy] = useState<GroupByKey>('SESSION');
+  const [groupBy, setGroupBy] = useState<GroupByKey>('HIERARCHY');
 
   useEffect(() => { if (!canAct) setSelected(new Set()); }, [canAct, activeRole]);
 
@@ -109,9 +111,40 @@ export default function ReviewQueue() {
     toast({ title: 'Document rejected', description: 'Comment sent to the trainer.', variant: 'destructive' });
   };
 
+  type QueueDoc = (typeof docs)[number];
+  const renderDoc = (doc: QueueDoc) => {
+    const showActions = canActOn(doc.status) && canAct;
+    return (
+      <DocumentCard
+        key={doc.id}
+        doc={doc}
+        showTrainer
+        selectable={showActions}
+        selected={selected.has(doc.id)}
+        onSelectChange={(c) => toggleOne(doc.id, c)}
+        showAiReview={showActions}
+        onReturnRequest={showActions ? () => setReturnDocId(doc.id) : undefined}
+        actions={showActions ? (
+          <>
+            <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickReview(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'REVIEWED BY IQA' with name & date">
+              <Zap className="w-4 h-4" /> Quick Review
+            </ActionGuardButton>
+            <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleSign(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
+              <CheckCircle2 className="w-4 h-4" /> Sign & Review
+            </ActionGuardButton>
+            <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => setRejectDoc({ id: doc.id, label: `${doc.document_type}${doc.unit_code ? ' • ' + doc.unit_code : ''}` })} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+              <XCircle className="w-4 h-4" /> Reject
+            </ActionGuardButton>
+          </>
+        ) : undefined}
+      />
+    );
+  };
+
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
+
 
   return (
     <div>
@@ -152,43 +185,24 @@ export default function ReviewQueue() {
       )}
 
       <div className="space-y-3 mt-3">
-        {docs.length > 0 ? (
+        {docs.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
+        ) : groupBy === 'HIERARCHY' ? (
+          <HierarchyView
+            docs={docs}
+            levels={hierarchyFor('IQA')}
+            pendingOf={(d) => canActOn(d.status)}
+            renderDoc={renderDoc}
+          />
+        ) : (
           groupDocs(docs, groupBy).map((group) => (
             <GroupSection key={group.key} label={group.label} count={group.docs.length}>
-              {group.docs.map((doc) => {
-                const showActions = canActOn(doc.status) && canAct;
-                return (
-                  <DocumentCard
-                    key={doc.id}
-                    doc={doc}
-                    showTrainer
-                    selectable={showActions}
-                    selected={selected.has(doc.id)}
-                    onSelectChange={(c) => toggleOne(doc.id, c)}
-                    showAiReview={showActions}
-                    onReturnRequest={showActions ? () => setReturnDocId(doc.id) : undefined}
-                    actions={showActions ? (
-                      <>
-                        <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickReview(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'REVIEWED BY IQA' with name & date">
-                          <Zap className="w-4 h-4" /> Quick Review
-                        </ActionGuardButton>
-                        <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleSign(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
-                          <CheckCircle2 className="w-4 h-4" /> Sign & Review
-                        </ActionGuardButton>
-                        <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => setRejectDoc({ id: doc.id, label: `${doc.document_type}${doc.unit_code ? ' • ' + doc.unit_code : ''}` })} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
-                          <XCircle className="w-4 h-4" /> Reject
-                        </ActionGuardButton>
-                      </>
-                    ) : undefined}
-                  />
-                );
-              })}
+              {group.docs.map((doc) => renderDoc(doc))}
             </GroupSection>
           ))
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
         )}
       </div>
+
 
       {placementDoc && (
         <PlacementModal

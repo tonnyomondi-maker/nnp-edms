@@ -8,6 +8,8 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
+import { HierarchyView, hierarchyFor } from '@/components/common/HierarchyGroups';
+
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { Button } from '@/components/ui/button';
 import { buildAuditCsv, downloadCsv } from '@/lib/auditCsv';
@@ -18,7 +20,7 @@ export default function AllDocuments() {
   const { data, isLoading } = useAllDocuments();
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
-  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
+  const [groupBy, setGroupBy] = useState<GroupByKey>('HIERARCHY');
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER });
 
   const baseDocs = useMemo(() => data || [], [data]);
@@ -69,16 +71,23 @@ export default function AllDocuments() {
       </div>
       <QueueFilterBar value={filter} onChange={setFilter} docs={baseDocs} />
       <div className="space-y-3 mt-3">
-        {docs.length > 0 ? (
+        {docs.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
+        ) : groupBy === 'HIERARCHY' ? (
+          <HierarchyView
+            docs={docs}
+            levels={hierarchyFor('SUPER_ADMIN')}
+            renderDoc={(doc) => <DocumentCard key={doc.id} doc={doc} showTrainer />}
+          />
+        ) : (
           groupDocs(docs, groupBy).map((group) => (
             <GroupSection key={group.key} label={group.label} count={group.docs.length}>
               {group.docs.map((doc) => <DocumentCard key={doc.id} doc={doc} showTrainer />)}
             </GroupSection>
           ))
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
         )}
       </div>
+
     </div>
   );
 }

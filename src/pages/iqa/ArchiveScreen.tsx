@@ -9,6 +9,8 @@ import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
 
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
+import { HierarchyView, hierarchyFor } from '@/components/common/HierarchyGroups';
+
 import { BulkSignButton } from '@/components/common/BulkSignButton';
 import { Button } from '@/components/ui/button';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
@@ -42,7 +44,7 @@ export default function ArchiveScreen() {
   const [deptFilter, setDeptFilter] = useState<string>('');
   const [bulkRetrying, setBulkRetrying] = useState(false);
   const [returnDocId, setReturnDocId] = useState<string | null>(null);
-  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
+  const [groupBy, setGroupBy] = useState<GroupByKey>('HIERARCHY');
   const [downloadingZip, setDownloadingZip] = useState(false);
 
 
@@ -276,7 +278,26 @@ export default function ArchiveScreen() {
     }
   };
 
+  const renderPendingDoc = (doc: (typeof pending)[number]) => (
+    <DocumentCard
+      key={doc.id}
+      doc={doc}
+      showTrainer
+      selectable
+      selected={selected.has(doc.id)}
+      onSelectChange={(c) => toggleOne(doc.id, c)}
+      showAiReview
+      onReturnRequest={() => setReturnDocId(doc.id)}
+      actions={
+        <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
+          <Archive className="w-4 h-4" /> Archive
+        </ActionGuardButton>
+      }
+    />
+  );
+
   if (isLoading) {
+
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
 
@@ -352,42 +373,35 @@ export default function ArchiveScreen() {
               />
             </div>
           )}
-          {pending.length > 0 ? (
+          {pending.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No documents pending archive</p>
+          ) : groupBy === 'HIERARCHY' ? (
+            <HierarchyView docs={pending} levels={hierarchyFor('IQA')} renderDoc={renderPendingDoc} />
+          ) : (
             groupDocs(pending, groupBy).map((group) => (
               <GroupSection key={group.key} label={group.label} count={group.docs.length}>
-                {group.docs.map(doc => (
-                  <DocumentCard
-                    key={doc.id}
-                    doc={doc}
-                    showTrainer
-                    selectable
-                    selected={selected.has(doc.id)}
-                    onSelectChange={(c) => toggleOne(doc.id, c)}
-                    showAiReview
-                    onReturnRequest={() => setReturnDocId(doc.id)}
-                    actions={
-                      <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
-                        <Archive className="w-4 h-4" /> Archive
-                      </ActionGuardButton>
-                    }
-                  />
-                ))}
+                {group.docs.map((doc) => renderPendingDoc(doc))}
               </GroupSection>
             ))
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">No documents pending archive</p>
           )}
         </TabsContent>
         <TabsContent value="archived" className="space-y-3">
-          {archived.length > 0 ? (
+          {archived.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No archived documents</p>
+          ) : groupBy === 'HIERARCHY' ? (
+            <HierarchyView
+              docs={archived}
+              levels={hierarchyFor('IQA')}
+              renderDoc={(doc) => <DocumentCard key={doc.id} doc={doc} showTrainer />}
+            />
+          ) : (
             groupDocs(archived, groupBy).map((group) => (
               <GroupSection key={group.key} label={group.label} count={group.docs.length}>
-                {group.docs.map(doc => <DocumentCard key={doc.id} doc={doc} showTrainer />)}
+                {group.docs.map((doc) => <DocumentCard key={doc.id} doc={doc} showTrainer />)}
               </GroupSection>
             ))
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">No archived documents</p>
           )}
+
         </TabsContent>
         <TabsContent value="early" className="space-y-3">
           <div className="rounded-md border border-amber-300/50 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200">

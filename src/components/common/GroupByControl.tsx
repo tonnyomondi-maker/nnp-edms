@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { sessionLabel, type SessionTerm } from '@/lib/sessions';
 
 
-export type GroupByKey = 'NONE' | 'SESSION' | 'STAGE' | 'DEPARTMENT' | 'TRAINER' | 'DOC_TYPE';
+export type GroupByKey = 'HIERARCHY' | 'NONE' | 'SESSION' | 'STAGE' | 'DEPARTMENT' | 'TRAINER' | 'DOC_TYPE';
 
 interface DocLike {
   id: string;
@@ -27,8 +27,10 @@ interface GroupByControlProps {
 }
 
 const OPTIONS: { key: GroupByKey; label: string }[] = [
+  { key: 'HIERARCHY', label: 'Recommended (nested)' },
   { key: 'NONE', label: 'No grouping' },
   { key: 'SESSION', label: 'Training session' },
+
   { key: 'STAGE', label: 'Term / Module' },
   { key: 'DEPARTMENT', label: 'Department' },
   { key: 'TRAINER', label: 'Trainer' },
@@ -64,7 +66,7 @@ export function groupDocs<T extends DocLike>(
   docs: T[],
   by: GroupByKey,
 ): { key: string; label: string; docs: T[] }[] {
-  if (by === 'NONE') return [{ key: 'ALL', label: '', docs }];
+  if (by === 'NONE' || by === 'HIERARCHY') return [{ key: 'ALL', label: '', docs }];
   const buckets = new Map<string, { label: string; order: number; docs: T[] }>();
   for (const d of docs) {
     let key = 'other', label = 'Other', order = 999;

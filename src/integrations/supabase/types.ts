@@ -184,6 +184,50 @@ export type Database = {
         }
         Relationships: []
       }
+      document_rejections: {
+        Row: {
+          created_at: string
+          document_id: string
+          document_version: number
+          id: string
+          reason: string | null
+          rejected_by: string | null
+          rejected_by_email: string | null
+          rejected_by_name: string | null
+          stage: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          document_version?: number
+          id?: string
+          reason?: string | null
+          rejected_by?: string | null
+          rejected_by_email?: string | null
+          rejected_by_name?: string | null
+          stage: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          document_version?: number
+          id?: string
+          reason?: string | null
+          rejected_by?: string | null
+          rejected_by_email?: string | null
+          rejected_by_name?: string | null
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_rejections_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_templates: {
         Row: {
           created_at: string
@@ -345,8 +389,15 @@ export type Database = {
           iqa_stamp_w: number | null
           iqa_stamp_x: number | null
           iqa_stamp_y: number | null
+          last_rejected_at: string | null
+          last_rejected_by: string | null
+          last_rejected_stage: string | null
+          last_rejection_reason: string | null
           module_number: number | null
+          previous_file_url: string | null
+          rejection_count: number
           rejection_reason: string | null
+          resubmission_note: string | null
           return_note: string | null
           returned_at: string | null
           returned_by: string | null
@@ -367,6 +418,7 @@ export type Database = {
           unit_name: string | null
           updated_at: string
           verified_by_hod_at: string | null
+          version: number
           week_number: number | null
         }
         Insert: {
@@ -451,8 +503,15 @@ export type Database = {
           iqa_stamp_w?: number | null
           iqa_stamp_x?: number | null
           iqa_stamp_y?: number | null
+          last_rejected_at?: string | null
+          last_rejected_by?: string | null
+          last_rejected_stage?: string | null
+          last_rejection_reason?: string | null
           module_number?: number | null
+          previous_file_url?: string | null
+          rejection_count?: number
           rejection_reason?: string | null
+          resubmission_note?: string | null
           return_note?: string | null
           returned_at?: string | null
           returned_by?: string | null
@@ -473,6 +532,7 @@ export type Database = {
           unit_name?: string | null
           updated_at?: string
           verified_by_hod_at?: string | null
+          version?: number
           week_number?: number | null
         }
         Update: {
@@ -557,8 +617,15 @@ export type Database = {
           iqa_stamp_w?: number | null
           iqa_stamp_x?: number | null
           iqa_stamp_y?: number | null
+          last_rejected_at?: string | null
+          last_rejected_by?: string | null
+          last_rejected_stage?: string | null
+          last_rejection_reason?: string | null
           module_number?: number | null
+          previous_file_url?: string | null
+          rejection_count?: number
           rejection_reason?: string | null
+          resubmission_note?: string | null
           return_note?: string | null
           returned_at?: string | null
           returned_by?: string | null
@@ -579,6 +646,7 @@ export type Database = {
           unit_name?: string | null
           updated_at?: string
           verified_by_hod_at?: string | null
+          version?: number
           week_number?: number | null
         }
         Relationships: [

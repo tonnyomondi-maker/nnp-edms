@@ -5,6 +5,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, RotateCw, Cloud, CloudOff, Lock, History, Paperclip } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -142,7 +144,10 @@ export default function UploadDocuments() {
   // --- Resubmit prefill: /trainer/upload?resubmit=<docId> ---
   const [searchParams] = useSearchParams();
   const resubmitId = searchParams.get('resubmit');
+  const [resubmissionNote, setResubmissionNote] = useState('');
+  const [rejectedReasonPrefill, setRejectedReasonPrefill] = useState<string | null>(null);
   const resubmitLoadedRef = useRef(false);
+
   useEffect(() => {
     if (!resubmitId || resubmitLoadedRef.current) return;
     resubmitLoadedRef.current = true;
@@ -174,10 +179,12 @@ export default function UploadDocuments() {
         stage: 'idle',
         needsReattach: true,
       }]);
+      setRejectedReasonPrefill(data.rejection_reason || null);
       toast({
         title: 'Editing rejected submission',
         description: `Rejection reason: ${data.rejection_reason || '—'}. Re-attach the corrected PDF and submit — this updates the same document record so its history stays continuous.`,
       });
+
     })();
   }, [resubmitId]);
 
@@ -448,6 +455,8 @@ export default function UploadDocuments() {
         moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
         courseId: courseId || null,
         resubmitOf: entry.id.startsWith('resubmit-') ? resubmitId : null,
+        resubmissionNote: entry.id.startsWith('resubmit-') ? resubmissionNote : null,
+
       });
       setStage(entry.id, { stage: 'storage_ok', documentId: submitted.id, stageMessage: 'Uploaded — mirroring…' });
       // Mirror in the same loop so the user sees Drive status before navigating away.
@@ -904,6 +913,30 @@ export default function UploadDocuments() {
           )}
         </CardContent>
       </Card>
+
+      {resubmitId && (
+        <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs space-y-2">
+          <p className="font-semibold text-amber-800 dark:text-amber-300">Resubmitting a rejected document</p>
+          {rejectedReasonPrefill && (
+            <p className="text-amber-900/90 dark:text-amber-200/90">
+              <span className="font-medium">Reason given: </span>{rejectedReasonPrefill}
+            </p>
+          )}
+          <p className="text-muted-foreground">
+            The earlier file is kept as a read-only previous version — it cannot be edited or approved again.
+          </p>
+          <div className="space-y-1">
+            <Label className="text-xs">What did you correct? (shown to the verifier)</Label>
+            <Textarea
+              value={resubmissionNote}
+              onChange={(e) => setResubmissionNote(e.target.value.slice(0, 500))}
+              placeholder="e.g. Added the missing week 5 session plan and corrected the unit code."
+              className="text-xs min-h-[64px]"
+            />
+          </div>
+        </div>
+      )}
+
 
       {rejectedBlocks.length > 0 && (
         <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs space-y-2">

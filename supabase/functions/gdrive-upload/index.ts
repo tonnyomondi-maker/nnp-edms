@@ -43,9 +43,10 @@ Deno.serve(async (req) => {
     // Load document row
     const { data: doc, error: docErr } = await admin
       .from("documents")
-      .select("id, status, file_url, signed_file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, session_year, session_term, term_number, module_number, course_type")
+      .select("id, status, file_url, signed_file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, unit_name, course_id, session_year, session_term, term_number, module_number, course_type")
       .eq("id", documentId)
       .single();
+
     if (docErr || !doc) return json({ error: "Document not found" }, 404);
 
     // Authorization: only the trainer who owns the doc, or a privileged role,
@@ -96,18 +97,28 @@ Deno.serve(async (req) => {
     const bytes = new Uint8Array(await blob.arrayBuffer());
 
     // Resolve (or create) the organised Drive folder tree:
-    //   EDMS / <Session> / <Department> / <PF - Trainer name>
+    //   EDMS / <Session> / <Department> / <Course> / <PF - Trainer> / <Unit>
     const { data: trainerProfile } = await admin
       .from("profiles").select("full_name, pf_number").eq("user_id", doc.trainer_id).maybeSingle();
+    let courseFolder = "Unassigned course";
+    if (doc.course_id) {
+      const { data: course } = await admin
+        .from("courses").select("code, name").eq("id", doc.course_id).maybeSingle();
+      if (course) courseFolder = [course.code, course.name].filter(Boolean).join(" - ");
+    }
     const trainerFolder = [
       (trainerProfile?.pf_number || "").toString().trim(),
       (trainerProfile?.full_name || "Unknown Trainer").toString().trim(),
     ].filter(Boolean).join(" - ");
+    const unitFolder = [doc.unit_code, doc.unit_name].filter(Boolean).join(" - ") || "Unspecified unit";
     const segments = [
       `${doc.session_year ?? "Unknown"}_${doc.session_term ?? "Session"}`,
       doc.department || "Unspecified department",
+      courseFolder,
       trainerFolder,
+      unitFolder,
     ];
+
 
     let parentId: string | null = null;
     let folderPath = "EDMS";
