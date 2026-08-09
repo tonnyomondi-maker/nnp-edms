@@ -22,10 +22,10 @@ Recommended policy (configurable by the Super Admin):
 Every document list defaults to the current training session, with nested sub-groups per role:
 
 ```text
-Trainer   : Session -> Unit
-HOD       : Session -> Trainer -> Unit
-IQAO / DP : Session -> Department -> Trainer -> Unit
-Super Admin: Session -> Department -> Trainer -> Unit
+Trainer   : Session -> Course-> Unit
+HOD       : Session -> Trainer -> Course-> Unit
+IQAO / DP : Session -> Department -> Trainer -> Course -> Unit
+Super Admin: Session -> Department -> Trainer ->Course -> Unit
 ```
 
 Groups are collapsible, show counts and a pending badge, and open collapsed beyond the first level so a queue with hundreds of documents stays readable. The session filter is changeable; the grouping can be overridden but always resets to the role default.
