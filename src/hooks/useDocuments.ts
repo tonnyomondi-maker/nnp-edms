@@ -491,6 +491,8 @@ export function useSubmitDocument() {
       moduleNumber,
       courseId,
       resubmitOf,
+      resubmissionNote,
+
     }: {
       file: File;
       assignmentId?: string | null;
