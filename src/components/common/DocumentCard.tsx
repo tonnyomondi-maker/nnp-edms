@@ -160,6 +160,8 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                   <span className="font-semibold">Rejected: </span>{doc.rejection_reason}
                 </p>
               )}
+              <RejectionHistoryBanner doc={doc as never} />
+
             </div>
           </div>
           <StatusBadge status={doc.status} />
