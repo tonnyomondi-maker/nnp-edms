@@ -136,6 +136,9 @@ export default function ApprovedDocuments() {
             </CardContent>
           </Card>
         ))}
+        </div>
+        ))}
+
         {filtered.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">
             No approved documents yet for this session.
