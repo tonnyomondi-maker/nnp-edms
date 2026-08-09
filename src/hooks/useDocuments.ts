@@ -515,6 +515,8 @@ export function useSubmitDocument() {
       resubmitOf?: string | null;
       /** Optional "what I changed" note shown to approvers on the rejection banner. */
       resubmissionNote?: string | null;
+    }) => {
+
 
       await assertSystemNotLocked(user?.id);
       const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
