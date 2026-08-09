@@ -556,6 +556,11 @@ export function useSubmitDocument() {
       if (resubmitOf) {
         // Continuity: keep one document record across rejection + resubmission so
         // the audit trail, notifications and timeline stay on a single history.
+        // The superseded file is kept as previous_file_url (read-only) and the
+        // version is bumped so approvers can see this is a corrected round.
+        const { data: old } = await supabase
+          .from('documents').select('file_url, version').eq('id', resubmitOf).maybeSingle();
+        const oldRow = old as { file_url?: string | null; version?: number | null } | null;
         const { data: updated, error: updErr } = await supabase
           .from('documents')
           .update({
@@ -566,6 +571,9 @@ export function useSubmitDocument() {
             returned_at: null,
             signed_file_url: null,
             submitted_at: new Date().toISOString(),
+            version: (oldRow?.version ?? 1) + 1,
+            previous_file_url: oldRow?.file_url ?? null,
+            resubmission_note: resubmissionNote?.trim() || null,
           } as never)
           .eq('id', resubmitOf)
           .select()
@@ -573,6 +581,7 @@ export function useSubmitDocument() {
         if (updErr) throw updErr;
         return updated;
       }
+
 
       const { data, error } = await supabase
         .from('documents')
