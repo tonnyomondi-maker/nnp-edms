@@ -8,6 +8,8 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
+import { HierarchyView, hierarchyFor } from '@/components/common/HierarchyGroups';
+
 import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilterValue } from '@/components/common/QueueFilterBar';
 import { Button } from '@/components/ui/button';
 import { buildAuditCsv, downloadCsv } from '@/lib/auditCsv';
