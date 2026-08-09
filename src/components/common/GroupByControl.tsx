@@ -27,8 +27,10 @@ interface GroupByControlProps {
 }
 
 const OPTIONS: { key: GroupByKey; label: string }[] = [
+  { key: 'HIERARCHY', label: 'Recommended (nested)' },
   { key: 'NONE', label: 'No grouping' },
   { key: 'SESSION', label: 'Training session' },
+
   { key: 'STAGE', label: 'Term / Module' },
   { key: 'DEPARTMENT', label: 'Department' },
   { key: 'TRAINER', label: 'Trainer' },
