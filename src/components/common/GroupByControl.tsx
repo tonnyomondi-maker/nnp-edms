@@ -66,7 +66,7 @@ export function groupDocs<T extends DocLike>(
   docs: T[],
   by: GroupByKey,
 ): { key: string; label: string; docs: T[] }[] {
-  if (by === 'NONE') return [{ key: 'ALL', label: '', docs }];
+  if (by === 'NONE' || by === 'HIERARCHY') return [{ key: 'ALL', label: '', docs }];
   const buckets = new Map<string, { label: string; order: number; docs: T[] }>();
   for (const d of docs) {
     let key = 'other', label = 'Other', order = 999;
