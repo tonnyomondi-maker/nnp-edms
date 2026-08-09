@@ -14,6 +14,8 @@ import { AuditCsvButton } from './AuditCsvButton';
 import { RetryDriveSyncButton } from './RetryDriveSyncButton';
 import { ProgressTracker } from './ProgressTracker';
 import { AiSummaryButton } from './AiSummaryButton';
+import { RejectionHistoryBanner } from './RejectionHistoryBanner';
+
 
 
 type DocumentRow = Tables<'documents'> & {
