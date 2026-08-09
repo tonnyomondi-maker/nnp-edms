@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { sessionLabel, type SessionTerm } from '@/lib/sessions';
 
 
-export type GroupByKey = 'NONE' | 'SESSION' | 'STAGE' | 'DEPARTMENT' | 'TRAINER' | 'DOC_TYPE';
+export type GroupByKey = 'HIERARCHY' | 'NONE' | 'SESSION' | 'STAGE' | 'DEPARTMENT' | 'TRAINER' | 'DOC_TYPE';
 
 interface DocLike {
   id: string;
