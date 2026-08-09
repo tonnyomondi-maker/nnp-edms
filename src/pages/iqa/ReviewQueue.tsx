@@ -109,9 +109,40 @@ export default function ReviewQueue() {
     toast({ title: 'Document rejected', description: 'Comment sent to the trainer.', variant: 'destructive' });
   };
 
+  type QueueDoc = (typeof docs)[number];
+  const renderDoc = (doc: QueueDoc) => {
+    const showActions = canActOn(doc.status) && canAct;
+    return (
+      <DocumentCard
+        key={doc.id}
+        doc={doc}
+        showTrainer
+        selectable={showActions}
+        selected={selected.has(doc.id)}
+        onSelectChange={(c) => toggleOne(doc.id, c)}
+        showAiReview={showActions}
+        onReturnRequest={showActions ? () => setReturnDocId(doc.id) : undefined}
+        actions={showActions ? (
+          <>
+            <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickReview(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'REVIEWED BY IQA' with name & date">
+              <Zap className="w-4 h-4" /> Quick Review
+            </ActionGuardButton>
+            <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleSign(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
+              <CheckCircle2 className="w-4 h-4" /> Sign & Review
+            </ActionGuardButton>
+            <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => setRejectDoc({ id: doc.id, label: `${doc.document_type}${doc.unit_code ? ' • ' + doc.unit_code : ''}` })} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
+              <XCircle className="w-4 h-4" /> Reject
+            </ActionGuardButton>
+          </>
+        ) : undefined}
+      />
+    );
+  };
+
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
+
 
   return (
     <div>
