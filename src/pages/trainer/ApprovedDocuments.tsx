@@ -96,8 +96,12 @@ export default function ApprovedDocuments() {
         </Select>
       </div>
 
-      <div className="space-y-3">
-        {filtered.map((d) => (
+      <div className="space-y-4">
+        {byUnit.map(([unit, unitDocs]) => (
+        <div key={unit} className="space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground px-1">{unit} · {unitDocs.length} document(s)</p>
+        {unitDocs.map((d) => (
+
           <Card key={d.id}>
             <CardContent className="p-4 flex items-start gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
