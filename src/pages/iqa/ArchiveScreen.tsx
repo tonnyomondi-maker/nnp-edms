@@ -276,7 +276,26 @@ export default function ArchiveScreen() {
     }
   };
 
+  const renderPendingDoc = (doc: (typeof pending)[number]) => (
+    <DocumentCard
+      key={doc.id}
+      doc={doc}
+      showTrainer
+      selectable
+      selected={selected.has(doc.id)}
+      onSelectChange={(c) => toggleOne(doc.id, c)}
+      showAiReview
+      onReturnRequest={() => setReturnDocId(doc.id)}
+      actions={
+        <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleArchive(doc.id)} disabled={updateStatus.isPending} className="w-full touch-target gap-1">
+          <Archive className="w-4 h-4" /> Archive
+        </ActionGuardButton>
+      }
+    />
+  );
+
   if (isLoading) {
+
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
 
