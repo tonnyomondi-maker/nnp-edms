@@ -142,7 +142,10 @@ export default function UploadDocuments() {
   // --- Resubmit prefill: /trainer/upload?resubmit=<docId> ---
   const [searchParams] = useSearchParams();
   const resubmitId = searchParams.get('resubmit');
+  const [resubmissionNote, setResubmissionNote] = useState('');
+  const [rejectedReasonPrefill, setRejectedReasonPrefill] = useState<string | null>(null);
   const resubmitLoadedRef = useRef(false);
+
   useEffect(() => {
     if (!resubmitId || resubmitLoadedRef.current) return;
     resubmitLoadedRef.current = true;
