@@ -204,8 +204,9 @@ export default function DepartmentQueue() {
     toast({ title: 'Document Rejected', description: 'Trainer will see your comment on their rejected card.', variant: 'destructive' });
   };
 
-  type QueueDoc = (typeof filteredQueue)[number];
-  const renderQueueDoc = (doc: QueueDoc) => {
+  type RowDoc = (typeof termFiltered)[number];
+  const renderQueueDoc = (doc: RowDoc) => {
+
     const showActions = canActOn(doc.status) && canAct;
     return (
       <DocumentCard
