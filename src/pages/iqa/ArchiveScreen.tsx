@@ -42,7 +42,7 @@ export default function ArchiveScreen() {
   const [deptFilter, setDeptFilter] = useState<string>('');
   const [bulkRetrying, setBulkRetrying] = useState(false);
   const [returnDocId, setReturnDocId] = useState<string | null>(null);
-  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
+  const [groupBy, setGroupBy] = useState<GroupByKey>('HIERARCHY');
   const [downloadingZip, setDownloadingZip] = useState(false);
 
 

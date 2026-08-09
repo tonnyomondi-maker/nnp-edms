@@ -18,7 +18,7 @@ export default function AllDocuments() {
   const { data, isLoading } = useAllDocuments();
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
-  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
+  const [groupBy, setGroupBy] = useState<GroupByKey>('HIERARCHY');
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER });
 
   const baseDocs = useMemo(() => data || [], [data]);

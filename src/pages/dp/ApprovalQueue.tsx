@@ -36,7 +36,7 @@ export default function ApprovalQueue() {
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'IQA_REVIEWED' });
-  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
+  const [groupBy, setGroupBy] = useState<GroupByKey>('HIERARCHY');
 
 
   const baseDocs = useMemo(() => queue || [], [queue]);

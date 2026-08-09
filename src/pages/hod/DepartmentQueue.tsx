@@ -72,7 +72,7 @@ export default function DepartmentQueue() {
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
   const [termInitialized, setTermInitialized] = useState(false);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'SUBMITTED' });
-  const [groupBy, setGroupBy] = useState<GroupByKey>('STAGE');
+  const [groupBy, setGroupBy] = useState<GroupByKey>('HIERARCHY');
   const [courseFilter, setCourseFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('RECENT');

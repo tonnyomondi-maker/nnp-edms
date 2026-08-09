@@ -36,7 +36,7 @@ export default function ReviewQueue() {
   const [returnDocId, setReturnDocId] = useState<string | null>(null);
   const [rejectDoc, setRejectDoc] = useState<{ id: string; label: string } | null>(null);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'HOD_APPROVED' });
-  const [groupBy, setGroupBy] = useState<GroupByKey>('SESSION');
+  const [groupBy, setGroupBy] = useState<GroupByKey>('HIERARCHY');
 
   useEffect(() => { if (!canAct) setSelected(new Set()); }, [canAct, activeRole]);
 
