@@ -9,6 +9,8 @@ import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
 
 import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
+import { HierarchyView, hierarchyFor } from '@/components/common/HierarchyGroups';
+
 import { BulkSignButton } from '@/components/common/BulkSignButton';
 import { Button } from '@/components/ui/button';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
