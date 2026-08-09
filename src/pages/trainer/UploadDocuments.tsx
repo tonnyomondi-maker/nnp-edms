@@ -912,6 +912,30 @@ export default function UploadDocuments() {
         </CardContent>
       </Card>
 
+      {resubmitId && (
+        <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs space-y-2">
+          <p className="font-semibold text-amber-800 dark:text-amber-300">Resubmitting a rejected document</p>
+          {rejectedReasonPrefill && (
+            <p className="text-amber-900/90 dark:text-amber-200/90">
+              <span className="font-medium">Reason given: </span>{rejectedReasonPrefill}
+            </p>
+          )}
+          <p className="text-muted-foreground">
+            The earlier file is kept as a read-only previous version — it cannot be edited or approved again.
+          </p>
+          <div className="space-y-1">
+            <Label className="text-xs">What did you correct? (shown to the verifier)</Label>
+            <Textarea
+              value={resubmissionNote}
+              onChange={(e) => setResubmissionNote(e.target.value.slice(0, 500))}
+              placeholder="e.g. Added the missing week 5 session plan and corrected the unit code."
+              className="text-xs min-h-[64px]"
+            />
+          </div>
+        </div>
+      )}
+
+
       {rejectedBlocks.length > 0 && (
         <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs space-y-2">
           <p className="font-semibold text-destructive">Rejected document must be resubmitted, not re-uploaded</p>
