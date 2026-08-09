@@ -448,6 +448,8 @@ export default function UploadDocuments() {
         moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
         courseId: courseId || null,
         resubmitOf: entry.id.startsWith('resubmit-') ? resubmitId : null,
+        resubmissionNote: entry.id.startsWith('resubmit-') ? resubmissionNote : null,
+
       });
       setStage(entry.id, { stage: 'storage_ok', documentId: submitted.id, stageMessage: 'Uploaded — mirroring…' });
       // Mirror in the same loop so the user sees Drive status before navigating away.
