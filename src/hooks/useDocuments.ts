@@ -513,7 +513,9 @@ export function useSubmitDocument() {
       courseId?: string | null;
       /** When set, the rejected document is updated in place instead of a new row. */
       resubmitOf?: string | null;
-    }) => {
+      /** Optional "what I changed" note shown to approvers on the rejection banner. */
+      resubmissionNote?: string | null;
+
       await assertSystemNotLocked(user?.id);
       const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
       const filePath = `${user!.id}/${sessionYear}_${sessionTerm}/${safeUnit}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}${sessionIndex ? `_S${sessionIndex}` : ''}_${Date.now()}.pdf`;
