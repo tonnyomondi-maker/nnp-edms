@@ -69,16 +69,23 @@ export default function AllDocuments() {
       </div>
       <QueueFilterBar value={filter} onChange={setFilter} docs={baseDocs} />
       <div className="space-y-3 mt-3">
-        {docs.length > 0 ? (
+        {docs.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
+        ) : groupBy === 'HIERARCHY' ? (
+          <HierarchyView
+            docs={docs}
+            levels={hierarchyFor('SUPER_ADMIN')}
+            renderDoc={(doc) => <DocumentCard key={doc.id} doc={doc} showTrainer />}
+          />
+        ) : (
           groupDocs(docs, groupBy).map((group) => (
             <GroupSection key={group.key} label={group.label} count={group.docs.length}>
               {group.docs.map((doc) => <DocumentCard key={doc.id} doc={doc} showTrainer />)}
             </GroupSection>
           ))
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
         )}
       </div>
+
     </div>
   );
 }
