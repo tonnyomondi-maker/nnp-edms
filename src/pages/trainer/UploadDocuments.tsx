@@ -177,10 +177,12 @@ export default function UploadDocuments() {
         stage: 'idle',
         needsReattach: true,
       }]);
+      setRejectedReasonPrefill(data.rejection_reason || null);
       toast({
         title: 'Editing rejected submission',
         description: `Rejection reason: ${data.rejection_reason || '—'}. Re-attach the corrected PDF and submit — this updates the same document record so its history stays continuous.`,
       });
+
     })();
   }, [resubmitId]);
 
