@@ -53,9 +53,13 @@ Deno.serve(async (req) => {
         } catch { /* continue */ }
       }
 
-      // 2. Wipe data tables (preserve profiles, user_roles, system_settings)
+      // 2. Wipe data tables. Preserved on purpose: profiles, user_roles,
+      // system_settings, academic_sessions and `courses` (admin-configured
+      // reference data that must survive a reset).
       // Order matters: child rows first so FK references never block a delete.
       for (const tbl of [
+        "document_rejections",
+
         "verifier_reviews",
         "verification_pack_assignees",
         "verification_packs",
