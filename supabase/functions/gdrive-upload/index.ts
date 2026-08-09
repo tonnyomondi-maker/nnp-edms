@@ -43,9 +43,10 @@ Deno.serve(async (req) => {
     // Load document row
     const { data: doc, error: docErr } = await admin
       .from("documents")
-      .select("id, status, file_url, signed_file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, session_year, session_term, term_number, module_number, course_type")
+      .select("id, status, file_url, signed_file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, unit_name, course_id, session_year, session_term, term_number, module_number, course_type")
       .eq("id", documentId)
       .single();
+
     if (docErr || !doc) return json({ error: "Document not found" }, 404);
 
     // Authorization: only the trainer who owns the doc, or a privileged role,
