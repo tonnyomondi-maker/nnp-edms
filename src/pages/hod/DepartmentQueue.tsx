@@ -285,42 +285,24 @@ export default function DepartmentQueue() {
             </div>
           )}
           <div className="space-y-3 mt-3">
-            {filteredQueue.length > 0 ? (
+            {filteredQueue.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
+            ) : groupBy === 'HIERARCHY' ? (
+              <HierarchyView
+                docs={filteredQueue}
+                levels={hierarchyFor('HOD')}
+                pendingOf={(d) => canActOn(d.status)}
+                renderDoc={renderQueueDoc}
+              />
+            ) : (
               groupDocs(filteredQueue, groupBy).map((group) => (
                 <GroupSection key={group.key} label={group.label} count={group.docs.length}>
-                  {group.docs.map(doc => {
-                    const showActions = canActOn(doc.status) && canAct;
-                    return (
-                      <DocumentCard
-                        key={doc.id}
-                        doc={doc}
-                        showTrainer
-                        selectable={showActions}
-                        selected={selected.has(doc.id)}
-                        onSelectChange={(c) => toggleOne(doc.id, c)}
-                        showAiReview={showActions}
-                        actions={showActions ? (
-                          <>
-                            <ActionGuardButton action="approve" doc={doc} size="sm" onClick={() => handleQuickApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Stamps 'VERIFIED BY HOD' with name & date">
-                              <Zap className="w-4 h-4" /> Quick Verify
-                            </ActionGuardButton>
-                            <ActionGuardButton action="approve" doc={doc} size="sm" variant="outline" onClick={() => handleApprove(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1" title="Place your signature & stamp on the PDF">
-                              <CheckCircle2 className="w-4 h-4" /> Sign & Approve
-                            </ActionGuardButton>
-                            <ActionGuardButton action="reject" doc={doc} size="sm" variant="destructive" onClick={() => openReject(doc.id)} disabled={updateStatus.isPending} className="flex-1 touch-target gap-1">
-                              <XCircle className="w-4 h-4" /> Reject
-                            </ActionGuardButton>
-                          </>
-                        ) : undefined}
-                      />
-                    );
-                  })}
+                  {group.docs.map((doc) => renderQueueDoc(doc))}
                 </GroupSection>
               ))
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">No documents match the current filters</p>
             )}
           </div>
+
         </TabsContent>
 
 
