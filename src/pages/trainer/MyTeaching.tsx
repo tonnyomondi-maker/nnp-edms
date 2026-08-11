@@ -7,7 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BookOpen, ChevronRight, Loader2, Plus, Save } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { unitCoverage, type ReportDoc } from '@/lib/reportMetrics';
+import { AlertTriangle, BookOpen, CheckCircle2, ChevronRight, Loader2, Paperclip, Plus, Save, Upload } from 'lucide-react';
+
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMyDocumentsBySession } from '@/hooks/useDocuments';
@@ -277,26 +280,24 @@ export default function MyTeaching() {
 
       <div className="space-y-3">
         {units.map((u) => {
-          const oneTimeDone = ONE_TIME_DOC_TYPES.filter((dt) => u.docs.some((d) => d.document_type === dt)).length;
+          const cov = unitCoverage(u.docs as unknown as ReportDoc[], u.unit_code);
           const weeklyKeys = new Set<string>();
           u.docs.forEach((d) => {
             if (WEEKLY_DOC_TYPES.includes(d.document_type as typeof WEEKLY_DOC_TYPES[number]) && d.week_number) {
               weeklyKeys.add(`${d.document_type}_${d.week_number}_${d.session_index || 1}`);
             }
           });
-          const oneTimeTotal = ONE_TIME_DOC_TYPES.length;
-          const completedDocs = oneTimeDone + weeklyKeys.size;
-          const totalDocs = oneTimeTotal + weeklyKeys.size;
-          const pct = totalDocs > 0 ? (completedDocs / totalDocs) * 100 : 0;
+          const complete = cov.missing.length === 0;
+          const workloadMissing = cov.missing.includes('Workload Allocation');
 
           return (
-            <Link key={u.unit_code} to="/upload">
-              <Card className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
+            <Card key={u.unit_code} className={complete ? 'border-emerald-500/40' : undefined}>
+              <CardContent className="p-4">
+                <Link to={`/upload?unit=${encodeURIComponent(u.unit_code)}`} className="block">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <BookOpen className="w-5 h-5 text-primary" />
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${complete ? 'bg-emerald-500/10' : 'bg-primary/10'}`}>
+                        <BookOpen className={`w-5 h-5 ${complete ? 'text-emerald-600' : 'text-primary'}`} />
                       </div>
                       <div className="min-w-0">
                         <p className="font-semibold text-sm truncate">{u.unit_code}{u.unit_name ? ` — ${u.unit_name}` : ''}</p>
@@ -309,19 +310,60 @@ export default function MyTeaching() {
                     </div>
                     <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                   </div>
-                  <div className="mt-3">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">One-time docs</span>
-                      <span className="font-medium">{oneTimeDone}/{oneTimeTotal}</span>
-                    </div>
-                    <Progress value={pct} className="h-2" />
-                    <p className="text-xs text-muted-foreground mt-1">{u.docs.length} document(s) submitted</p>
+                </Link>
+
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">Required documents</span>
+                    <span className="font-medium">{cov.done}/{cov.total}</span>
                   </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  <Progress value={cov.pct} className="h-2" />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {weeklyKeys.size} weekly record(s) on file
+                  </p>
+                </div>
+
+                {complete ? (
+                  <p className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> All required documents submitted
+                  </p>
+                ) : (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {cov.missing.map((t) =>
+                      cov.rejected.includes(t) ? (
+                        <Link key={t} to="/submissions">
+                          <Badge variant="outline" className="text-[10px] border-amber-500/60 text-amber-700 dark:text-amber-300">
+                            <AlertTriangle className="w-3 h-3 mr-1" /> {t} — needs correction
+                          </Badge>
+                        </Link>
+                      ) : (
+                        <Link key={t} to={`/upload?unit=${encodeURIComponent(u.unit_code)}&type=${encodeURIComponent(t)}`}>
+                          <Badge variant="secondary" className="text-[10px]">Pending: {t}</Badge>
+                        </Link>
+                      ),
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                  {workloadMissing && (
+                    <Button asChild size="sm" className="h-11 sm:h-9 flex-1">
+                      <Link to={`/upload?unit=${encodeURIComponent(u.unit_code)}&type=${encodeURIComponent('Workload Allocation')}`}>
+                        <Paperclip className="w-4 h-4 mr-1" /> Upload workload allocation
+                      </Link>
+                    </Button>
+                  )}
+                  <Button asChild size="sm" variant="outline" className="h-11 sm:h-9 flex-1">
+                    <Link to={`/upload?unit=${encodeURIComponent(u.unit_code)}`}>
+                      <Upload className="w-4 h-4 mr-1" /> Upload for this unit
+                    </Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           );
         })}
+
 
         {units.length === 0 && (
           <div className="text-center py-8 space-y-3">

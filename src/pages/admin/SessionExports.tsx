@@ -46,7 +46,7 @@ export default function SessionExports() {
   const [confirm, setConfirm] = useState<{ session: SessionKey; count: number } | null>(null);
   const [jobIds, setJobIds] = useState<string[]>([]);
 
-  const allowed = activeRole === 'IQA' || activeRole === 'DP_ACADEMICS' || activeRole === 'SUPER_ADMIN';
+  const allowed = activeRole === 'SUPER_ADMIN';
 
   const { data: departments } = useQuery({
     enabled: allowed,
