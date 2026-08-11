@@ -7,6 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Navigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { Loader2, Trash2 } from 'lucide-react';
 
 const ACTIONS = [
   'ALL',
@@ -14,12 +17,33 @@ const ACTIONS = [
   'OFFLOADED_TO_DRIVE_SCHEDULED',
   'SESSION_EXPORT',
   'SESSION_EXPORT_AND_ERASE',
+  'SUPERSEDED_FILES_PURGED',
 ];
 
 export default function StorageAudit() {
   const { activeRole } = useAuth();
   const allowed = activeRole === 'IQA' || activeRole === 'SUPER_ADMIN' || activeRole === 'DP_ACADEMICS';
   const [action, setAction] = useState<string>('ALL');
+  const [cleaning, setCleaning] = useState<'dry' | 'run' | null>(null);
+
+  async function runCleanup(dryRun: boolean) {
+    setCleaning(dryRun ? 'dry' : 'run');
+    try {
+      const { data, error } = await supabase.functions.invoke('storage-cleanup', {
+        body: { graceDays: 14, dryRun },
+      });
+      if (error) throw error;
+      toast.success(
+        dryRun
+          ? `${data?.candidates ?? 0} superseded file(s) older than 14 days can be purged`
+          : `Purged ${data?.removed ?? 0} superseded file(s) across ${data?.documents ?? 0} document(s)`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Cleanup failed');
+    } finally {
+      setCleaning(null);
+    }
+  }
 
   const { data: rows } = useQuery({
     enabled: allowed,
@@ -71,6 +95,27 @@ export default function StorageAudit() {
         title="Storage & Export Audit"
         subtitle="Every offload and session export — who ran it, when, and how many files"
       />
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Reclaim storage from corrected documents</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Deletes the superseded file of any document that was rejected and later corrected, once the new version is
+            more than 14 days old. The rejection history, reasons and dates are kept in full.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" className="h-11 sm:h-9" disabled={!!cleaning} onClick={() => runCleanup(true)}>
+              {cleaning === 'dry' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Preview
+            </Button>
+            <Button variant="destructive" className="h-11 sm:h-9" disabled={!!cleaning} onClick={() => runCleanup(false)}>
+              {cleaning === 'run' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+              Purge superseded files
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground">Action</span>
