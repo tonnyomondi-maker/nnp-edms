@@ -266,25 +266,36 @@ Deno.serve(async (req) => {
       return new Uint8Array(await resp.arrayBuffer());
     }
 
-    for (const doc of docs as any[]) {
-      let buf: Uint8Array | null = null;
+    // Load a document's bytes from the preferred tier, falling back to the other.
+    async function loadBuf(doc: any): Promise<Uint8Array | null> {
       const url = doc.signed_file_url || doc.file_url;
       const parsed = url ? parseStorageRef(url) : null;
-
-      // Preferred source: Drive when offloaded, otherwise Cloud Storage. Fallback to the other.
-      const preferDrive = doc.storage_tier === "drive";
-      if (preferDrive && doc.gdrive_file_id) {
+      let buf: Uint8Array | null = null;
+      if (doc.storage_tier === "drive" && doc.gdrive_file_id) {
         buf = await fetchWithRetry(() => downloadFromDrive(doc.gdrive_file_id));
         if (!buf && parsed) buf = await fetchWithRetry(() => downloadFromStorage(parsed));
       } else {
         if (parsed) buf = await fetchWithRetry(() => downloadFromStorage(parsed));
         if (!buf && doc.gdrive_file_id) buf = await fetchWithRetry(() => downloadFromDrive(doc.gdrive_file_id));
       }
+      return buf;
+    }
+
+    // Downloads run in parallel batches; zip entries are still written in order.
+    const allDocs = docs as any[];
+    const CONCURRENCY = 6;
+    for (let i = 0; i < allDocs.length; i += CONCURRENCY) {
+      const chunk = allDocs.slice(i, i + CONCURRENCY);
+      const bufs = await Promise.all(chunk.map((d) => loadBuf(d).catch(() => null)));
+      for (let j = 0; j < chunk.length; j++) {
+      const doc = chunk[j];
+      const buf = bufs[j];
       if (!buf) {
         skipped++;
         await progress?.update({ processed: included, skipped, retries, message: `Skipped ${doc.id.slice(0,8)} (source unavailable)` });
         continue;
       }
+
 
       const trainerName = nameMap.get(doc.trainer_id) || "Unknown_Trainer";
       const ta = doc.teaching_assignments || {};
