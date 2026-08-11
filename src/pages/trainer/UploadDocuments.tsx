@@ -283,7 +283,7 @@ export default function UploadDocuments() {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file: f,
         fileName: f.name,
-        documentType: '',
+        documentType: (prefillType as DocumentType) || '',
         originalSize: f.size,
         eligibility: 'CHECKING',
         stage: 'idle',
