@@ -23,7 +23,6 @@ const hodItems = [
 const dpItems = [
   { to: '/', icon: Home, label: 'Home' },
   { to: '/dp/queue', icon: Shield, label: 'Approvals' },
-  { to: '/admin/exports', icon: FileArchive, label: 'Exports' },
   { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 
@@ -43,6 +42,7 @@ const superAdminItems = [
   { to: '/admin/documents', icon: FileText, label: 'Docs' },
   { to: '/admin/efficiency', icon: Activity, label: 'Efficiency' },
   { to: '/admin/users', icon: Users, label: 'Users' },
+  { to: '/admin/exports', icon: FileArchive, label: 'Exports' },
   { to: '/admin/audit', icon: ScrollText, label: 'Audit' },
 ];
 
@@ -66,7 +66,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border safe-area-bottom">
-      <div className="flex justify-around items-center h-16">
+      <div className="flex items-center h-16 overflow-x-auto no-scrollbar">
         {items.map(item => {
           const active = pathname === item.to;
           const Icon = item.icon;
@@ -75,7 +75,7 @@ export function BottomNav() {
               key={item.to}
               to={item.to}
               className={cn(
-                'flex flex-col items-center justify-center flex-1 h-full text-xs gap-0.5 transition-colors',
+                'flex flex-col items-center justify-center flex-1 min-w-[68px] h-full text-[11px] gap-0.5 transition-colors active:bg-muted/60',
                 active ? 'text-primary' : 'text-muted-foreground'
               )}
             >
