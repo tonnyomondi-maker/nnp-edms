@@ -355,7 +355,9 @@ Deno.serve(async (req) => {
           .map(csvEscape)
           .join(","),
       );
+      }
     }
+
 
     const exportedAt = new Date().toISOString();
     const readme =
