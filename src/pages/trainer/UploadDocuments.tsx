@@ -212,6 +212,25 @@ export default function UploadDocuments() {
     }
   }
 
+  // --- Unit / document-type prefill from My Units: /upload?unit=XX&type=Workload%20Allocation
+  const prefillUnit = searchParams.get('unit');
+  const prefillType = searchParams.get('type') as DocumentType | null;
+  const prefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (resubmitId || prefillAppliedRef.current || !prefillUnit || configs.length === 0) return;
+    const cfg = configs.find((c) => c.unit_code.toLowerCase() === prefillUnit.toLowerCase());
+    if (!cfg) return;
+    prefillAppliedRef.current = true;
+    setUnitCode(cfg.unit_code);
+    applyConfig(cfg.unit_code);
+    toast({
+      title: prefillType ? `Uploading ${prefillType}` : `Uploading for ${cfg.unit_code}`,
+      description: 'Unit details filled in from My Units — attach the PDF to continue.',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configs, prefillUnit, prefillType, resubmitId]);
+
+
   const { data: deptCourses = [] } = useCourses(department || null);
   const courseName = useMemo(() => {
     const c = deptCourses.find((x) => x.id === courseId);
