@@ -139,6 +139,7 @@ export async function exportReportPdf({
     headStyles: { fillColor: [23, 64, 122] },
   });
 
+  onProgress?.('Finalising document');
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
