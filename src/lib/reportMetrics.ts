@@ -109,7 +109,15 @@ export function trainerCoverage({ docs, configs, profiles }: Input): TrainerCove
       });
     });
 
-    const expected = units.length * PER_UNIT_ONE_TIME_DOC_TYPES.length;
+    // Session-level types (workload allocation) count once per trainer per
+    // session — one upload covers every unit taught that session.
+    const sessionCovered = SESSION_LEVEL_DOC_TYPES.filter((t) =>
+      tDocs.some((d) => d.document_type === t && isLive(d.status)),
+    ).length;
+    const sessionExpected = units.length > 0 ? SESSION_LEVEL_DOC_TYPES.length : 0;
+    coveredCount += Math.min(sessionCovered, sessionExpected);
+
+    const expected = units.length * PER_UNIT_ONE_TIME_DOC_TYPES.length + sessionExpected;
     // Rejected types = distinct (unit,type) currently sitting rejected.
     const rejected = new Set(
       tDocs.filter((d) => d.status === 'REJECTED' && d.unit_code).map((d) => key(d.unit_code as string, d.document_type)),
@@ -130,8 +138,10 @@ export function trainerCoverage({ docs, configs, profiles }: Input): TrainerCove
       ).size,
       rejectedTypes: rejected.size,
       uploads: tDocs.length,
+      workloadOnFile: sessionCovered > 0,
     });
   });
+
 
   return Array.from(byTrainer.values())
     .filter((r) => r.units > 0 || r.uploads > 0)
