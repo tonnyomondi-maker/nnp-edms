@@ -1,6 +1,7 @@
 // Client-side PDF generation for submission reports.
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import logoUrl from '@/assets/polytechnic-logo.jpg';
 import type { TrainerCoverage, MissingRow, DeptCoverage, FlowStats } from '@/lib/reportMetrics';
 
 interface Args {
@@ -11,11 +12,40 @@ interface Args {
   missing: MissingRow[];
   deptRows: DeptCoverage[];
   flow: FlowStats;
+  onProgress?: (step: string) => void;
 }
 
-export function exportReportPdf({ sessionTitle, scopeLabel, generatedBy, perTrainer, missing, deptRows, flow }: Args) {
+let cachedLogo: string | null = null;
+
+async function loadLogo(): Promise<string | null> {
+  if (cachedLogo !== null) return cachedLogo;
+  try {
+    const res = await fetch(logoUrl);
+    const blob = await res.blob();
+    cachedLogo = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    return cachedLogo;
+  } catch {
+    return null;
+  }
+}
+
+export async function exportReportPdf({
+  sessionTitle, scopeLabel, generatedBy, perTrainer, missing, deptRows, flow, onProgress,
+}: Args) {
+  onProgress?.('Preparing report');
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
+
+  onProgress?.('Adding institution branding');
+  const logo = await loadLogo();
+  if (logo) {
+    try { doc.addImage(logo, 'JPEG', 40, 24, 52, 52); } catch { /* non-fatal */ }
+  }
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
@@ -25,9 +55,11 @@ export function exportReportPdf({ sessionTitle, scopeLabel, generatedBy, perTrai
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text(`Training session: ${sessionTitle}`, 40, 88);
-  doc.text(`Scope: ${scopeLabel}`, 40, 101);
-  doc.text(`Generated: ${new Date().toLocaleString()} by ${generatedBy}`, 40, 114);
+  doc.text(`Training session: ${sessionTitle}`, 40, 92);
+  doc.text(`Scope: ${scopeLabel}`, 40, 105);
+  doc.text(`Generated: ${new Date().toLocaleString()} by ${generatedBy}`, 40, 118);
+  onProgress?.('Building tables');
+
 
   const expected = perTrainer.reduce((s, r) => s + r.expected, 0);
   const covered = perTrainer.reduce((s, r) => s + r.covered, 0);
