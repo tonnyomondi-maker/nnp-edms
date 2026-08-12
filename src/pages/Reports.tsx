@@ -347,6 +347,34 @@ export default function Reports() {
               ))}
             </TabsContent>
 
+            <TabsContent value="types" className="space-y-3">
+              {typeRows.map((t) => (
+                <Card
+                  key={t.type}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setTypeFilter((cur) => (cur === t.type ? 'ALL' : t.type))}
+                  className={`cursor-pointer transition-colors ${typeFilter === t.type ? 'border-primary' : 'hover:border-primary/50'}`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex justify-between gap-2 mb-2">
+                      <p className="text-sm font-semibold break-words">{t.type}</p>
+                      <span className="text-xs font-medium shrink-0">{t.pct}%</span>
+                    </div>
+                    <Progress value={t.pct} className="h-2" />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      {t.covered}/{t.expected} on file
+                      {(SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(t.type)
+                        ? ' • once per trainer per session'
+                        : ' • once per unit'}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </TabsContent>
+
+
+
             <TabsContent value="flow" className="space-y-3">
               <Card><CardContent className="p-4 grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
                 {(['submitted', 'hod', 'iqa', 'dp', 'archived', 'rejected'] as const).map((k) => (
