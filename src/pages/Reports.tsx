@@ -270,12 +270,19 @@ export default function Reports() {
               <TabsTrigger value="trainer" className="flex-1">Trainers</TabsTrigger>
               <TabsTrigger value="missing" className="flex-1">Missing</TabsTrigger>
               <TabsTrigger value="dept" className="flex-1">Dept</TabsTrigger>
+              <TabsTrigger value="types" className="flex-1">Types</TabsTrigger>
               <TabsTrigger value="flow" className="flex-1">Flow</TabsTrigger>
             </TabsList>
 
             <TabsContent value="trainer" className="space-y-3">
               {perTrainer.length === 0 ? <Empty /> : perTrainer.map((r) => (
-                <Card key={r.id}>
+                <Card
+                  key={r.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setTrainerFilter((cur) => (cur === r.id ? 'ALL' : r.id))}
+                  className={`cursor-pointer transition-colors ${trainerFilter === r.id ? 'border-primary' : 'hover:border-primary/50'}`}
+                >
                   <CardContent className="p-4 space-y-2">
                     <div className="flex justify-between items-start gap-2">
                       <div className="min-w-0">
@@ -293,7 +300,9 @@ export default function Reports() {
                       <Badge variant="outline">Awaiting review {r.pending}</Badge>
                       <Badge variant="outline">Approved {r.approved}</Badge>
                       <Badge variant="outline">Needs correction {r.rejectedTypes}</Badge>
-                      <Badge variant="outline">{r.uploads} upload(s)</Badge>
+                      <Badge variant={r.workloadOnFile ? 'outline' : 'destructive'}>
+                        Workload {r.workloadOnFile ? 'on file' : 'missing'}
+                      </Badge>
                     </div>
                   </CardContent>
                 </Card>
@@ -316,7 +325,13 @@ export default function Reports() {
 
             <TabsContent value="dept" className="space-y-3">
               {deptRows.length === 0 ? <Empty /> : deptRows.map((d) => (
-                <Card key={d.dept}>
+                <Card
+                  key={d.dept}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { if (!scopeDept) { setDeptFilter((cur) => (cur === d.dept ? 'ALL' : d.dept)); setTrainerFilter('ALL'); } }}
+                  className={`cursor-pointer transition-colors ${deptFilter === d.dept ? 'border-primary' : 'hover:border-primary/50'}`}
+                >
                   <CardContent className="p-4">
                     <div className="flex justify-between gap-2 mb-2">
                       <p className="text-sm font-semibold break-words">{d.dept}</p>
@@ -328,6 +343,7 @@ export default function Reports() {
                     </p>
                   </CardContent>
                 </Card>
+
               ))}
             </TabsContent>
 
