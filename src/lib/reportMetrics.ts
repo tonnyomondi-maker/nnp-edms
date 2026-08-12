@@ -4,7 +4,7 @@
 // number of uploaded rows. A Learning Plan rejected three times and corrected
 // is still ONE covered document type, not four.
 
-import { ONE_TIME_DOC_TYPES } from '@/lib/sessions';
+import { PER_UNIT_PER_UNIT_ONE_TIME_DOC_TYPES, SESSION_LEVEL_DOC_TYPES } from '@/lib/sessions';
 
 export interface ReportDoc {
   id: string;
@@ -102,12 +102,12 @@ export function trainerCoverage({ docs, configs, profiles }: Input): TrainerCove
 
     let coveredCount = 0;
     units.forEach((u) => {
-      ONE_TIME_DOC_TYPES.forEach((t) => {
+      PER_UNIT_ONE_TIME_DOC_TYPES.forEach((t) => {
         if (covered.has(key(u, t))) coveredCount += 1;
       });
     });
 
-    const expected = units.length * ONE_TIME_DOC_TYPES.length;
+    const expected = units.length * PER_UNIT_ONE_TIME_DOC_TYPES.length;
     // Rejected types = distinct (unit,type) currently sitting rejected.
     const rejected = new Set(
       tDocs.filter((d) => d.status === 'REJECTED' && d.unit_code).map((d) => key(d.unit_code as string, d.document_type)),
@@ -141,7 +141,7 @@ export function missingByUnit({ docs, configs, profiles }: Input): MissingRow[] 
   configs.forEach((c) => {
     const tDocs = docs.filter((d) => d.trainer_id === c.trainer_id);
     const covered = coveredPairs(tDocs);
-    const missing = ONE_TIME_DOC_TYPES.filter((t) => !covered.has(key(c.unit_code, t)));
+    const missing = PER_UNIT_ONE_TIME_DOC_TYPES.filter((t) => !covered.has(key(c.unit_code, t)));
     if (missing.length === 0) return;
     rows.push({
       trainerId: c.trainer_id,
@@ -164,13 +164,13 @@ export function departmentCoverage({ docs, configs, profiles }: Input, departmen
     trainerIds.forEach((tid) => {
       const covered = coveredPairs(dDocs.filter((d) => d.trainer_id === tid));
       dConfigs.filter((c) => c.trainer_id === tid).forEach((c) => {
-        ONE_TIME_DOC_TYPES.forEach((t) => {
+        PER_UNIT_ONE_TIME_DOC_TYPES.forEach((t) => {
           if (covered.has(key(c.unit_code, t))) coveredCount += 1;
         });
       });
     });
 
-    const expected = dConfigs.length * ONE_TIME_DOC_TYPES.length;
+    const expected = dConfigs.length * PER_UNIT_ONE_TIME_DOC_TYPES.length;
     return {
       dept,
       trainers: trainerIds.length,
@@ -218,11 +218,11 @@ export function flowStats(docs: ReportDoc[]): FlowStats {
 export function unitCoverage(docs: ReportDoc[], unitCode: string) {
   const unitDocs = docs.filter((d) => d.unit_code === unitCode);
   const covered = coveredPairs(unitDocs);
-  const missing = ONE_TIME_DOC_TYPES.filter((t) => !covered.has(key(unitCode, t)));
-  const rejected = ONE_TIME_DOC_TYPES.filter((t) =>
+  const missing = PER_UNIT_ONE_TIME_DOC_TYPES.filter((t) => !covered.has(key(unitCode, t)));
+  const rejected = PER_UNIT_ONE_TIME_DOC_TYPES.filter((t) =>
     unitDocs.some((d) => d.document_type === t && d.status === 'REJECTED') && !covered.has(key(unitCode, t)),
   );
-  const total = ONE_TIME_DOC_TYPES.length;
+  const total = PER_UNIT_ONE_TIME_DOC_TYPES.length;
   const done = total - missing.length;
   return { done, total, missing: [...missing], rejected: [...rejected], pct: Math.round((done / total) * 100) };
 }
