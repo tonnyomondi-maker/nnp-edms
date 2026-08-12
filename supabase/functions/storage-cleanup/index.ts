@@ -58,15 +58,28 @@ Deno.serve(async (req) => {
     if (error) throw error;
 
     const byBucket = new Map<string, string[]>();
+    const byDept = new Map<string, number>();
     const ids: string[] = [];
-    for (const d of (docs || []) as Array<{ id: string; previous_file_url: string }>) {
+    let oldest: string | null = null;
+    for (const d of (docs || []) as Array<{ id: string; previous_file_url: string; department?: string; updated_at?: string }>) {
       const ref = parseStorageRef(d.previous_file_url);
       if (!ref) continue;
       byBucket.set(ref.bucket, [...(byBucket.get(ref.bucket) || []), ref.path]);
+      byDept.set(d.department || "Unknown", (byDept.get(d.department || "Unknown") || 0) + 1);
+      if (d.updated_at && (!oldest || d.updated_at < oldest)) oldest = d.updated_at;
       ids.push(d.id);
     }
 
-    if (dryRun) return json({ dryRun: true, graceDays: grace, candidates: ids.length });
+    if (dryRun) {
+      return json({
+        dryRun: true,
+        graceDays: grace,
+        candidates: ids.length,
+        oldest,
+        byDepartment: Array.from(byDept, ([department, count]) => ({ department, count }))
+          .sort((a, b) => b.count - a.count),
+      });
+    }
 
     let removed = 0;
     for (const [bucket, paths] of byBucket) {
