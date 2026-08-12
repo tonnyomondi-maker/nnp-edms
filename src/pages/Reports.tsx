@@ -11,18 +11,22 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, FileDown } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { DEPARTMENTS, ONE_TIME_DOC_TYPES, getCurrentSession, getSessionOptions, sessionLabel, type SessionTerm } from '@/lib/sessions';
+import { DEPARTMENTS, ONE_TIME_DOC_TYPES, SESSION_LEVEL_DOC_TYPES, getCurrentSession, getSessionOptions, sessionLabel, type SessionTerm } from '@/lib/sessions';
 import { useCurrentSession } from '@/hooks/useAcademicSession';
 import {
   trainerCoverage,
   missingByUnit,
   departmentCoverage,
   flowStats,
+  LIVE_STATUSES,
   type ReportDoc,
   type ReportConfig,
   type ReportProfile,
 } from '@/lib/reportMetrics';
 import { exportReportPdf } from '@/lib/reportPdf';
+
+const ALL_ONE_TIME = [...ONE_TIME_DOC_TYPES] as string[];
+
 
 export default function Reports() {
   const { currentUser, activeRole } = useAuth();
