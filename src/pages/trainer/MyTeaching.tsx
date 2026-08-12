@@ -278,6 +278,39 @@ export default function MyTeaching() {
         </Card>
       )}
 
+      {units.length > 0 && (() => {
+        const wl = sessionLevelCoverage(allDocs as unknown as ReportDoc[]);
+        const done = wl.missing.length === 0;
+        return (
+          <Card className={`mb-3 ${done ? 'border-emerald-500/40' : 'border-amber-500/50'}`}>
+            <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${done ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
+                  {done ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <Paperclip className="w-5 h-5 text-amber-600" />}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm">Workload allocation — once per session</p>
+                  <p className="text-xs text-muted-foreground">
+                    {done
+                      ? 'On file for this training session — it covers all your units.'
+                      : wl.rejected.length
+                        ? 'Returned for correction — resubmit it from My Submissions.'
+                        : 'Upload one workload allocation form listing every unit you teach this session.'}
+                  </p>
+                </div>
+              </div>
+              {!done && (
+                <Button asChild size="sm" className="h-11 sm:h-9 sm:w-auto w-full">
+                  <Link to={wl.rejected.length ? '/submissions' : `/upload?type=${encodeURIComponent('Workload Allocation')}`}>
+                    <Upload className="w-4 h-4 mr-1" /> {wl.rejected.length ? 'Fix and resubmit' : 'Upload workload allocation'}
+                  </Link>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       <div className="space-y-3">
         {units.map((u) => {
           const cov = unitCoverage(u.docs as unknown as ReportDoc[], u.unit_code);
@@ -288,7 +321,7 @@ export default function MyTeaching() {
             }
           });
           const complete = cov.missing.length === 0;
-          const workloadMissing = cov.missing.includes('Workload Allocation');
+
 
           return (
             <Card key={u.unit_code} className={complete ? 'border-emerald-500/40' : undefined}>
