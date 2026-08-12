@@ -4,7 +4,7 @@
 // number of uploaded rows. A Learning Plan rejected three times and corrected
 // is still ONE covered document type, not four.
 
-import { PER_UNIT_PER_UNIT_ONE_TIME_DOC_TYPES, SESSION_LEVEL_DOC_TYPES } from '@/lib/sessions';
+import { PER_UNIT_ONE_TIME_DOC_TYPES, SESSION_LEVEL_DOC_TYPES } from '@/lib/sessions';
 
 export interface ReportDoc {
   id: string;
