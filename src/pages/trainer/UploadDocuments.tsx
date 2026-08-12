@@ -409,9 +409,9 @@ export default function UploadDocuments() {
     if (writesBlocked) r.push(`System is locked${lock_reason ? `: ${lock_reason}` : ''}. Writes are disabled.`);
     if (!headerValid) {
       const missing: string[] = [];
-      if (!unitCode) missing.push('unit');
+      if (!allSessionLevel && !unitCode) missing.push('unit');
       if (!department) missing.push('department');
-      if (!classCode) missing.push('class code');
+      if (!allSessionLevel && !classCode) missing.push('class code');
       if (hasWeeklyType && sessionsPerWeek < 1) missing.push('sessions per week');
       r.push(`Fill required header fields: ${missing.join(', ')}.`);
     }
