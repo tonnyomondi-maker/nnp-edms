@@ -333,6 +333,8 @@ export default function UploadDocuments() {
 
   const hasWeeklyType = files.some((f) => WEEKLY_DOC_TYPES.includes(f.documentType as typeof WEEKLY_DOC_TYPES[number]));
 
+  const isSessionLevel = (t: string) => (SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(t);
+
   // Validation per file
   function validateFile(entry: FileEntry): string | null {
     if (!entry.documentType) return 'Pick a document type';
