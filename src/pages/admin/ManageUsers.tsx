@@ -88,11 +88,31 @@ export default function ManageUsers() {
     else { toast({ title: 'Department updated' }); fetchUsers(); }
   };
 
+  const confirmRemoveUser = async () => {
+    if (!pendingRemoval) return;
+    setRemoving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+        body: { user_id: pendingRemoval.userId },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      toast({ title: 'User removed', description: `${pendingRemoval.fullName} no longer has access.` });
+      setPendingRemoval(null);
+      fetchUsers();
+    } catch (e) {
+      toast({ title: 'Could not remove user', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   const filtered = users.filter(u =>
     u.fullName.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase()) ||
     (u.department || '').toLowerCase().includes(search.toLowerCase())
   );
+
 
   return (
     <div className="space-y-4">
