@@ -28,6 +28,7 @@ import { useProfileCompleteness } from '@/hooks/useProfileCompleteness';
 import {
   DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
+  SESSION_LEVEL_DOC_TYPES,
   WEEKLY_DOC_TYPES,
   COURSE_TYPES,
   MODULE_NUMBERS,
