@@ -20,30 +20,50 @@ const ACTIONS = [
   'SUPERSEDED_FILES_PURGED',
 ];
 
+const PURGE_POLICIES = [
+  { days: 3, label: 'Aggressive — 3 days' },
+  { days: 14, label: 'Balanced — 14 days' },
+  { days: 30, label: 'Cautious — 30 days' },
+  { days: 90, label: 'Archive-friendly — 90 days' },
+];
+
+interface PurgePreview {
+  candidates: number;
+  graceDays: number;
+  oldest?: string | null;
+  byDepartment?: { department: string; count: number }[];
+}
+
 export default function StorageAudit() {
   const { activeRole } = useAuth();
   const allowed = activeRole === 'IQA' || activeRole === 'SUPER_ADMIN' || activeRole === 'DP_ACADEMICS';
   const [action, setAction] = useState<string>('ALL');
   const [cleaning, setCleaning] = useState<'dry' | 'run' | null>(null);
+  const [graceDays, setGraceDays] = useState<number>(() => Number(localStorage.getItem('edms.purgeGraceDays')) || 14);
+  const [preview, setPreview] = useState<PurgePreview | null>(null);
 
   async function runCleanup(dryRun: boolean) {
     setCleaning(dryRun ? 'dry' : 'run');
+    localStorage.setItem('edms.purgeGraceDays', String(graceDays));
     try {
       const { data, error } = await supabase.functions.invoke('storage-cleanup', {
-        body: { graceDays: 14, dryRun },
+        body: { graceDays, dryRun },
       });
       if (error) throw error;
-      toast.success(
-        dryRun
-          ? `${data?.candidates ?? 0} superseded file(s) older than 14 days can be purged`
-          : `Purged ${data?.removed ?? 0} superseded file(s) across ${data?.documents ?? 0} document(s)`,
-      );
+      if (dryRun) {
+        setPreview({ candidates: data?.candidates ?? 0, graceDays: data?.graceDays ?? graceDays, oldest: data?.oldest, byDepartment: data?.byDepartment });
+        toast.success(`${data?.candidates ?? 0} superseded file(s) older than ${data?.graceDays ?? graceDays} days can be purged`);
+      } else {
+        setPreview(null);
+        toast.success(`Purged ${data?.removed ?? 0} superseded file(s) across ${data?.documents ?? 0} document(s)`);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Cleanup failed');
     } finally {
       setCleaning(null);
     }
   }
+
 
   const { data: rows } = useQuery({
     enabled: allowed,
