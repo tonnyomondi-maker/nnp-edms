@@ -102,20 +102,46 @@ export default function StorageAudit() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Deletes the superseded file of any document that was rejected and later corrected, once the new version is
-            more than 14 days old. The rejection history, reasons and dates are kept in full.
+            Deletes the superseded file of any document that was rejected and later corrected, once the corrected
+            version is older than the retention window below. The rejection history, reasons and dates are kept in full.
           </p>
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+            <div className="flex-1">
+              <p className="text-xs font-medium mb-1">Retention window</p>
+              <Select value={String(graceDays)} onValueChange={(v) => setGraceDays(Number(v))}>
+                <SelectTrigger className="h-11 sm:h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PURGE_POLICIES.map((p) => (
+                    <SelectItem key={p.days} value={String(p.days)}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button variant="outline" className="h-11 sm:h-9" disabled={!!cleaning} onClick={() => runCleanup(true)}>
-              {cleaning === 'dry' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Preview
+              {cleaning === 'dry' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Dry-run report
             </Button>
-            <Button variant="destructive" className="h-11 sm:h-9" disabled={!!cleaning} onClick={() => runCleanup(false)}>
+            <Button variant="destructive" className="h-11 sm:h-9" disabled={!!cleaning || !preview} onClick={() => runCleanup(false)}>
               {cleaning === 'run' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
               Purge superseded files
             </Button>
           </div>
+          {!preview && <p className="text-[11px] text-muted-foreground">Run the dry-run report first to see exactly what would be deleted.</p>}
+          {preview && (
+            <div className="rounded-md border p-3 text-xs space-y-1">
+              <p className="font-medium">
+                {preview.candidates} superseded file(s) older than {preview.graceDays} day(s) can be purged
+              </p>
+              {preview.oldest && <p className="text-muted-foreground">Oldest candidate: {new Date(preview.oldest).toLocaleDateString()}</p>}
+              {(preview.byDepartment || []).map((d) => (
+                <div key={d.department} className="flex justify-between text-muted-foreground">
+                  <span className="truncate">{d.department}</span><span>{d.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
+
 
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground">Action</span>
