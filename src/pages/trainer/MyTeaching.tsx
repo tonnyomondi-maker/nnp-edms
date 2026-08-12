@@ -379,13 +379,6 @@ export default function MyTeaching() {
                 )}
 
                 <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                  {workloadMissing && (
-                    <Button asChild size="sm" className="h-11 sm:h-9 flex-1">
-                      <Link to={`/upload?unit=${encodeURIComponent(u.unit_code)}&type=${encodeURIComponent('Workload Allocation')}`}>
-                        <Paperclip className="w-4 h-4 mr-1" /> Upload workload allocation
-                      </Link>
-                    </Button>
-                  )}
                   <Button asChild size="sm" variant="outline" className="h-11 sm:h-9 flex-1">
                     <Link to={`/upload?unit=${encodeURIComponent(u.unit_code)}`}>
                       <Upload className="w-4 h-4 mr-1" /> Upload for this unit
