@@ -28,6 +28,7 @@ import { useProfileCompleteness } from '@/hooks/useProfileCompleteness';
 import {
   DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
+  SESSION_LEVEL_DOC_TYPES,
   WEEKLY_DOC_TYPES,
   COURSE_TYPES,
   MODULE_NUMBERS,
@@ -333,6 +334,8 @@ export default function UploadDocuments() {
 
   const hasWeeklyType = files.some((f) => WEEKLY_DOC_TYPES.includes(f.documentType as typeof WEEKLY_DOC_TYPES[number]));
 
+  const isSessionLevel = (t: string) => (SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(t);
+
   // Validation per file
   function validateFile(entry: FileEntry): string | null {
     if (!entry.documentType) return 'Pick a document type';
@@ -354,6 +357,10 @@ export default function UploadDocuments() {
         );
       });
       if (dup) return 'Already submitted';
+    } else if (isSessionLevel(entry.documentType)) {
+      // Session-level: one submission covers every unit taught this session.
+      const dup = existingDocs.some((d) => d.document_type === entry.documentType && d.status !== 'REJECTED');
+      if (dup) return 'Already submitted for this training session';
     } else {
       // one-time duplicate check
       const dup = existingDocs.some((d) => {
@@ -375,7 +382,10 @@ export default function UploadDocuments() {
   const profile = useProfileCompleteness();
   const profileBlocked = !profile.loading && !profile.complete;
 
-  const headerValid = department && unitCode && classCode && (!hasWeeklyType || sessionsPerWeek >= 1);
+  // Workload allocation is filed once per session for the whole teaching load,
+  // so it does not need a unit selected.
+  const allSessionLevel = files.length > 0 && files.every((f) => isSessionLevel(f.documentType));
+  const headerValid = department && (allSessionLevel || (unitCode && classCode)) && (!hasWeeklyType || sessionsPerWeek >= 1);
   const fileErrors = files.map((f) => ({ id: f.id, error: validateFile(f) }));
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
   const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
@@ -399,9 +409,9 @@ export default function UploadDocuments() {
     if (writesBlocked) r.push(`System is locked${lock_reason ? `: ${lock_reason}` : ''}. Writes are disabled.`);
     if (!headerValid) {
       const missing: string[] = [];
-      if (!unitCode) missing.push('unit');
+      if (!allSessionLevel && !unitCode) missing.push('unit');
       if (!department) missing.push('department');
-      if (!classCode) missing.push('class code');
+      if (!allSessionLevel && !classCode) missing.push('class code');
       if (hasWeeklyType && sessionsPerWeek < 1) missing.push('sessions per week');
       r.push(`Fill required header fields: ${missing.join(', ')}.`);
     }

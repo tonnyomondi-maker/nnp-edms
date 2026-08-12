@@ -4,7 +4,7 @@
 // number of uploaded rows. A Learning Plan rejected three times and corrected
 // is still ONE covered document type, not four.
 
-import { ONE_TIME_DOC_TYPES } from '@/lib/sessions';
+import { PER_UNIT_ONE_TIME_DOC_TYPES, SESSION_LEVEL_DOC_TYPES } from '@/lib/sessions';
 
 export interface ReportDoc {
   id: string;
@@ -53,6 +53,8 @@ export interface TrainerCoverage {
   approved: number;
   rejectedTypes: number;
   uploads: number;
+  /** Session-level workload allocation (one per session, not per unit). */
+  workloadOnFile: boolean;
 }
 
 export interface MissingRow {
@@ -102,12 +104,20 @@ export function trainerCoverage({ docs, configs, profiles }: Input): TrainerCove
 
     let coveredCount = 0;
     units.forEach((u) => {
-      ONE_TIME_DOC_TYPES.forEach((t) => {
+      PER_UNIT_ONE_TIME_DOC_TYPES.forEach((t) => {
         if (covered.has(key(u, t))) coveredCount += 1;
       });
     });
 
-    const expected = units.length * ONE_TIME_DOC_TYPES.length;
+    // Session-level types (workload allocation) count once per trainer per
+    // session — one upload covers every unit taught that session.
+    const sessionCovered = SESSION_LEVEL_DOC_TYPES.filter((t) =>
+      tDocs.some((d) => d.document_type === t && isLive(d.status)),
+    ).length;
+    const sessionExpected = units.length > 0 ? SESSION_LEVEL_DOC_TYPES.length : 0;
+    coveredCount += Math.min(sessionCovered, sessionExpected);
+
+    const expected = units.length * PER_UNIT_ONE_TIME_DOC_TYPES.length + sessionExpected;
     // Rejected types = distinct (unit,type) currently sitting rejected.
     const rejected = new Set(
       tDocs.filter((d) => d.status === 'REJECTED' && d.unit_code).map((d) => key(d.unit_code as string, d.document_type)),
@@ -128,8 +138,10 @@ export function trainerCoverage({ docs, configs, profiles }: Input): TrainerCove
       ).size,
       rejectedTypes: rejected.size,
       uploads: tDocs.length,
+      workloadOnFile: sessionCovered > 0,
     });
   });
+
 
   return Array.from(byTrainer.values())
     .filter((r) => r.units > 0 || r.uploads > 0)
@@ -141,7 +153,7 @@ export function missingByUnit({ docs, configs, profiles }: Input): MissingRow[] 
   configs.forEach((c) => {
     const tDocs = docs.filter((d) => d.trainer_id === c.trainer_id);
     const covered = coveredPairs(tDocs);
-    const missing = ONE_TIME_DOC_TYPES.filter((t) => !covered.has(key(c.unit_code, t)));
+    const missing = PER_UNIT_ONE_TIME_DOC_TYPES.filter((t) => !covered.has(key(c.unit_code, t)));
     if (missing.length === 0) return;
     rows.push({
       trainerId: c.trainer_id,
@@ -162,15 +174,21 @@ export function departmentCoverage({ docs, configs, profiles }: Input, departmen
 
     let coveredCount = 0;
     trainerIds.forEach((tid) => {
-      const covered = coveredPairs(dDocs.filter((d) => d.trainer_id === tid));
+      const tDocs = dDocs.filter((d) => d.trainer_id === tid);
+      const covered = coveredPairs(tDocs);
       dConfigs.filter((c) => c.trainer_id === tid).forEach((c) => {
-        ONE_TIME_DOC_TYPES.forEach((t) => {
+        PER_UNIT_ONE_TIME_DOC_TYPES.forEach((t) => {
           if (covered.has(key(c.unit_code, t))) coveredCount += 1;
         });
       });
+      SESSION_LEVEL_DOC_TYPES.forEach((t) => {
+        if (tDocs.some((d) => d.document_type === t && isLive(d.status))) coveredCount += 1;
+      });
     });
 
-    const expected = dConfigs.length * ONE_TIME_DOC_TYPES.length;
+    const expected =
+      dConfigs.length * PER_UNIT_ONE_TIME_DOC_TYPES.length +
+      trainerIds.length * SESSION_LEVEL_DOC_TYPES.length;
     return {
       dept,
       trainers: trainerIds.length,
@@ -218,11 +236,28 @@ export function flowStats(docs: ReportDoc[]): FlowStats {
 export function unitCoverage(docs: ReportDoc[], unitCode: string) {
   const unitDocs = docs.filter((d) => d.unit_code === unitCode);
   const covered = coveredPairs(unitDocs);
-  const missing = ONE_TIME_DOC_TYPES.filter((t) => !covered.has(key(unitCode, t)));
-  const rejected = ONE_TIME_DOC_TYPES.filter((t) =>
+  const missing = PER_UNIT_ONE_TIME_DOC_TYPES.filter((t) => !covered.has(key(unitCode, t)));
+  const rejected = PER_UNIT_ONE_TIME_DOC_TYPES.filter((t) =>
     unitDocs.some((d) => d.document_type === t && d.status === 'REJECTED') && !covered.has(key(unitCode, t)),
   );
-  const total = ONE_TIME_DOC_TYPES.length;
+  const total = PER_UNIT_ONE_TIME_DOC_TYPES.length;
   const done = total - missing.length;
   return { done, total, missing: [...missing], rejected: [...rejected], pct: Math.round((done / total) * 100) };
+}
+
+/**
+ * Session-level requirements (workload allocation) for one trainer.
+ * These are submitted once per training session for the whole teaching load.
+ */
+export function sessionLevelCoverage(docs: ReportDoc[]) {
+  const missing = SESSION_LEVEL_DOC_TYPES.filter((t) => !docs.some((d) => d.document_type === t && isLive(d.status)));
+  const rejected = SESSION_LEVEL_DOC_TYPES.filter(
+    (t) => missing.includes(t) && docs.some((d) => d.document_type === t && d.status === 'REJECTED'),
+  );
+  return {
+    missing: [...missing],
+    rejected: [...rejected],
+    done: SESSION_LEVEL_DOC_TYPES.length - missing.length,
+    total: SESSION_LEVEL_DOC_TYPES.length,
+  };
 }

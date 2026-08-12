@@ -20,30 +20,50 @@ const ACTIONS = [
   'SUPERSEDED_FILES_PURGED',
 ];
 
+const PURGE_POLICIES = [
+  { days: 3, label: 'Aggressive — 3 days' },
+  { days: 14, label: 'Balanced — 14 days' },
+  { days: 30, label: 'Cautious — 30 days' },
+  { days: 90, label: 'Archive-friendly — 90 days' },
+];
+
+interface PurgePreview {
+  candidates: number;
+  graceDays: number;
+  oldest?: string | null;
+  byDepartment?: { department: string; count: number }[];
+}
+
 export default function StorageAudit() {
   const { activeRole } = useAuth();
   const allowed = activeRole === 'IQA' || activeRole === 'SUPER_ADMIN' || activeRole === 'DP_ACADEMICS';
   const [action, setAction] = useState<string>('ALL');
   const [cleaning, setCleaning] = useState<'dry' | 'run' | null>(null);
+  const [graceDays, setGraceDays] = useState<number>(() => Number(localStorage.getItem('edms.purgeGraceDays')) || 14);
+  const [preview, setPreview] = useState<PurgePreview | null>(null);
 
   async function runCleanup(dryRun: boolean) {
     setCleaning(dryRun ? 'dry' : 'run');
+    localStorage.setItem('edms.purgeGraceDays', String(graceDays));
     try {
       const { data, error } = await supabase.functions.invoke('storage-cleanup', {
-        body: { graceDays: 14, dryRun },
+        body: { graceDays, dryRun },
       });
       if (error) throw error;
-      toast.success(
-        dryRun
-          ? `${data?.candidates ?? 0} superseded file(s) older than 14 days can be purged`
-          : `Purged ${data?.removed ?? 0} superseded file(s) across ${data?.documents ?? 0} document(s)`,
-      );
+      if (dryRun) {
+        setPreview({ candidates: data?.candidates ?? 0, graceDays: data?.graceDays ?? graceDays, oldest: data?.oldest, byDepartment: data?.byDepartment });
+        toast.success(`${data?.candidates ?? 0} superseded file(s) older than ${data?.graceDays ?? graceDays} days can be purged`);
+      } else {
+        setPreview(null);
+        toast.success(`Purged ${data?.removed ?? 0} superseded file(s) across ${data?.documents ?? 0} document(s)`);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Cleanup failed');
     } finally {
       setCleaning(null);
     }
   }
+
 
   const { data: rows } = useQuery({
     enabled: allowed,
@@ -102,20 +122,46 @@ export default function StorageAudit() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Deletes the superseded file of any document that was rejected and later corrected, once the new version is
-            more than 14 days old. The rejection history, reasons and dates are kept in full.
+            Deletes the superseded file of any document that was rejected and later corrected, once the corrected
+            version is older than the retention window below. The rejection history, reasons and dates are kept in full.
           </p>
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+            <div className="flex-1">
+              <p className="text-xs font-medium mb-1">Retention window</p>
+              <Select value={String(graceDays)} onValueChange={(v) => setGraceDays(Number(v))}>
+                <SelectTrigger className="h-11 sm:h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PURGE_POLICIES.map((p) => (
+                    <SelectItem key={p.days} value={String(p.days)}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button variant="outline" className="h-11 sm:h-9" disabled={!!cleaning} onClick={() => runCleanup(true)}>
-              {cleaning === 'dry' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Preview
+              {cleaning === 'dry' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Dry-run report
             </Button>
-            <Button variant="destructive" className="h-11 sm:h-9" disabled={!!cleaning} onClick={() => runCleanup(false)}>
+            <Button variant="destructive" className="h-11 sm:h-9" disabled={!!cleaning || !preview} onClick={() => runCleanup(false)}>
               {cleaning === 'run' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
               Purge superseded files
             </Button>
           </div>
+          {!preview && <p className="text-[11px] text-muted-foreground">Run the dry-run report first to see exactly what would be deleted.</p>}
+          {preview && (
+            <div className="rounded-md border p-3 text-xs space-y-1">
+              <p className="font-medium">
+                {preview.candidates} superseded file(s) older than {preview.graceDays} day(s) can be purged
+              </p>
+              {preview.oldest && <p className="text-muted-foreground">Oldest candidate: {new Date(preview.oldest).toLocaleDateString()}</p>}
+              {(preview.byDepartment || []).map((d) => (
+                <div key={d.department} className="flex justify-between text-muted-foreground">
+                  <span className="truncate">{d.department}</span><span>{d.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
+
 
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground">Action</span>

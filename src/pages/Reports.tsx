@@ -11,18 +11,22 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, FileDown } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { DEPARTMENTS, ONE_TIME_DOC_TYPES, getCurrentSession, getSessionOptions, sessionLabel, type SessionTerm } from '@/lib/sessions';
+import { DEPARTMENTS, ONE_TIME_DOC_TYPES, SESSION_LEVEL_DOC_TYPES, getCurrentSession, getSessionOptions, sessionLabel, type SessionTerm } from '@/lib/sessions';
 import { useCurrentSession } from '@/hooks/useAcademicSession';
 import {
   trainerCoverage,
   missingByUnit,
   departmentCoverage,
   flowStats,
+  LIVE_STATUSES,
   type ReportDoc,
   type ReportConfig,
   type ReportProfile,
 } from '@/lib/reportMetrics';
 import { exportReportPdf } from '@/lib/reportPdf';
+
+const ALL_ONE_TIME = [...ONE_TIME_DOC_TYPES] as string[];
+
 
 export default function Reports() {
   const { currentUser, activeRole } = useAuth();
@@ -75,29 +79,77 @@ export default function Reports() {
     },
   });
 
+  const [trainerFilter, setTrainerFilter] = useState<string>('ALL');
+  const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [exporting, setExporting] = useState(false);
+  const [exportStep, setExportStep] = useState<string>('');
+
   const scoped = useMemo(() => {
     if (!data) return { docs: [] as ReportDoc[], configs: [] as ReportConfig[], profiles: [] as ReportProfile[] };
-    if (deptFilter === 'ALL' || scopeDept) return data;
-    return {
-      ...data,
-      docs: data.docs.filter((d) => d.department === deptFilter),
-      configs: data.configs.filter((c) => c.department === deptFilter),
-    };
-  }, [data, deptFilter, scopeDept]);
+    let docs = data.docs;
+    let configs = data.configs;
+    if (deptFilter !== 'ALL' && !scopeDept) {
+      docs = docs.filter((d) => d.department === deptFilter);
+      configs = configs.filter((c) => c.department === deptFilter);
+    }
+    if (trainerFilter !== 'ALL') {
+      docs = docs.filter((d) => d.trainer_id === trainerFilter);
+      configs = configs.filter((c) => c.trainer_id === trainerFilter);
+    }
+    return { ...data, docs, configs };
+  }, [data, deptFilter, scopeDept, trainerFilter]);
 
   const allDepts = scopeDept ? [scopeDept] : deptFilter === 'ALL' ? DEPARTMENTS : [deptFilter];
 
   const perTrainer = useMemo(() => trainerCoverage(scoped), [scoped]);
-  const missing = useMemo(() => missingByUnit(scoped), [scoped]);
+  const missingAll = useMemo(() => missingByUnit(scoped), [scoped]);
+  const missing = useMemo(
+    () => (typeFilter === 'ALL'
+      ? missingAll
+      : missingAll.filter((m) => m.missing.includes(typeFilter)).map((m) => ({ ...m, missing: [typeFilter] }))),
+    [missingAll, typeFilter],
+  );
   const deptRows = useMemo(() => departmentCoverage(scoped, allDepts), [scoped, allDepts]);
   const flow = useMemo(() => flowStats(scoped.docs), [scoped]);
 
-  const canExport = activeRole === 'HOD' || activeRole === 'IQA' || activeRole === 'SUPER_ADMIN' || activeRole === 'DP_ACADEMICS';
-  const scopeLabel = scopeDept ? scopeDept : scopeTrainer ? 'My submissions' : deptFilter === 'ALL' ? 'All departments' : deptFilter;
+  // Trainer list for the quick filter, scoped to the current department view.
+  const trainerOptions = useMemo(() => {
+    const ids = new Set([...scoped.configs.map((c) => c.trainer_id), ...scoped.docs.map((d) => d.trainer_id)]);
+    if (trainerFilter !== 'ALL') ids.add(trainerFilter);
+    return Array.from(ids)
+      .map((id) => ({ id, name: (data?.profiles || []).find((p) => p.user_id === id)?.full_name || 'Unknown trainer' }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [scoped, data, trainerFilter]);
 
-  const handleExport = () => {
+  // Per-document-type breakdown for the current scope.
+  const typeRows = useMemo(() => {
+    const units = new Set(scoped.configs.map((c) => `${c.trainer_id}::${c.unit_code}`));
+    const trainers = new Set(scoped.configs.map((c) => c.trainer_id));
+    return ALL_ONE_TIME.map((t) => {
+      const sessionLevel = (SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(t);
+      const expected = sessionLevel ? trainers.size : units.size;
+      const seen = new Set(
+        scoped.docs
+          .filter((d) => d.document_type === t && LIVE_STATUSES.includes(d.status))
+          .map((d) => (sessionLevel ? d.trainer_id : `${d.trainer_id}::${d.unit_code}`)),
+      );
+      const covered = Math.min(seen.size, expected);
+      return { type: t, expected, covered, pct: expected ? Math.round((covered / expected) * 100) : 0 };
+    });
+  }, [scoped]);
+
+  const canExport = activeRole === 'HOD' || activeRole === 'IQA' || activeRole === 'SUPER_ADMIN' || activeRole === 'DP_ACADEMICS';
+  const scopeLabel = [
+    scopeDept ? scopeDept : scopeTrainer ? 'My submissions' : deptFilter === 'ALL' ? 'All departments' : deptFilter,
+    trainerFilter !== 'ALL' ? trainerOptions.find((t) => t.id === trainerFilter)?.name : null,
+    typeFilter !== 'ALL' ? typeFilter : null,
+  ].filter(Boolean).join(' • ');
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportStep('Starting export…');
     try {
-      exportReportPdf({
+      await exportReportPdf({
         sessionTitle: sessionLabel(year, term),
         scopeLabel,
         generatedBy: currentUser?.name || currentUser?.email || '—',
@@ -105,10 +157,14 @@ export default function Reports() {
         missing,
         deptRows,
         flow,
+        onProgress: (step) => setExportStep(step),
       });
-      toast({ title: 'Report exported', description: 'The PDF has been downloaded.' });
+      toast({ title: 'Report ready', description: 'The branded PDF has been downloaded.' });
     } catch (e) {
       toast({ title: 'Export failed', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
+    } finally {
+      setExporting(false);
+      setExportStep('');
     }
   };
 
@@ -124,11 +180,13 @@ export default function Reports() {
     };
   }, [perTrainer]);
 
+  const filtersActive = deptFilter !== 'ALL' || trainerFilter !== 'ALL' || typeFilter !== 'ALL';
+
   return (
     <div className="pb-6">
       <PageHeader title="Reports" subtitle={`${sessionLabel(year, term)} • ${scopeLabel}`} />
 
-      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
         <Select
           value={`${year}_${term}`}
           onValueChange={(v) => {
@@ -136,7 +194,7 @@ export default function Reports() {
             setTerm(v.substring(v.indexOf('_') + 1) as SessionTerm);
           }}
         >
-          <SelectTrigger className="h-11 flex-1"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-11 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             {sessionOptions.map((o) => (
               <SelectItem key={`${o.year}_${o.term}`} value={`${o.year}_${o.term}`}>{o.label}</SelectItem>
@@ -145,8 +203,8 @@ export default function Reports() {
         </Select>
 
         {!scopeDept && !scopeTrainer && (
-          <Select value={deptFilter} onValueChange={setDeptFilter}>
-            <SelectTrigger className="h-11 flex-1"><SelectValue /></SelectTrigger>
+          <Select value={deptFilter} onValueChange={(v) => { setDeptFilter(v); setTrainerFilter('ALL'); }}>
+            <SelectTrigger className="h-11 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All departments</SelectItem>
               {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
@@ -154,12 +212,40 @@ export default function Reports() {
           </Select>
         )}
 
+        {!scopeTrainer && (
+          <Select value={trainerFilter} onValueChange={setTrainerFilter}>
+            <SelectTrigger className="h-11 text-xs"><SelectValue placeholder="All trainers" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All trainers</SelectItem>
+              {trainerOptions.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="h-11 text-xs"><SelectValue placeholder="All document types" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">All document types</SelectItem>
+            {ALL_ONE_TIME.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {filtersActive && (
+          <Button variant="ghost" size="sm" className="h-9 text-xs"
+            onClick={() => { setDeptFilter('ALL'); setTrainerFilter('ALL'); setTypeFilter('ALL'); }}>
+            Clear filters
+          </Button>
+        )}
         {canExport && (
-          <Button className="h-11" onClick={handleExport} disabled={isLoading}>
-            <FileDown className="w-4 h-4 mr-1.5" /> Export PDF
+          <Button className="h-11 ml-auto w-full sm:w-auto" onClick={handleExport} disabled={isLoading || exporting}>
+            {exporting ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <FileDown className="w-4 h-4 mr-1.5" />}
+            {exporting ? exportStep || 'Exporting…' : 'Export PDF'}
           </Button>
         )}
       </div>
+
 
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
@@ -184,12 +270,19 @@ export default function Reports() {
               <TabsTrigger value="trainer" className="flex-1">Trainers</TabsTrigger>
               <TabsTrigger value="missing" className="flex-1">Missing</TabsTrigger>
               <TabsTrigger value="dept" className="flex-1">Dept</TabsTrigger>
+              <TabsTrigger value="types" className="flex-1">Types</TabsTrigger>
               <TabsTrigger value="flow" className="flex-1">Flow</TabsTrigger>
             </TabsList>
 
             <TabsContent value="trainer" className="space-y-3">
               {perTrainer.length === 0 ? <Empty /> : perTrainer.map((r) => (
-                <Card key={r.id}>
+                <Card
+                  key={r.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setTrainerFilter((cur) => (cur === r.id ? 'ALL' : r.id))}
+                  className={`cursor-pointer transition-colors ${trainerFilter === r.id ? 'border-primary' : 'hover:border-primary/50'}`}
+                >
                   <CardContent className="p-4 space-y-2">
                     <div className="flex justify-between items-start gap-2">
                       <div className="min-w-0">
@@ -207,7 +300,9 @@ export default function Reports() {
                       <Badge variant="outline">Awaiting review {r.pending}</Badge>
                       <Badge variant="outline">Approved {r.approved}</Badge>
                       <Badge variant="outline">Needs correction {r.rejectedTypes}</Badge>
-                      <Badge variant="outline">{r.uploads} upload(s)</Badge>
+                      <Badge variant={r.workloadOnFile ? 'outline' : 'destructive'}>
+                        Workload {r.workloadOnFile ? 'on file' : 'missing'}
+                      </Badge>
                     </div>
                   </CardContent>
                 </Card>
@@ -230,7 +325,13 @@ export default function Reports() {
 
             <TabsContent value="dept" className="space-y-3">
               {deptRows.length === 0 ? <Empty /> : deptRows.map((d) => (
-                <Card key={d.dept}>
+                <Card
+                  key={d.dept}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { if (!scopeDept) { setDeptFilter((cur) => (cur === d.dept ? 'ALL' : d.dept)); setTrainerFilter('ALL'); } }}
+                  className={`cursor-pointer transition-colors ${deptFilter === d.dept ? 'border-primary' : 'hover:border-primary/50'}`}
+                >
                   <CardContent className="p-4">
                     <div className="flex justify-between gap-2 mb-2">
                       <p className="text-sm font-semibold break-words">{d.dept}</p>
@@ -242,8 +343,37 @@ export default function Reports() {
                     </p>
                   </CardContent>
                 </Card>
+
               ))}
             </TabsContent>
+
+            <TabsContent value="types" className="space-y-3">
+              {typeRows.map((t) => (
+                <Card
+                  key={t.type}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setTypeFilter((cur) => (cur === t.type ? 'ALL' : t.type))}
+                  className={`cursor-pointer transition-colors ${typeFilter === t.type ? 'border-primary' : 'hover:border-primary/50'}`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex justify-between gap-2 mb-2">
+                      <p className="text-sm font-semibold break-words">{t.type}</p>
+                      <span className="text-xs font-medium shrink-0">{t.pct}%</span>
+                    </div>
+                    <Progress value={t.pct} className="h-2" />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      {t.covered}/{t.expected} on file
+                      {(SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(t.type)
+                        ? ' • once per trainer per session'
+                        : ' • once per unit'}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </TabsContent>
+
+
 
             <TabsContent value="flow" className="space-y-3">
               <Card><CardContent className="p-4 grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">

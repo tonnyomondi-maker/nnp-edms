@@ -53,7 +53,20 @@ export const ONE_TIME_DOC_TYPES = [
   'Course Outline',
 ] as const;
 
+/**
+ * Document types submitted ONCE per training session for the whole teaching
+ * load (not per unit). The workload allocation form lists every unit, so a
+ * single upload covers them all.
+ */
+export const SESSION_LEVEL_DOC_TYPES = ['Workload Allocation'] as const;
+
+/** One-time document types expected once per UNIT. */
+export const PER_UNIT_ONE_TIME_DOC_TYPES = ONE_TIME_DOC_TYPES.filter(
+  (t) => !(SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(t),
+) as readonly string[];
+
 export const WEEKLY_DOC_TYPES = ['Session Plan', 'Class Attendance', 'Records of Work Covered'] as const;
+
 
 /** All document types the system knows about (policies, SLA targets, templates). */
 export const ALL_DOC_TYPES = [...ONE_TIME_DOC_TYPES, ...WEEKLY_DOC_TYPES] as const;
