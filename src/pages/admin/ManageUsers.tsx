@@ -139,12 +139,17 @@ export default function ManageUsers() {
         />
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        Everyone who signs up starts as a Trainer. Add extra roles here; removing an account
+        revokes access immediately while keeping submitted documents and their approval history.
+      </p>
+
       {loading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="rounded-md border">
+        <div className="rounded-md border overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -152,6 +157,7 @@ export default function ManageUsers() {
                 <TableHead>Department</TableHead>
                 <TableHead>Roles</TableHead>
                 <TableHead>Add Role</TableHead>
+                {isSuperAdmin && <TableHead className="text-right">Remove</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -200,12 +206,25 @@ export default function ManageUsers() {
                         </Select>
                       )}
                     </TableCell>
+                    {isSuperAdmin && (
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-9 text-destructive hover:text-destructive"
+                          disabled={user.userId === currentUser?.id}
+                          onClick={() => setPendingRemoval(user)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={isSuperAdmin ? 5 : 4} className="text-center text-muted-foreground py-8">
                     No users found
                   </TableCell>
                 </TableRow>
@@ -214,6 +233,28 @@ export default function ManageUsers() {
           </Table>
         </div>
       )}
+
+      <AlertDialog open={!!pendingRemoval} onOpenChange={(open) => !open && setPendingRemoval(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {pendingRemoval?.fullName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingRemoval?.email} will lose access to the portal immediately. Their submitted
+              documents and approval history are kept for the record. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmRemoveUser(); }}
+              disabled={removing}
+            >
+              {removing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null} Remove user
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+
   );
 }
