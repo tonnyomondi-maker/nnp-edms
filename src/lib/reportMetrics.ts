@@ -174,15 +174,21 @@ export function departmentCoverage({ docs, configs, profiles }: Input, departmen
 
     let coveredCount = 0;
     trainerIds.forEach((tid) => {
-      const covered = coveredPairs(dDocs.filter((d) => d.trainer_id === tid));
+      const tDocs = dDocs.filter((d) => d.trainer_id === tid);
+      const covered = coveredPairs(tDocs);
       dConfigs.filter((c) => c.trainer_id === tid).forEach((c) => {
         PER_UNIT_ONE_TIME_DOC_TYPES.forEach((t) => {
           if (covered.has(key(c.unit_code, t))) coveredCount += 1;
         });
       });
+      SESSION_LEVEL_DOC_TYPES.forEach((t) => {
+        if (tDocs.some((d) => d.document_type === t && isLive(d.status))) coveredCount += 1;
+      });
     });
 
-    const expected = dConfigs.length * PER_UNIT_ONE_TIME_DOC_TYPES.length;
+    const expected =
+      dConfigs.length * PER_UNIT_ONE_TIME_DOC_TYPES.length +
+      trainerIds.length * SESSION_LEVEL_DOC_TYPES.length;
     return {
       dept,
       trainers: trainerIds.length,
