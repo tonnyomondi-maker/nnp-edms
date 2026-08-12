@@ -354,6 +354,10 @@ export default function UploadDocuments() {
         );
       });
       if (dup) return 'Already submitted';
+    } else if (isSessionLevel(entry.documentType)) {
+      // Session-level: one submission covers every unit taught this session.
+      const dup = existingDocs.some((d) => d.document_type === entry.documentType && d.status !== 'REJECTED');
+      if (dup) return 'Already submitted for this training session';
     } else {
       // one-time duplicate check
       const dup = existingDocs.some((d) => {
@@ -375,7 +379,10 @@ export default function UploadDocuments() {
   const profile = useProfileCompleteness();
   const profileBlocked = !profile.loading && !profile.complete;
 
-  const headerValid = department && unitCode && classCode && (!hasWeeklyType || sessionsPerWeek >= 1);
+  // Workload allocation is filed once per session for the whole teaching load,
+  // so it does not need a unit selected.
+  const allSessionLevel = files.length > 0 && files.every((f) => isSessionLevel(f.documentType));
+  const headerValid = department && (allSessionLevel || (unitCode && classCode)) && (!hasWeeklyType || sessionsPerWeek >= 1);
   const fileErrors = files.map((f) => ({ id: f.id, error: validateFile(f) }));
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
   const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
