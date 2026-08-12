@@ -7,8 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { Search, X, Loader2 } from 'lucide-react';
+import { Search, X, Loader2, Trash2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Link } from 'react-router-dom';
 import { DEPARTMENTS } from '@/lib/sessions';
@@ -25,11 +29,15 @@ interface UserWithRoles {
 }
 
 export default function ManageUsers() {
-  const { currentUser } = useAuth();
+  const { currentUser, activeRole } = useAuth();
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [addingRole, setAddingRole] = useState<string | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<UserWithRoles | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const isSuperAdmin = activeRole === 'SUPER_ADMIN';
+
 
   const fetchUsers = async () => {
     setLoading(true);
