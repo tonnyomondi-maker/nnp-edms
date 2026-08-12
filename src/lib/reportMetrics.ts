@@ -244,3 +244,20 @@ export function unitCoverage(docs: ReportDoc[], unitCode: string) {
   const done = total - missing.length;
   return { done, total, missing: [...missing], rejected: [...rejected], pct: Math.round((done / total) * 100) };
 }
+
+/**
+ * Session-level requirements (workload allocation) for one trainer.
+ * These are submitted once per training session for the whole teaching load.
+ */
+export function sessionLevelCoverage(docs: ReportDoc[]) {
+  const missing = SESSION_LEVEL_DOC_TYPES.filter((t) => !docs.some((d) => d.document_type === t && isLive(d.status)));
+  const rejected = SESSION_LEVEL_DOC_TYPES.filter(
+    (t) => missing.includes(t) && docs.some((d) => d.document_type === t && d.status === 'REJECTED'),
+  );
+  return {
+    missing: [...missing],
+    rejected: [...rejected],
+    done: SESSION_LEVEL_DOC_TYPES.length - missing.length,
+    total: SESSION_LEVEL_DOC_TYPES.length,
+  };
+}
