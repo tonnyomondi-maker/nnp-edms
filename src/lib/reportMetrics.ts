@@ -53,6 +53,8 @@ export interface TrainerCoverage {
   approved: number;
   rejectedTypes: number;
   uploads: number;
+  /** Session-level workload allocation (one per session, not per unit). */
+  workloadOnFile: boolean;
 }
 
 export interface MissingRow {
