@@ -4,7 +4,7 @@
 
 import { ReactNode, useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { sessionLabel, type SessionTerm } from '@/lib/sessions';
+import { sessionLabel, SESSION_LEVEL_DOC_TYPES, type SessionTerm } from '@/lib/sessions';
 import { useCourses } from '@/hooks/useCourses';
 
 export type HierarchyLevel = 'SESSION' | 'DEPARTMENT' | 'TRAINER' | 'COURSE' | 'UNIT' | 'DOC_TYPE' | 'STAGE';
