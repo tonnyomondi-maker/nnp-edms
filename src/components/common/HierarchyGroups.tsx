@@ -3,7 +3,7 @@
 // session) so long queues stay readable instead of one flat list.
 
 import { ReactNode, useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ClipboardList, AlertTriangle } from 'lucide-react';
 import { sessionLabel, SESSION_LEVEL_DOC_TYPES, type SessionTerm } from '@/lib/sessions';
 import { useCourses } from '@/hooks/useCourses';
 
