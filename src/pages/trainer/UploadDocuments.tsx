@@ -328,9 +328,20 @@ export default function UploadDocuments() {
       });
       if (dup) return 'Already submitted';
     } else if (isSessionLevel(entry.documentType)) {
-      // Session-level: one submission covers every unit taught this session.
-      const dup = existingDocs.some((d) => d.document_type === entry.documentType && d.status !== 'REJECTED');
-      if (dup) return 'Already submitted for this training session';
+      // Session-level: ONE submission covers every unit taught this session.
+      // Blocked while an existing one is in progress or already approved; a
+      // rejected one must go through "Edit & resubmit".
+      const existing = existingDocs.find(
+        (d) => d.document_type === entry.documentType && d.status !== 'REJECTED' && d.id !== resubmitId,
+      );
+      if (existing) {
+        return existing.status === 'SUBMITTED'
+          ? 'Already submitted for this training session — awaiting verification'
+          : 'Already on file for this training session';
+      }
+      // Only one copy per batch.
+      const twice = files.filter((f) => f.documentType === entry.documentType).length > 1;
+      if (twice) return 'Only one copy is filed per training session';
     } else {
       // one-time duplicate check
       const dup = existingDocs.some((d) => {
