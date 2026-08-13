@@ -149,7 +149,9 @@ export async function exportReportPdf({
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
-    doc.text(`Page ${i} of ${pages}`, pageWidth - 40, doc.internal.pageSize.getHeight() - 20, { align: 'right' });
+    const footY = doc.internal.pageSize.getHeight() - 20;
+    doc.text('The Nyamira National Polytechnic — EDMS', 40, footY);
+    doc.text(`Page ${i} of ${pages}`, pageWidth - 40, footY, { align: 'right' });
   }
 
   doc.save(`EDMS-report-${sessionTitle.replace(/\s+/g, '-')}.pdf`);
