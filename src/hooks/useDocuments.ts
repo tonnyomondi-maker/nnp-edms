@@ -519,7 +519,28 @@ export function useSubmitDocument() {
 
 
       await assertSystemNotLocked(user?.id);
-      const safeUnit = unitCode.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      // Workload allocation is filed ONCE per training session for the whole
+      // teaching load. Re-check right before writing so a double tap or a
+      // stale page can't create a second one.
+      if ((SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(documentType)) {
+        const { data: existing } = await supabase
+          .from('documents')
+          .select('id, status')
+          .eq('trainer_id', user!.id)
+          .eq('document_type', documentType as never)
+          .eq('session_year' as never, sessionYear as never)
+          .eq('session_term' as never, sessionTerm as never)
+          .neq('status', 'REJECTED');
+        const clash = (existing || []).filter((d) => d.id !== resubmitOf);
+        if (clash.length > 0) {
+          throw new Error(
+            `${documentType} has already been filed for this training session. It covers every unit you teach — use "Edit & resubmit" if it was rejected.`,
+          );
+        }
+      }
+
+      const safeUnit = (unitCode || 'session').replace(/[^a-zA-Z0-9_-]/g, '_');
       const filePath = `${user!.id}/${sessionYear}_${sessionTerm}/${safeUnit}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}${sessionIndex ? `_S${sessionIndex}` : ''}_${Date.now()}.pdf`;
 
       // Retry storage upload with exponential backoff so transient network
