@@ -49,7 +49,7 @@ export async function exportReportPdf({
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
-  doc.text('Nyamira National Polytechnic', pageWidth / 2, 46, { align: 'center' });
+  doc.text('The Nyamira National Polytechnic', pageWidth / 2, 46, { align: 'center' });
   doc.setFontSize(12);
   doc.text('Electronic Document Management System — Submission Report', pageWidth / 2, 64, { align: 'center' });
 
