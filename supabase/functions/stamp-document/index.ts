@@ -105,8 +105,14 @@ function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any, layout: { hea
 
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
+  page.drawText(INSTITUTION_NAME, {
+    x: 40, y: height - 42, size: 12, font: bold, color: rgb(0.1, 0.25, 0.5),
+  });
+  page.drawText("Electronic Document Management System", {
+    x: 40, y: height - 55, size: 8, font: regular, color: rgb(0.35, 0.35, 0.35),
+  });
   page.drawText(layout.headerTitle, {
-    x: 40, y: height - 60, size: 14, font: bold, color: rgb(0.1, 0.25, 0.5),
+    x: 40, y: height - 72, size: 14, font: bold, color: rgb(0.1, 0.25, 0.5),
   });
   page.drawText(
     "System-generated. Each stage below is signed in order by the responsible officer.",
