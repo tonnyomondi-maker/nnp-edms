@@ -114,12 +114,17 @@ export async function exportReportPdf({
   });
 
   doc.addPage();
+  if (logo) {
+    try { doc.addImage(logo, 'JPEG', 40, 24, 32, 32); } catch { /* non-fatal */ }
+  }
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text('The Nyamira National Polytechnic', pageWidth / 2, 40, { align: 'center' });
   doc.setFontSize(11);
-  doc.text('Missing documents per unit', 40, 48);
+  doc.text('Missing documents per unit', 40, 74);
   doc.setFont('helvetica', 'normal');
   autoTable(doc, {
-    startY: 58,
+    startY: 84,
     head: [['Trainer', 'Department', 'Unit', 'Missing document types']],
     body: missing.length
       ? missing.map((m) => [m.trainer, m.department, m.unit, m.missing.join(', ')])
