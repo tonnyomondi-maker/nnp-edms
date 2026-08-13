@@ -84,7 +84,14 @@ export interface HierarchyNode<T> {
   level: HierarchyLevel;
   docs: T[];
   children: HierarchyNode<T>[];
+  /** Session-level documents (workload allocation) pinned at the trainer level. */
+  pinned: T[];
+  /** Unit codes the trainer has registered inside this node. */
+  units: string[];
 }
+
+const isSessionLevelDoc = (d: HierarchyDoc) =>
+  (SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(d.document_type || '');
 
 export function buildHierarchy<T extends HierarchyDoc>(
   docs: T[],
@@ -102,13 +109,26 @@ export function buildHierarchy<T extends HierarchyDoc>(
   }
   return Array.from(buckets.entries())
     .sort((a, b) => (a[1].order - b[1].order) || a[1].label.localeCompare(b[1].label))
-    .map(([key, v]) => ({
-      key,
-      label: v.label,
-      level,
-      docs: v.docs,
-      children: rest.length ? buildHierarchy(v.docs, rest, courses) : [],
-    }));
+    .map(([key, v]) => {
+      // The workload allocation form covers the whole teaching load, so it has
+      // no unit. Pin it to the trainer instead of burying it in an
+      // "Unspecified unit" bucket — approvers use it to check that every
+      // allocated unit was actually registered.
+      const pinned = level === 'TRAINER' ? v.docs.filter(isSessionLevelDoc) : [];
+      const remaining = pinned.length ? v.docs.filter((d) => !isSessionLevelDoc(d)) : v.docs;
+      const units = level === 'TRAINER'
+        ? Array.from(new Set(v.docs.map((d) => d.unit_code).filter(Boolean) as string[])).sort()
+        : [];
+      return {
+        key,
+        label: v.label,
+        level,
+        docs: v.docs,
+        pinned,
+        units,
+        children: rest.length ? buildHierarchy(remaining, rest, courses) : [],
+      };
+    });
 }
 
 const LEVEL_TINT: Record<HierarchyLevel, string> = {
