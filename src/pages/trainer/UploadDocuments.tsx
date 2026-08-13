@@ -375,10 +375,15 @@ export default function UploadDocuments() {
   const rejectedBlocks = useMemo(() => {
     if (resubmitId) return [] as { id: string; documentType: string; reason: string | null }[];
     return (existingDocs || [])
-      .filter((d) => d.status === 'REJECTED'
-        && (d.unit_code || '').toLowerCase() === unitCode.toLowerCase()
-        && files.some((f) => f.documentType === d.document_type))
+      .filter((d) => {
+        if (d.status !== 'REJECTED') return false;
+        if (!files.some((f) => f.documentType === d.document_type)) return false;
+        // Session-level documents (workload allocation) are not tied to a unit.
+        if (isSessionLevel(d.document_type as string)) return true;
+        return (d.unit_code || '').toLowerCase() === unitCode.toLowerCase();
+      })
       .map((d) => ({ id: d.id, documentType: d.document_type as string, reason: d.rejection_reason }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingDocs, unitCode, files, resubmitId]);
 
   const canSubmit = rejectedBlocks.length === 0 && headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked && !profileBlocked;
