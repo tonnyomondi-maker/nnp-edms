@@ -474,34 +474,6 @@ export default function UploadDocuments() {
     await mirrorToGDrive(entry, entry.documentId);
   }
 
-  // Persist resume snapshot whenever something material changes.
-  useEffect(() => {
-    if (!hydratedRef.current && !resume.hydrated && files.length === 0) return;
-    resume.save({
-      header: { sessionYear, sessionTerm, department, unitCode, unitName, classCode, courseType, termNumber, moduleNumber, sessionsPerWeek },
-      entries: files.map((f) => ({
-        id: f.id,
-        fileName: f.fileName,
-        originalSize: f.originalSize,
-        estimatedSize: f.estimatedSize,
-        compressed: f.compressed,
-        eligibility: f.eligibility,
-        documentType: f.documentType || '',
-        weekNumber: f.weekNumber,
-        sessionIndex: f.sessionIndex,
-        stage: f.stage,
-        documentId: f.documentId,
-        stageMessage: f.stageMessage,
-        gdriveAttempts: f.gdriveAttempts,
-        needsReattach: f.needsReattach,
-      })),
-    });
-    // Auto-clear when nothing is left to resume.
-    if (files.length === 0 || files.every((f) => f.stage === 'gdrive_ok')) {
-      resume.clear();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files, sessionYear, sessionTerm, department, unitCode, unitName, classCode, courseType, termNumber, moduleNumber, sessionsPerWeek]);
 
   async function handleSubmit() {
     if (!canSubmit) return;
