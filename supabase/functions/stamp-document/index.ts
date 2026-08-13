@@ -31,6 +31,7 @@ interface StampRequest {
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
 const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance Officer (IQAO)", DP: "Deputy Principal — Academics", IQA: "IQAO Archival" };
 const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
+const INSTITUTION_NAME = "The Nyamira National Polytechnic";
 /** Bump whenever the approval-sheet layout or stamping logic changes. */
 // Plain-language hand-off note appended to each approval notification.
 const NEXT_STAGE_NOTE: Record<string, string> = {
