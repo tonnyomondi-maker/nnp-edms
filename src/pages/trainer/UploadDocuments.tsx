@@ -878,8 +878,8 @@ export default function UploadDocuments() {
           )}
           {files.length > 0 && (
             <div className="flex justify-end pt-1">
-              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground" onClick={() => { setFiles([]); setRejectedFiles([]); resume.clear(); }}>
-                <X className="w-3 h-3" /> Clear resume state
+              <Button variant="ghost" size="sm" className="h-9 text-xs gap-1 text-muted-foreground" onClick={() => { setFiles([]); setRejectedFiles([]); }}>
+                <X className="w-3 h-3" /> Clear list
               </Button>
             </div>
           )}
