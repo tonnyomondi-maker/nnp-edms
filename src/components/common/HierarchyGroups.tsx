@@ -174,6 +174,27 @@ function NodeView<T extends HierarchyDoc>({
       </button>
       {open && (
         <div className="p-1.5 sm:p-2 space-y-2">
+          {node.level === 'TRAINER' && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-2 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <ClipboardList className="w-3.5 h-3.5 text-primary" />
+                <span className="text-xs font-semibold">Workload allocation</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {node.units.length
+                    ? `Units registered this session: ${node.units.join(', ')}`
+                    : 'No units registered yet'}
+                </span>
+              </div>
+              {node.pinned.length
+                ? node.pinned.map((d) => <div key={d.id}>{renderDoc(d)}</div>)
+                : (
+                  <p className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    No workload allocation submitted — you cannot confirm every allocated unit was registered.
+                  </p>
+                )}
+            </div>
+          )}
           {node.children.length
             ? node.children.map((c) => (
                 <NodeView key={c.key} node={c} depth={depth + 1} renderDoc={renderDoc} pendingOf={pendingOf} />
