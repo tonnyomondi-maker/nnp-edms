@@ -15,7 +15,6 @@ import { compressForUpload, formatBytes } from '@/lib/compressUpload';
 import { useMyUnitConfigs, useUpsertUnitConfig } from '@/hooks/useUnitSessionConfig';
 import { useSystemLock } from '@/hooks/useSystemLock';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
-import { useUploadResume } from '@/hooks/useUploadResume';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
 import { ApprovalSheetPreview } from '@/components/common/ApprovalSheetPreview';
