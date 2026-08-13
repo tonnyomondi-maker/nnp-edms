@@ -116,10 +116,10 @@ function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any, layout: { hea
   });
   page.drawText(
     "System-generated. Each stage below is signed in order by the responsible officer.",
-    { x: 40, y: height - 76, size: 8, font: regular, color: rgb(0.35, 0.35, 0.35) },
+    { x: 40, y: height - 86, size: 8, font: regular, color: rgb(0.35, 0.35, 0.35) },
   );
   page.drawLine({
-    start: { x: 40, y: height - 86 }, end: { x: width - 40, y: height - 86 },
+    start: { x: 40, y: height - 96 }, end: { x: width - 40, y: height - 96 },
     thickness: 1, color: rgb(0.1, 0.25, 0.5),
   });
 
