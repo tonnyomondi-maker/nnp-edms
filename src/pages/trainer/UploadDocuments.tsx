@@ -745,7 +745,7 @@ export default function UploadDocuments() {
                     <span className="text-sm font-medium truncate">{entry.fileName}</span>
                     {entry.needsReattach && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-200 flex items-center gap-1">
-                        <History className="w-3 h-3" /> Needs re-attach
+                        <History className="w-3 h-3" /> Attach corrected PDF
                       </span>
                     )}
                   </div>
