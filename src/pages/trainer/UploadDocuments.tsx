@@ -757,7 +757,7 @@ export default function UploadDocuments() {
                 {entry.needsReattach && (
                   <label className="flex items-center gap-2 text-xs text-amber-900 dark:text-amber-200 border border-dashed border-amber-500/50 rounded px-2 py-2 cursor-pointer hover:bg-amber-500/5">
                     <Paperclip className="w-3.5 h-3.5" />
-                    <span>Re-attach <strong>{entry.fileName}</strong> to resume this upload</span>
+                    <span>Attach the corrected version of <strong>{entry.fileName}</strong></span>
                     <input
                       type="file"
                       accept=".pdf"
