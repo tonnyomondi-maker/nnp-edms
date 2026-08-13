@@ -15,7 +15,6 @@ import { compressForUpload, formatBytes } from '@/lib/compressUpload';
 import { useMyUnitConfigs, useUpsertUnitConfig } from '@/hooks/useUnitSessionConfig';
 import { useSystemLock } from '@/hooks/useSystemLock';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
-import { useUploadResume } from '@/hooks/useUploadResume';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
 import { ApprovalSheetPreview } from '@/components/common/ApprovalSheetPreview';
@@ -103,44 +102,15 @@ export default function UploadDocuments() {
   const [rejectedFiles, setRejectedFiles] = useState<{ id: string; name: string; reason: string; fix: string }[]>([]);
 
 
-  // --- Resume across page reloads ---
-  const resume = useUploadResume();
-  const hydratedRef = useRef(false);
+  // Resume state was removed: restored entries lost their file handle and
+  // confused trainers. Clear any snapshot left over from the old behaviour.
   useEffect(() => {
-    if (hydratedRef.current || !resume.hydrated) return;
-    hydratedRef.current = true;
-    const snap = resume.hydrated;
-    if (snap.header.sessionYear) setSessionYear(snap.header.sessionYear);
-    if (snap.header.sessionTerm) setSessionTerm(snap.header.sessionTerm as SessionTerm);
-    if (snap.header.department) setDepartment(snap.header.department);
-    if (snap.header.unitCode) setUnitCode(snap.header.unitCode);
-    if (snap.header.unitName) setUnitName(snap.header.unitName);
-    if (snap.header.classCode) setClassCode(snap.header.classCode);
-    if (snap.header.courseType) setCourseType(snap.header.courseType as CourseType);
-    if (snap.header.termNumber) setTermNumber(snap.header.termNumber);
-    if (snap.header.moduleNumber) setModuleNumber(snap.header.moduleNumber);
-    if (snap.header.sessionsPerWeek) setSessionsPerWeek(snap.header.sessionsPerWeek);
-    setFiles(snap.entries.map((e) => ({
-      id: e.id,
-      file: undefined,
-      fileName: e.fileName,
-      documentType: e.documentType as DocumentType | '',
-      weekNumber: e.weekNumber,
-      sessionIndex: e.sessionIndex,
-      originalSize: e.originalSize,
-      estimatedSize: e.estimatedSize,
-      compressed: e.compressed,
-      eligibility: e.eligibility,
-      stage: e.stage,
-      documentId: e.documentId,
-      stageMessage: e.stageMessage,
-      gdriveAttempts: e.gdriveAttempts,
-      needsReattach: e.needsReattach,
-    })));
-    if (snap.entries.some((e) => e.needsReattach)) {
-      toast({ title: 'Resumed previous upload session', description: 'Re-attach pending files to continue, or retry Drive mirrors for already-stored files.' });
-    }
-  }, [resume]);
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('upload-resume:'))
+        .forEach((k) => localStorage.removeItem(k));
+    } catch { /* ignore */ }
+  }, []);
 
   // --- Resubmit prefill: /trainer/upload?resubmit=<docId> ---
   const [searchParams] = useSearchParams();
@@ -358,9 +328,20 @@ export default function UploadDocuments() {
       });
       if (dup) return 'Already submitted';
     } else if (isSessionLevel(entry.documentType)) {
-      // Session-level: one submission covers every unit taught this session.
-      const dup = existingDocs.some((d) => d.document_type === entry.documentType && d.status !== 'REJECTED');
-      if (dup) return 'Already submitted for this training session';
+      // Session-level: ONE submission covers every unit taught this session.
+      // Blocked while an existing one is in progress or already approved; a
+      // rejected one must go through "Edit & resubmit".
+      const existing = existingDocs.find(
+        (d) => d.document_type === entry.documentType && d.status !== 'REJECTED' && d.id !== resubmitId,
+      );
+      if (existing) {
+        return existing.status === 'SUBMITTED'
+          ? 'Already submitted for this training session — awaiting verification'
+          : 'Already on file for this training session';
+      }
+      // Only one copy per batch.
+      const twice = files.filter((f) => f.documentType === entry.documentType).length > 1;
+      if (twice) return 'Only one copy is filed per training session';
     } else {
       // one-time duplicate check
       const dup = existingDocs.some((d) => {
@@ -394,10 +375,15 @@ export default function UploadDocuments() {
   const rejectedBlocks = useMemo(() => {
     if (resubmitId) return [] as { id: string; documentType: string; reason: string | null }[];
     return (existingDocs || [])
-      .filter((d) => d.status === 'REJECTED'
-        && (d.unit_code || '').toLowerCase() === unitCode.toLowerCase()
-        && files.some((f) => f.documentType === d.document_type))
+      .filter((d) => {
+        if (d.status !== 'REJECTED') return false;
+        if (!files.some((f) => f.documentType === d.document_type)) return false;
+        // Session-level documents (workload allocation) are not tied to a unit.
+        if (isSessionLevel(d.document_type as string)) return true;
+        return (d.unit_code || '').toLowerCase() === unitCode.toLowerCase();
+      })
       .map((d) => ({ id: d.id, documentType: d.document_type as string, reason: d.rejection_reason }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingDocs, unitCode, files, resubmitId]);
 
   const canSubmit = rejectedBlocks.length === 0 && headerValid && allFilesValid && !submitDoc.isPending && !anyInFlight && canUpload && !writesBlocked && !profileBlocked;
@@ -503,34 +489,6 @@ export default function UploadDocuments() {
     await mirrorToGDrive(entry, entry.documentId);
   }
 
-  // Persist resume snapshot whenever something material changes.
-  useEffect(() => {
-    if (!hydratedRef.current && !resume.hydrated && files.length === 0) return;
-    resume.save({
-      header: { sessionYear, sessionTerm, department, unitCode, unitName, classCode, courseType, termNumber, moduleNumber, sessionsPerWeek },
-      entries: files.map((f) => ({
-        id: f.id,
-        fileName: f.fileName,
-        originalSize: f.originalSize,
-        estimatedSize: f.estimatedSize,
-        compressed: f.compressed,
-        eligibility: f.eligibility,
-        documentType: f.documentType || '',
-        weekNumber: f.weekNumber,
-        sessionIndex: f.sessionIndex,
-        stage: f.stage,
-        documentId: f.documentId,
-        stageMessage: f.stageMessage,
-        gdriveAttempts: f.gdriveAttempts,
-        needsReattach: f.needsReattach,
-      })),
-    });
-    // Auto-clear when nothing is left to resume.
-    if (files.length === 0 || files.every((f) => f.stage === 'gdrive_ok')) {
-      resume.clear();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files, sessionYear, sessionTerm, department, unitCode, unitName, classCode, courseType, termNumber, moduleNumber, sessionsPerWeek]);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -803,7 +761,7 @@ export default function UploadDocuments() {
                     <span className="text-sm font-medium truncate">{entry.fileName}</span>
                     {entry.needsReattach && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-200 flex items-center gap-1">
-                        <History className="w-3 h-3" /> Needs re-attach
+                        <History className="w-3 h-3" /> Attach corrected PDF
                       </span>
                     )}
                   </div>
@@ -815,7 +773,7 @@ export default function UploadDocuments() {
                 {entry.needsReattach && (
                   <label className="flex items-center gap-2 text-xs text-amber-900 dark:text-amber-200 border border-dashed border-amber-500/50 rounded px-2 py-2 cursor-pointer hover:bg-amber-500/5">
                     <Paperclip className="w-3.5 h-3.5" />
-                    <span>Re-attach <strong>{entry.fileName}</strong> to resume this upload</span>
+                    <span>Attach the corrected version of <strong>{entry.fileName}</strong></span>
                     <input
                       type="file"
                       accept=".pdf"
@@ -935,8 +893,8 @@ export default function UploadDocuments() {
           )}
           {files.length > 0 && (
             <div className="flex justify-end pt-1">
-              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground" onClick={() => { setFiles([]); setRejectedFiles([]); resume.clear(); }}>
-                <X className="w-3 h-3" /> Clear resume state
+              <Button variant="ghost" size="sm" className="h-9 text-xs gap-1 text-muted-foreground" onClick={() => { setFiles([]); setRejectedFiles([]); }}>
+                <X className="w-3 h-3" /> Clear list
               </Button>
             </div>
           )}

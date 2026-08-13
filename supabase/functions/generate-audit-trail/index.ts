@@ -103,6 +103,8 @@ Deno.serve(async (req) => {
     };
     const sep = () => { y -= 6; page.drawLine({ start: { x: 50, y }, end: { x: width - 50, y }, thickness: 0.5, color: rgb(0.7, 0.7, 0.7) }); y -= 10; };
 
+    drawLine("The Nyamira National Polytechnic", { size: 14, bold: true, color: [0.09, 0.25, 0.48] });
+    drawLine("Electronic Document Management System", { size: 9, color: [0.4, 0.4, 0.4] });
     drawLine("DOCUMENT AUDIT TRAIL", { size: 18, bold: true });
     drawLine(`Generated: ${new Date().toLocaleString()}`, { size: 9, color: [0.4, 0.4, 0.4] });
     sep();

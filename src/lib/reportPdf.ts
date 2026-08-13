@@ -49,7 +49,7 @@ export async function exportReportPdf({
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
-  doc.text('Nyamira National Polytechnic', pageWidth / 2, 46, { align: 'center' });
+  doc.text('The Nyamira National Polytechnic', pageWidth / 2, 46, { align: 'center' });
   doc.setFontSize(12);
   doc.text('Electronic Document Management System — Submission Report', pageWidth / 2, 64, { align: 'center' });
 
@@ -114,12 +114,17 @@ export async function exportReportPdf({
   });
 
   doc.addPage();
+  if (logo) {
+    try { doc.addImage(logo, 'JPEG', 40, 24, 32, 32); } catch { /* non-fatal */ }
+  }
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text('The Nyamira National Polytechnic', pageWidth / 2, 40, { align: 'center' });
   doc.setFontSize(11);
-  doc.text('Missing documents per unit', 40, 48);
+  doc.text('Missing documents per unit', 40, 74);
   doc.setFont('helvetica', 'normal');
   autoTable(doc, {
-    startY: 58,
+    startY: 84,
     head: [['Trainer', 'Department', 'Unit', 'Missing document types']],
     body: missing.length
       ? missing.map((m) => [m.trainer, m.department, m.unit, m.missing.join(', ')])
@@ -144,7 +149,9 @@ export async function exportReportPdf({
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
-    doc.text(`Page ${i} of ${pages}`, pageWidth - 40, doc.internal.pageSize.getHeight() - 20, { align: 'right' });
+    const footY = doc.internal.pageSize.getHeight() - 20;
+    doc.text('The Nyamira National Polytechnic — EDMS', 40, footY);
+    doc.text(`Page ${i} of ${pages}`, pageWidth - 40, footY, { align: 'right' });
   }
 
   doc.save(`EDMS-report-${sessionTitle.replace(/\s+/g, '-')}.pdf`);

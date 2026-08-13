@@ -31,6 +31,7 @@ interface StampRequest {
 const SIG_W = 140, SIG_H = 50, STAMP_W = 90, STAMP_H = 90;
 const STAGE_LABEL: Record<string, string> = { HOD: "Head of Department", IQA_REVIEW: "Internal Quality Assurance Officer (IQAO)", DP: "Deputy Principal — Academics", IQA: "IQAO Archival" };
 const SHEET_MARKER = "EDMS-APPROVAL-SHEET";
+const INSTITUTION_NAME = "The Nyamira National Polytechnic";
 /** Bump whenever the approval-sheet layout or stamping logic changes. */
 // Plain-language hand-off note appended to each approval notification.
 const NEXT_STAGE_NOTE: Record<string, string> = {
@@ -105,15 +106,21 @@ function ensureApprovalSheet(pdfDoc: any, bold: any, regular: any, layout: { hea
 
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
+  page.drawText(INSTITUTION_NAME, {
+    x: 40, y: height - 42, size: 12, font: bold, color: rgb(0.1, 0.25, 0.5),
+  });
+  page.drawText("Electronic Document Management System", {
+    x: 40, y: height - 55, size: 8, font: regular, color: rgb(0.35, 0.35, 0.35),
+  });
   page.drawText(layout.headerTitle, {
-    x: 40, y: height - 60, size: 14, font: bold, color: rgb(0.1, 0.25, 0.5),
+    x: 40, y: height - 72, size: 14, font: bold, color: rgb(0.1, 0.25, 0.5),
   });
   page.drawText(
     "System-generated. Each stage below is signed in order by the responsible officer.",
-    { x: 40, y: height - 76, size: 8, font: regular, color: rgb(0.35, 0.35, 0.35) },
+    { x: 40, y: height - 86, size: 8, font: regular, color: rgb(0.35, 0.35, 0.35) },
   );
   page.drawLine({
-    start: { x: 40, y: height - 86 }, end: { x: width - 40, y: height - 86 },
+    start: { x: 40, y: height - 96 }, end: { x: width - 40, y: height - 96 },
     thickness: 1, color: rgb(0.1, 0.25, 0.5),
   });
 

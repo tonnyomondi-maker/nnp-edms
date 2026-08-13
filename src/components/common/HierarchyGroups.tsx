@@ -3,8 +3,8 @@
 // session) so long queues stay readable instead of one flat list.
 
 import { ReactNode, useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { sessionLabel, type SessionTerm } from '@/lib/sessions';
+import { ChevronDown, ChevronRight, ClipboardList, AlertTriangle } from 'lucide-react';
+import { sessionLabel, SESSION_LEVEL_DOC_TYPES, type SessionTerm } from '@/lib/sessions';
 import { useCourses } from '@/hooks/useCourses';
 
 export type HierarchyLevel = 'SESSION' | 'DEPARTMENT' | 'TRAINER' | 'COURSE' | 'UNIT' | 'DOC_TYPE' | 'STAGE';
@@ -84,7 +84,14 @@ export interface HierarchyNode<T> {
   level: HierarchyLevel;
   docs: T[];
   children: HierarchyNode<T>[];
+  /** Session-level documents (workload allocation) pinned at the trainer level. */
+  pinned: T[];
+  /** Unit codes the trainer has registered inside this node. */
+  units: string[];
 }
+
+const isSessionLevelDoc = (d: HierarchyDoc) =>
+  (SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(d.document_type || '');
 
 export function buildHierarchy<T extends HierarchyDoc>(
   docs: T[],
@@ -102,13 +109,26 @@ export function buildHierarchy<T extends HierarchyDoc>(
   }
   return Array.from(buckets.entries())
     .sort((a, b) => (a[1].order - b[1].order) || a[1].label.localeCompare(b[1].label))
-    .map(([key, v]) => ({
-      key,
-      label: v.label,
-      level,
-      docs: v.docs,
-      children: rest.length ? buildHierarchy(v.docs, rest, courses) : [],
-    }));
+    .map(([key, v]) => {
+      // The workload allocation form covers the whole teaching load, so it has
+      // no unit. Pin it to the trainer instead of burying it in an
+      // "Unspecified unit" bucket — approvers use it to check that every
+      // allocated unit was actually registered.
+      const pinned = level === 'TRAINER' ? v.docs.filter(isSessionLevelDoc) : [];
+      const remaining = pinned.length ? v.docs.filter((d) => !isSessionLevelDoc(d)) : v.docs;
+      const units = level === 'TRAINER'
+        ? Array.from(new Set(v.docs.map((d) => d.unit_code).filter(Boolean) as string[])).sort()
+        : [];
+      return {
+        key,
+        label: v.label,
+        level,
+        docs: v.docs,
+        pinned,
+        units,
+        children: rest.length ? buildHierarchy(remaining, rest, courses) : [],
+      };
+    });
 }
 
 const LEVEL_TINT: Record<HierarchyLevel, string> = {
@@ -154,6 +174,27 @@ function NodeView<T extends HierarchyDoc>({
       </button>
       {open && (
         <div className="p-1.5 sm:p-2 space-y-2">
+          {node.level === 'TRAINER' && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-2 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <ClipboardList className="w-3.5 h-3.5 text-primary" />
+                <span className="text-xs font-semibold">Workload allocation</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {node.units.length
+                    ? `Units registered this session: ${node.units.join(', ')}`
+                    : 'No units registered yet'}
+                </span>
+              </div>
+              {node.pinned.length
+                ? node.pinned.map((d) => <div key={d.id}>{renderDoc(d)}</div>)
+                : (
+                  <p className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    No workload allocation submitted — you cannot confirm every allocated unit was registered.
+                  </p>
+                )}
+            </div>
+          )}
           {node.children.length
             ? node.children.map((c) => (
                 <NodeView key={c.key} node={c} depth={depth + 1} renderDoc={renderDoc} pendingOf={pendingOf} />
