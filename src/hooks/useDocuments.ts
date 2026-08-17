@@ -373,13 +373,19 @@ async function performApproval(
     .from('documents').update(updates).eq('id', docId).select().single();
   if (error) throw error;
 
-  // Google Drive is a backup of FINAL documents only — mirror once the document
-  // is approved by DP Academics (and again after IQAO archival, which replaces
-  // the mirrored copy with the fully signed version).
+  // Google Drive is the primary repository. After final approval/archival,
+  // move the SAME Drive file from PENDING to APPROVED - ARCHIVE.
   if (status === 'DP_APPROVED' || status === 'ARCHIVED') {
-    supabase.functions
-      .invoke('gdrive-upload', { body: { documentId: docId, replace: true } })
-      .catch(() => { /* logged server-side; retryable from the IQAO screen */ });
+    const { data: driveResp, error: driveErr } = await supabase.functions.invoke('gdrive-upload', {
+      body: { documentId: docId, replace: true },
+    });
+    if (driveErr || (driveResp as { error?: string } | null)?.error) {
+      throw new Error(
+        (driveResp as { error?: string } | null)?.error ||
+        driveErr?.message ||
+        'Approval succeeded, but moving the document to the approved Google Drive archive failed. Retry the Drive finalization.'
+      );
+    }
   }
   return data;
 }
@@ -503,7 +509,7 @@ export function useSubmitDocument() {
       sessionIndex?: number;
       sessionsPerWeek?: number;
       department: string;
-      unitCode: string;
+      unitCode?: string;
       unitName?: string;
       classCode?: string;
       sessionYear: number;
@@ -541,24 +547,9 @@ export function useSubmitDocument() {
         }
       }
 
-      const safeUnit = (unitCode || 'session').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const filePath = `${user!.id}/${sessionYear}_${sessionTerm}/${safeUnit}/${documentType}${weekNumber ? `_W${weekNumber}` : ''}${sessionIndex ? `_S${sessionIndex}` : ''}_${Date.now()}.pdf`;
-
-      // Retry storage upload with exponential backoff so transient network
-      // failures don't abort the submission.
-      let uploadError: Error | null = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        const { error } = await supabase.storage.from('documents').upload(filePath, file, { upsert: attempt > 1 });
-        if (!error) { uploadError = null; break; }
-        uploadError = error as unknown as Error;
-        if (attempt < 3) await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
-      }
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('documents')
-        .getPublicUrl(filePath);
-
+      // NNP ADMS storage policy: the PDF itself goes directly to Google Drive.
+      // Supabase stores the document record, workflow state and Drive metadata;
+      // it is no longer the primary PDF repository.
       const insertPayload: Record<string, unknown> = {
         assignment_id: assignmentId || null,
         trainer_id: user!.id,
@@ -567,8 +558,8 @@ export function useSubmitDocument() {
         week_number: weekNumber || null,
         department,
         file_name: file.name,
-        file_url: urlData.publicUrl,
-        unit_code: unitCode,
+        file_url: null,
+        unit_code: unitCode || null,
         unit_name: unitName || null,
         class_code: classCode || null,
         session_year: sessionYear,
@@ -587,8 +578,8 @@ export function useSubmitDocument() {
         // The superseded file is kept as previous_file_url (read-only) and the
         // version is bumped so approvers can see this is a corrected round.
         const { data: old } = await supabase
-          .from('documents').select('file_url, version').eq('id', resubmitOf).maybeSingle();
-        const oldRow = old as { file_url?: string | null; version?: number | null } | null;
+          .from('documents').select('file_url, gdrive_file_id, version').eq('id', resubmitOf).maybeSingle();
+        const oldRow = old as { file_url?: string | null; gdrive_file_id?: string | null; version?: number | null } | null;
         const { data: updated, error: updErr } = await supabase
           .from('documents')
           .update({
@@ -601,13 +592,27 @@ export function useSubmitDocument() {
             submitted_at: new Date().toISOString(),
             version: (oldRow?.version ?? 1) + 1,
             previous_file_url: oldRow?.file_url ?? null,
+            file_url: oldRow?.file_url ?? null,
+            gdrive_file_id: oldRow?.gdrive_file_id ?? null,
+            file_drive_id: oldRow?.gdrive_file_id ?? null,
+            storage_tier: oldRow?.gdrive_file_id ? 'drive' : 'cloud',
+            gdrive_sync_status: oldRow?.gdrive_file_id ? 'pending' : 'pending',
             resubmission_note: resubmissionNote?.trim() || null,
           } as never)
           .eq('id', resubmitOf)
           .select()
           .single();
         if (updErr) throw updErr;
-        return updated;
+
+        const form = new FormData();
+        form.append('documentId', resubmitOf);
+        form.append('replace', 'true');
+        form.append('file', file, file.name);
+        const { data: driveResp, error: driveErr } = await supabase.functions.invoke('gdrive-upload', { body: form });
+        if (driveErr || (driveResp as { error?: string } | null)?.error) {
+          throw new Error((driveResp as { error?: string } | null)?.error || driveErr?.message || 'Google Drive upload failed');
+        }
+        return driveResp;
       }
 
 
@@ -618,10 +623,17 @@ export function useSubmitDocument() {
         .single();
       if (error) throw error;
 
-      // NOTE: raw trainer submissions are deliberately NOT mirrored to Google
-      // Drive. Drive holds approved/archived documents only.
+      // Upload the PDF directly to Google Drive/PENDING. The edge function
+      // updates the same document row with its Drive file ID and storage tier.
+      const form = new FormData();
+      form.append('documentId', data.id);
+      form.append('file', file, file.name);
+      const { data: driveResp, error: driveErr } = await supabase.functions.invoke('gdrive-upload', { body: form });
+      if (driveErr || (driveResp as { error?: string } | null)?.error) {
+        throw new Error((driveResp as { error?: string } | null)?.error || driveErr?.message || 'Google Drive upload failed');
+      }
 
-      return data;
+      return { ...data, ...(driveResp || {}) };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });

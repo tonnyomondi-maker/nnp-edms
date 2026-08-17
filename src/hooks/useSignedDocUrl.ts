@@ -27,6 +27,14 @@ export function parseStorageRef(
   }
 }
 
+function isGDriveRef(value: string | null | undefined): boolean {
+  return !!value && value.startsWith('gdrive://') && value.length > 9;
+}
+
+function getGDriveFileId(value: string): string | null {
+  return isGDriveRef(value) ? value.slice('gdrive://'.length) : null;
+}
+
 interface SignedUrlState {
   url: string | null;
   loading: boolean;
@@ -43,6 +51,11 @@ const SAFETY_MARGIN_MS = 60_000;
 
 export function clearSignedUrlCache(fileRef?: string) {
   if (!fileRef) { signedUrlCache.clear(); return; }
+  const driveId = getGDriveFileId(fileRef);
+  if (driveId) {
+    signedUrlCache.delete(`gdrive:${driveId}`);
+    return;
+  }
   const ref = parseStorageRef(fileRef);
   if (!ref) return;
   signedUrlCache.delete(`${ref.bucket}:${ref.path}`);
@@ -71,14 +84,15 @@ export function useSignedDocUrl(
       setError(null);
       return;
     }
-    const ref = parseStorageRef(fileRef);
-    if (!ref) {
-      setError('Could not parse storage reference');
+    const driveId = getGDriveFileId(fileRef);
+    const ref = driveId ? null : parseStorageRef(fileRef);
+    if (!driveId && !ref) {
+      setError('Could not parse document reference');
       setUrl(null);
       return;
     }
 
-    const cacheKey = `${ref.bucket}:${ref.path}`;
+    const cacheKey = driveId ? `gdrive:${driveId}` : `${ref!.bucket}:${ref!.path}`;
     const cached = signedUrlCache.get(cacheKey);
     const now = Date.now();
     if (cached && cached.expiresAt > now) {
@@ -91,22 +105,31 @@ export function useSignedDocUrl(
     let cancelled = false;
     setLoading(true);
     setError(null);
-    supabase.storage
-      .from(ref.bucket)
-      .createSignedUrl(ref.path, expiresIn)
-      .then(({ data, error: signErr }) => {
-        if (cancelled) return;
-        if (signErr || !data?.signedUrl) {
-          setError(signErr?.message || 'Could not load preview');
-          setUrl(null);
-        } else {
-          signedUrlCache.set(cacheKey, {
-            url: data.signedUrl,
-            expiresAt: Date.now() + expiresIn * 1000 - SAFETY_MARGIN_MS,
+    const loadPromise = driveId
+      ? supabase.functions.invoke('gdrive-download', { body: { fileId: driveId } }).then(({ data, error }) => {
+          if (error) throw new Error(error.message || 'Could not load Google Drive document');
+          if (!(data instanceof Blob)) throw new Error('Google Drive returned an invalid document');
+          return URL.createObjectURL(data);
+        })
+      : supabase.storage
+          .from(ref!.bucket)
+          .createSignedUrl(ref!.path, expiresIn)
+          .then(({ data, error: signErr }) => {
+            if (signErr || !data?.signedUrl) throw new Error(signErr?.message || 'Could not load preview');
+            return data.signedUrl;
           });
-          setUrl(data.signedUrl);
-        }
-      })
+
+    loadPromise.then((resolvedUrl) => {
+      if (cancelled) {
+        if (driveId) URL.revokeObjectURL(resolvedUrl);
+        return;
+      }
+      signedUrlCache.set(cacheKey, {
+        url: resolvedUrl,
+        expiresAt: Date.now() + expiresIn * 1000 - SAFETY_MARGIN_MS,
+      });
+      setUrl(resolvedUrl);
+    })
       .catch((e: unknown) => {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : 'Could not load preview');
@@ -145,6 +168,22 @@ export async function getCachedSignedUrl(
   fileRef: string | null | undefined,
   expiresIn = 3600,
 ): Promise<string> {
+  const driveId = getGDriveFileId(fileRef);
+  if (driveId) {
+    const cacheKey = `gdrive:${driveId}`;
+    const cached = signedUrlCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.url;
+    const { data, error } = await supabase.functions.invoke('gdrive-download', { body: { fileId: driveId } });
+    if (error) throw new Error(error.message || 'Could not load Google Drive document');
+    if (!(data instanceof Blob)) throw new Error('Google Drive returned an invalid document');
+    const objectUrl = URL.createObjectURL(data);
+    signedUrlCache.set(cacheKey, {
+      url: objectUrl,
+      expiresAt: Date.now() + expiresIn * 1000 - SAFETY_MARGIN_MS,
+    });
+    return objectUrl;
+  }
+
   const ref = parseStorageRef(fileRef);
   if (!ref) throw new Error('Storage reference is invalid');
   const cacheKey = `${ref.bucket}:${ref.path}`;

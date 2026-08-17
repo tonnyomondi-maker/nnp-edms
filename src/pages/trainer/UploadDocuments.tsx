@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, RotateCw, Cloud, CloudOff, Lock, History, Paperclip } from 'lucide-react';
+import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, Cloud, CloudOff, Lock, History, Paperclip, BookOpen, ChevronRight, CalendarDays, ClipboardCheck, ListChecks, ChevronDown } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useSubmitDocument, useMyDocumentsBySession } from '@/hooks/useDocuments';
 import { compressForUpload, formatBytes } from '@/lib/compressUpload';
@@ -18,17 +18,20 @@ import { useRoleGuard } from '@/hooks/useRoleGuard';
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
 import { ApprovalSheetPreview } from '@/components/common/ApprovalSheetPreview';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { checkSubmissionWindow, useCurrentSession } from '@/hooks/useAcademicSession';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useCourses } from '@/hooks/useCourses';
 import { useProfileCompleteness } from '@/hooks/useProfileCompleteness';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
   SESSION_LEVEL_DOC_TYPES,
   WEEKLY_DOC_TYPES,
+  SESSION_RECORD_DOC_TYPES,
   COURSE_TYPES,
   MODULE_NUMBERS,
   getCurrentSession,
@@ -70,6 +73,7 @@ export default function UploadDocuments() {
   
   const submitDoc = useSubmitDocument();
   const upsertConfig = useUpsertUnitConfig();
+  const { currentUser } = useAuth();
 
   const current = getCurrentSession();
   const sessionOptions = useMemo(() => getSessionOptions(), []);
@@ -100,6 +104,10 @@ export default function UploadDocuments() {
   // Files the browser refused before they ever entered the queue — shown
   // inline (not just as a toast) with the exact filename and the fix.
   const [rejectedFiles, setRejectedFiles] = useState<{ id: string; name: string; reason: string; fix: string }[]>([]);
+
+  useEffect(() => {
+    if (currentUser?.department && !department) setDepartment(currentUser.department);
+  }, [currentUser?.department, department]);
 
 
   // Resume state was removed: restored entries lost their file handle and
@@ -303,6 +311,7 @@ export default function UploadDocuments() {
   }
 
   const hasWeeklyType = files.some((f) => WEEKLY_DOC_TYPES.includes(f.documentType as typeof WEEKLY_DOC_TYPES[number]));
+  const isWorkCoveredType = (t: string) => (SESSION_RECORD_DOC_TYPES as readonly string[]).includes(t);
 
   const isSessionLevel = (t: string) => (SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(t);
 
@@ -310,12 +319,12 @@ export default function UploadDocuments() {
   function validateFile(entry: FileEntry): string | null {
     if (!entry.documentType) return 'Pick a document type';
     const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
+    const isWorkCovered = isWorkCoveredType(entry.documentType);
     if (isWeekly) {
       if (!entry.weekNumber || entry.weekNumber < 1 || entry.weekNumber > 16) return 'Week 1-16 required';
       if (!entry.sessionIndex || entry.sessionIndex < 1 || entry.sessionIndex > sessionsPerWeek) {
         return `Session 1-${sessionsPerWeek} required`;
       }
-      // duplicate weekly check
       const dup = existingDocs.some((d) => {
         const docAny = d as unknown as Record<string, unknown>;
         return (
@@ -327,6 +336,18 @@ export default function UploadDocuments() {
         );
       });
       if (dup) return 'Already submitted';
+    } else if (isWorkCovered) {
+      // Two records per training session: milestone 1 = mid-session, milestone 2 = end-session.
+      const milestone = entry.sessionIndex;
+      if (!milestone || milestone < 1 || milestone > 2) return 'Select Mid-session or End-session';
+      const dup = existingDocs.some((d) => {
+        const docAny = d as unknown as Record<string, unknown>;
+        return docAny.unit_code === unitCode && d.document_type === entry.documentType &&
+          docAny.session_index === milestone && d.status !== 'REJECTED';
+      });
+      if (dup) return 'That Records of Work Covered milestone is already submitted';
+      const sameBatch = files.filter((f) => f.documentType === entry.documentType && f.sessionIndex === milestone).length > 1;
+      if (sameBatch) return 'Only one file is allowed for this milestone';
     } else if (isSessionLevel(entry.documentType)) {
       // Session-level: ONE submission covers every unit taught this session.
       // Blocked while an existing one is in progress or already approved; a
@@ -363,10 +384,12 @@ export default function UploadDocuments() {
   const profile = useProfileCompleteness();
   const profileBlocked = !profile.loading && !profile.complete;
 
-  // Workload allocation is filed once per session for the whole teaching load,
-  // so it does not need a unit selected.
-  const allSessionLevel = files.length > 0 && files.every((f) => isSessionLevel(f.documentType));
-  const headerValid = department && (allSessionLevel || (unitCode && classCode)) && (!hasWeeklyType || sessionsPerWeek >= 1);
+  // Session-level documents belong directly to the active training session and
+  // therefore do not require a unit. Unit-level/weekly documents do. A mixed
+  // batch is allowed, but the unit fields are required because at least one
+  // selected document is unit-scoped.
+  const requiresUnit = files.some((f) => f.documentType && !isSessionLevel(f.documentType));
+  const headerValid = !!department && (!requiresUnit || (!!unitCode && !!classCode)) && (!hasWeeklyType || sessionsPerWeek >= 1);
   const fileErrors = files.map((f) => ({ id: f.id, error: validateFile(f) }));
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
   const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
@@ -395,9 +418,9 @@ export default function UploadDocuments() {
     if (writesBlocked) r.push(`System is locked${lock_reason ? `: ${lock_reason}` : ''}. Writes are disabled.`);
     if (!headerValid) {
       const missing: string[] = [];
-      if (!allSessionLevel && !unitCode) missing.push('unit');
+      if (requiresUnit && !unitCode) missing.push('unit');
       if (!department) missing.push('department');
-      if (!allSessionLevel && !classCode) missing.push('class code');
+      if (requiresUnit && !classCode) missing.push('class code');
       if (hasWeeklyType && sessionsPerWeek < 1) missing.push('sessions per week');
       r.push(`Fill required header fields: ${missing.join(', ')}.`);
     }
@@ -410,28 +433,14 @@ export default function UploadDocuments() {
     if (anyInFlight) r.push('Wait for in-flight uploads to finish.');
     if (submitDoc.isPending) r.push('Submission in progress…');
     return r;
-  }, [rejectedBlocks, canUpload, profileBlocked, profile.missing, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
+  }, [rejectedBlocks, canUpload, profileBlocked, profile.missing, writesBlocked, lock_reason, headerValid, department, unitCode, classCode, requiresUnit, hasWeeklyType, sessionsPerWeek, files, fileErrors, anyInFlight, submitDoc.isPending]);
 
 
   function setStage(id: string, patch: Partial<FileEntry>) {
     setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
   }
 
-  async function mirrorToGDrive(entry: FileEntry, documentId: string) {
-    setStage(entry.id, { stage: 'mirroring_gdrive', stageMessage: 'Mirroring to Google Drive…' });
-    const attempt = (entry.gdriveAttempts ?? 0) + 1;
-    const { data, error } = await supabase.functions.invoke('gdrive-upload', { body: { documentId } });
-    if (error || (data as { error?: string })?.error) {
-      setStage(entry.id, {
-        stage: 'gdrive_failed',
-        stageMessage: error?.message || (data as { error?: string })?.error || 'Google Drive upload failed',
-        gdriveAttempts: attempt,
-      });
-      return false;
-    }
-    setStage(entry.id, { stage: 'gdrive_ok', stageMessage: 'Mirrored to Google Drive', gdriveAttempts: attempt });
-    return true;
-  }
+  // New submissions are Google-Drive-primary. There is no post-upload mirror step.
 
   async function processEntry(entry: FileEntry): Promise<{ ok: boolean; error?: string }> {
     if (!entry.file) {
@@ -439,6 +448,7 @@ export default function UploadDocuments() {
       return { ok: false, error: 'Re-attach the file to continue' };
     }
     const isWeekly = WEEKLY_DOC_TYPES.includes(entry.documentType as typeof WEEKLY_DOC_TYPES[number]);
+    const entryIsSessionLevel = isSessionLevel(entry.documentType);
     try {
       const window = await checkSubmissionWindow(sessionYear, sessionTerm);
       if (!window.allowed) {
@@ -451,31 +461,29 @@ export default function UploadDocuments() {
       if (finalSize < originalSize) {
         toast({ title: 'Optimised', description: `${entry.file.name}: ${formatBytes(originalSize)} → ${formatBytes(finalSize)}` });
       }
-      setStage(entry.id, { stage: 'uploading_storage', stageMessage: 'Uploading to secure storage…' });
+      setStage(entry.id, { stage: 'uploading_storage', stageMessage: 'Uploading directly to Google Drive…' });
       const submitted = await submitDoc.mutateAsync({
         file: optimised,
         documentType: entry.documentType as DocumentType,
-        submissionType: isWeekly ? 'WEEKLY' : 'ONE_TIME',
+        submissionType: isWeekly || isWorkCoveredType(entry.documentType) ? 'WEEKLY' : 'ONE_TIME',
         weekNumber: isWeekly ? entry.weekNumber : undefined,
-        sessionIndex: isWeekly ? entry.sessionIndex : undefined,
+        sessionIndex: (isWeekly || isWorkCoveredType(entry.documentType)) ? entry.sessionIndex : undefined,
         sessionsPerWeek: isWeekly ? sessionsPerWeek : undefined,
         department,
-        unitCode,
-        unitName,
-        classCode,
+        unitCode: entryIsSessionLevel ? undefined : unitCode,
+        unitName: entryIsSessionLevel ? undefined : unitName,
+        classCode: entryIsSessionLevel ? undefined : classCode,
         sessionYear,
         sessionTerm,
         termNumber: courseType === 'MODULAR' ? null : termNumber,
         courseType,
         moduleNumber: courseType === 'MODULAR' ? moduleNumber : null,
-        courseId: courseId || null,
+        courseId: entryIsSessionLevel ? null : (courseId || null),
         resubmitOf: entry.id.startsWith('resubmit-') ? resubmitId : null,
         resubmissionNote: entry.id.startsWith('resubmit-') ? resubmissionNote : null,
 
       });
-      setStage(entry.id, { stage: 'storage_ok', documentId: submitted.id, stageMessage: 'Uploaded — mirroring…' });
-      // Mirror in the same loop so the user sees Drive status before navigating away.
-      await mirrorToGDrive({ ...entry, documentId: submitted.id }, submitted.id);
+      setStage(entry.id, { stage: 'gdrive_ok', documentId: submitted.id, stageMessage: 'Stored in Google Drive', gdriveAttempts: 1 });
       return { ok: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed';
@@ -484,29 +492,27 @@ export default function UploadDocuments() {
     }
   }
 
-  async function retryGDrive(entry: FileEntry) {
-    if (!entry.documentId) return;
-    await mirrorToGDrive(entry, entry.documentId);
-  }
-
-
   async function handleSubmit() {
     if (!canSubmit) return;
     try {
-      // Save / update unit config first
-      await upsertConfig.mutateAsync({
-        department,
-        unit_code: unitCode,
-        unit_name: unitName,
-        class_code: classCode,
-        session_year: sessionYear,
-        session_term: sessionTerm,
-        sessions_per_week: sessionsPerWeek,
-        term_number: courseType === 'MODULAR' ? null : termNumber,
-        course_type: courseType,
-        module_number: courseType === 'MODULAR' ? moduleNumber : null,
-        course_id: courseId || null,
-      });
+      // Unit configuration is only relevant when this batch contains a
+      // unit-scoped document. Session-level documents (Workload Allocation and
+      // Personal Timetable) must never create a blank/dummy unit record.
+      if (requiresUnit) {
+        await upsertConfig.mutateAsync({
+          department,
+          unit_code: unitCode,
+          unit_name: unitName,
+          class_code: classCode,
+          session_year: sessionYear,
+          session_term: sessionTerm,
+          sessions_per_week: sessionsPerWeek,
+          term_number: courseType === 'MODULAR' ? null : termNumber,
+          course_type: courseType,
+          module_number: courseType === 'MODULAR' ? moduleNumber : null,
+          course_id: courseId || null,
+        });
+      }
 
       let success = 0;
       const failures: string[] = [];
@@ -520,7 +526,7 @@ export default function UploadDocuments() {
       if (success > 0) {
         toast({
           title: 'Upload complete',
-          description: `${success} of ${files.length} document(s) submitted. Check the Drive mirror status per file below.`,
+          description: `${success} of ${files.length} document(s) submitted directly to Google Drive.`,
         });
       }
       if (failures.length > 0) {
@@ -532,7 +538,7 @@ export default function UploadDocuments() {
       }
     } catch (e) {
       toast({
-        title: 'Could not save unit config',
+        title: requiresUnit ? 'Could not save unit configuration' : 'Could not submit documents',
         description: e instanceof Error ? e.message : 'Unknown error',
         variant: 'destructive',
       });
@@ -574,6 +580,31 @@ export default function UploadDocuments() {
       />
 
 
+      {!isResubmit && !prefillType && !prefillUnit && files.length === 0 && (
+        <div className="mb-4 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold">What do you want to upload?</h2>
+            <p className="text-xs text-muted-foreground mt-1">Choose a document type. The system will ask only for the information that document actually needs.</p>
+          </div>
+
+          <UploadCategory title="Session Documents" description="One-time documents for the active training session." defaultOpen>
+            <UploadChoice to="/upload?type=Personal%20Timetable" icon={<CalendarDays className="w-5 h-5" />} title="Personal Timetable" description="One timetable for the whole training session." />
+            <UploadChoice to="/upload?type=Workload%20Allocation" icon={<ClipboardCheck className="w-5 h-5" />} title="Workload Allocation" description="One workload form covering all units you teach." />
+          </UploadCategory>
+
+          <UploadCategory title="Unit Documents — Once per Unit" description="Prepared once for each unit you teach.">
+            <UploadChoice to="/upload?type=Learning%20Plan" icon={<BookOpen className="w-5 h-5" />} title="Learning Plan" description="One learning plan linked to a specific unit." />
+            <UploadChoice to="/upload?type=Course%20Outline" icon={<FileText className="w-5 h-5" />} title="Course Outline" description="One course outline linked to a specific unit." />
+          </UploadCategory>
+
+          <UploadCategory title="Teaching Records — Recurring" description="Session Plans and Class Attendance are weekly. Records of Work Covered is submitted twice per training session.">
+            <UploadChoice to="/upload?type=Session%20Plan" icon={<ListChecks className="w-5 h-5" />} title="Session Plan" description="Upload the week's session plans; multiple sessions can be combined into one PDF." />
+            <UploadChoice to="/upload?type=Class%20Attendance" icon={<ClipboardCheck className="w-5 h-5" />} title="Class Attendance" description="Upload the week's attendance records; multiple sessions can be combined into one PDF." />
+            <UploadChoice to="/upload?type=Records%20of%20Work%20Covered" icon={<FileText className="w-5 h-5" />} title="Records of Work Covered" description="Two submissions per training session: mid-session and end-session." />
+          </UploadCategory>
+        </div>
+      )}
+
       <Card className="mb-4">
 
         <CardContent className="p-4 space-y-4">
@@ -611,6 +642,8 @@ export default function UploadDocuments() {
             </div>
 
 
+            {(files.length === 0 || requiresUnit) && (
+              <>
             <div>
               <Label className="text-sm font-medium">Unit</Label>
               <Select value={unitCode} onValueChange={(v) => { setUnitCode(v); applyConfig(v); }}>
@@ -676,6 +709,9 @@ export default function UploadDocuments() {
               </div>
             ) : null}
 
+
+              </>
+            )}
 
             {hasWeeklyType && (
               <div>
@@ -822,32 +858,29 @@ export default function UploadDocuments() {
                     <SelectContent>
                       <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground">One-Time</div>
                       {ONE_TIME_DOC_TYPES.map((dt) => <SelectItem key={dt} value={dt}>{dt}</SelectItem>)}
-                      <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground mt-1">Weekly</div>
+                      <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground mt-1">Weekly teaching records</div>
                       {WEEKLY_DOC_TYPES.map((dt) => <SelectItem key={dt} value={dt}>{dt}</SelectItem>)}
+                      <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground mt-1">Session milestone</div>
+                      {SESSION_RECORD_DOC_TYPES.map((dt) => <SelectItem key={dt} value={dt}>{dt}</SelectItem>)}
                     </SelectContent>
                   </Select>
 
                   {isWeekly && (
                     <>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={16}
-                        placeholder="Week"
-                        value={entry.weekNumber ?? ''}
-                        onChange={(e) => updateFile(entry.id, { weekNumber: Number(e.target.value) || undefined })}
-                        className="text-xs"
-                      />
-                      <Input
-                        type="number"
-                        min={1}
-                        max={sessionsPerWeek}
-                        placeholder={`Session (1-${sessionsPerWeek})`}
-                        value={entry.sessionIndex ?? ''}
-                        onChange={(e) => updateFile(entry.id, { sessionIndex: Number(e.target.value) || undefined })}
-                        className="text-xs"
-                      />
+                      <Input type="number" min={1} max={16} placeholder="Week" value={entry.weekNumber ?? ''}
+                        onChange={(e) => updateFile(entry.id, { weekNumber: Number(e.target.value) || undefined })} className="text-xs" />
+                      <Input type="number" min={1} max={sessionsPerWeek} placeholder={`Session (1-${sessionsPerWeek})`}
+                        value={entry.sessionIndex ?? ''} onChange={(e) => updateFile(entry.id, { sessionIndex: Number(e.target.value) || undefined })} className="text-xs" />
                     </>
+                  )}
+                  {isWorkCoveredType(entry.documentType) && (
+                    <Select value={entry.sessionIndex ? String(entry.sessionIndex) : ''} onValueChange={(v) => updateFile(entry.id, { sessionIndex: Number(v), weekNumber: undefined })}>
+                      <SelectTrigger className="text-xs"><SelectValue placeholder="Submission point" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Mid-session</SelectItem>
+                        <SelectItem value="2">End-session</SelectItem>
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
 
@@ -857,25 +890,18 @@ export default function UploadDocuments() {
                   </div>
                 )}
 
-                {/* Upload / mirror status — visible per file so the trainer can
-                    track progress, see failures, and retry the Google Drive
-                    step without re-uploading the PDF. */}
+                {/* Google Drive primary-storage status — visible per file so the trainer
+                    can confirm where the PDF was stored. */}
                 {entry.stage !== 'idle' && (
                   <div className="flex flex-wrap items-center gap-2 text-[11px] border-t pt-2">
                     {entry.stage === 'compressing' && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" />Compressing…</span>}
-                    {entry.stage === 'uploading_storage' && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" />Uploading to secure storage…</span>}
-                    {entry.stage === 'storage_ok' && <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="w-3 h-3" />Stored</span>}
-                    {entry.stage === 'mirroring_gdrive' && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" />Mirroring to Google Drive (attempt {(entry.gdriveAttempts ?? 0) + 1})…</span>}
-                    {entry.stage === 'gdrive_ok' && <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><Cloud className="w-3 h-3" />Mirrored to Google Drive</span>}
+                    {entry.stage === 'uploading_storage' && <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" />Uploading directly to Google Drive…</span>}
+                    {entry.stage === 'storage_ok' && <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="w-3 h-3" />Metadata saved</span>}
+                    {entry.stage === 'gdrive_ok' && <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><Cloud className="w-3 h-3" />Stored in Google Drive</span>}
                     {entry.stage === 'gdrive_failed' && (
-                      <>
-                        <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
-                          <CloudOff className="w-3 h-3" />Drive mirror failed (attempt {entry.gdriveAttempts ?? 1}). File is safe in storage.
-                        </span>
-                        <Button size="sm" variant="outline" className="h-6 text-[10px]" onClick={() => retryGDrive(entry)}>
-                          <RotateCw className="w-3 h-3 mr-1" />Retry Drive upload
-                        </Button>
-                      </>
+                      <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
+                        <CloudOff className="w-3 h-3" />Google Drive storage failed. Check the connection and submit again.
+                      </span>
                     )}
                     {entry.stage === 'failed' && (
                       <span className="flex items-center gap-1 text-destructive">
@@ -958,3 +984,34 @@ export default function UploadDocuments() {
     </div>
   );
 }
+
+function UploadCategory({ title, description, defaultOpen = false, children }: { title: string; description: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  return (
+    <Collapsible defaultOpen={defaultOpen} className="rounded-xl border bg-card overflow-hidden">
+      <CollapsibleTrigger className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-muted/40">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>
+        </div>
+        <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 pt-0">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function UploadChoice({ to, icon, title, description }: { to: string; icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <Link to={to} className="group rounded-lg border p-3 flex items-center gap-3 hover:border-primary/50 hover:bg-primary/5 transition-colors">
+      <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">{icon}</div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>
+      </div>
+      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
+    </Link>
+  );
+}
+

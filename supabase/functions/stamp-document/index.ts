@@ -42,6 +42,7 @@ const NEXT_STAGE_NOTE: Record<string, string> = {
 };
 
 const STAMP_VERSION = "3.0.0";
+const GATEWAY = "https://connector-gateway.lovable.dev/google_drive";
 
 /** A single signing slot on the approval sheet. */
 interface StageLayout {
@@ -261,6 +262,31 @@ async function downloadFromStorage(
   return await data.arrayBuffer();
 }
 
+async function downloadFromDrive(fileId: string, lovableKey: string, gdriveKey: string): Promise<ArrayBuffer> {
+  const resp = await fetch(
+    `${GATEWAY}/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+    { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
+  );
+  if (!resp.ok) throw new Error(`Google Drive download failed: HTTP ${resp.status} ${(await resp.text()).slice(0, 200)}`);
+  return await resp.arrayBuffer();
+}
+
+async function replaceDriveFile(fileId: string, bytes: Uint8Array, lovableKey: string, gdriveKey: string): Promise<void> {
+  const resp = await fetch(
+    `${GATEWAY}/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${lovableKey}`,
+        "X-Connection-Api-Key": gdriveKey,
+        "Content-Type": "application/pdf",
+      },
+      body: bytes,
+    },
+  );
+  if (!resp.ok) throw new Error(`Google Drive update failed: HTTP ${resp.status} ${(await resp.text()).slice(0, 200)}`);
+}
+
 async function fetchImageAsset(
   supabase: ReturnType<typeof createClient>,
   url: string,
@@ -400,17 +426,26 @@ Deno.serve(async (req) => {
       .from("documents").select("*").eq("id", documentId).single();
     if (docErr || !doc) throw new Error("Document not found");
 
-    const sourceRef = parseStorageRef(doc.signed_file_url || doc.file_url || "");
-    if (!sourceRef) throw new Error("Document has no parseable file reference");
+    const drivePrimary = !!doc.gdrive_file_id || String(doc.file_url || "").startsWith("gdrive://");
+    const sourceRef = drivePrimary ? null : parseStorageRef(doc.signed_file_url || doc.file_url || "");
+    if (!drivePrimary && !sourceRef) throw new Error("Document has no parseable file reference");
 
-    // Download the PDF directly from storage (bucket is private)
-    const pdfBytes = await downloadFromStorage(supabase, sourceRef);
+    // NNP ADMS primary storage: download the PDF from Google Drive. Legacy
+    // documents can still be stamped from the old Supabase Storage bucket.
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    const gdriveKey = Deno.env.get("GOOGLE_DRIVE_API_KEY");
+    if (drivePrimary && (!lovableKey || !gdriveKey)) {
+      throw new Error("Google Drive connector is not configured");
+    }
+    const pdfBytes = drivePrimary
+      ? await downloadFromDrive(doc.gdrive_file_id, lovableKey!, gdriveKey!)
+      : await downloadFromStorage(supabase, sourceRef!);
 
     // Validate PDF header to fail fast with a clear message
     const head = new Uint8Array(pdfBytes.slice(0, 5));
     const headerStr = String.fromCharCode(...head);
     if (!headerStr.startsWith("%PDF-")) {
-      throw new Error(`Source file is not a valid PDF (got header "${headerStr}"). Path: ${sourceRef.path}`);
+      throw new Error(`Source file is not a valid PDF (got header "${headerStr}"). Path: ${drivePrimary ? `gdrive://${doc.gdrive_file_id}` : sourceRef!.path}`);
     }
 
     const pdfDoc = await PDFDocument.load(pdfBytes);
@@ -462,9 +497,20 @@ Deno.serve(async (req) => {
 
       const stampedBytes = await pdfDoc.save();
       const newPath = `${doc.trainer_id}/${doc.assignment_id || "unassigned"}/stamped_${stage}_${Date.now()}.pdf`;
-      const { error: uploadErr } = await supabase.storage
-        .from("documents").upload(newPath, stampedBytes, { contentType: "application/pdf", upsert: false });
-      if (uploadErr) throw uploadErr;
+      let outputRef = newPath;
+      if (drivePrimary) {
+        await replaceDriveFile(doc.gdrive_file_id, stampedBytes, lovableKey!, gdriveKey!);
+        outputRef = `gdrive://${doc.gdrive_file_id}`;
+      } else {
+        const { error: uploadErr } = await supabase.storage
+          .from("documents").upload(newPath, stampedBytes, { contentType: "application/pdf", upsert: false });
+        if (uploadErr) throw uploadErr;
+      }
+      await supabase.from("documents").update({
+        signed_file_url: outputRef,
+        file_url: drivePrimary ? `gdrive://${doc.gdrive_file_id}` : doc.file_url,
+        storage_tier: drivePrimary ? "drive" : "cloud",
+      } as never).eq("id", documentId);
       await logStampOperation(supabase, {
         stamp_version: STAMP_VERSION,
         layout_name: layout.name,
@@ -483,7 +529,7 @@ Deno.serve(async (req) => {
         slot_index: box ? stageOrder - 1 : null,
         signature_embedded: false,
         stamp_embedded: false,
-        source_path: sourceRef.path,
+        source_path: drivePrimary ? `gdrive://${doc.gdrive_file_id}` : sourceRef!.path,
         output_path: newPath,
         stamped_at: stageDate.toISOString(),
       }, documentId, callerId);
@@ -500,7 +546,7 @@ Deno.serve(async (req) => {
         title: `${STAGE_LABEL[stage]} signed "${doc.file_name || doc.document_type}"`,
         message: `Stage ${stageOrder} of ${layout.stages.length} (${STAGE_LABEL[stage]}) completed by ${approverName || "an approver"} using stamp v${STAMP_VERSION} / layout ${layout.name} v${layout.version}. ${NEXT_STAGE_NOTE[stage] || ""}`,
       });
-      return new Response(JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION, layoutVersion: `${layout.name} v${layout.version}`, stageOrder }), {
+      return new Response(JSON.stringify({ signedFileUrl: outputRef, stampVersion: STAMP_VERSION, layoutVersion: `${layout.name} v${layout.version}`, stageOrder }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -651,10 +697,22 @@ Deno.serve(async (req) => {
     const stampedBytes = await pdfDoc.save();
 
     const newPath = `${doc.trainer_id}/${doc.assignment_id || "unassigned"}/stamped_${stage}_${Date.now()}.pdf`;
-    const { error: uploadErr } = await supabase.storage
-      .from("documents")
-      .upload(newPath, stampedBytes, { contentType: "application/pdf", upsert: false });
-    if (uploadErr) throw uploadErr;
+    let outputRef = newPath;
+    if (drivePrimary) {
+      await replaceDriveFile(doc.gdrive_file_id, stampedBytes, lovableKey!, gdriveKey!);
+      outputRef = `gdrive://${doc.gdrive_file_id}`;
+    } else {
+      const { error: uploadErr } = await supabase.storage
+        .from("documents")
+        .upload(newPath, stampedBytes, { contentType: "application/pdf", upsert: false });
+      if (uploadErr) throw uploadErr;
+    }
+
+    await supabase.from("documents").update({
+      signed_file_url: outputRef,
+      file_url: drivePrimary ? `gdrive://${doc.gdrive_file_id}` : doc.file_url,
+      storage_tier: drivePrimary ? "drive" : "cloud",
+    } as never).eq("id", documentId);
 
     await logStampOperation(supabase, {
       stamp_version: STAMP_VERSION,
@@ -675,7 +733,7 @@ Deno.serve(async (req) => {
       signature_embedded: true,
       stamp_embedded: !!stampImage,
       autofill,
-      source_path: sourceRef.path,
+      source_path: drivePrimary ? `gdrive://${doc.gdrive_file_id}` : sourceRef!.path,
       output_path: newPath,
       stamped_at: stageDate.toISOString(),
     }, documentId, callerId);
@@ -696,7 +754,7 @@ Deno.serve(async (req) => {
     // Bucket is private — return the bare path. The client uses parseStorageRef
     // and createSignedUrl to build a fresh preview URL each time.
     return new Response(
-      JSON.stringify({ signedFileUrl: newPath, stampVersion: STAMP_VERSION, layoutVersion: `${layout.name} v${layout.version}`, stageOrder }),
+      JSON.stringify({ signedFileUrl: outputRef, stampVersion: STAMP_VERSION, layoutVersion: `${layout.name} v${layout.version}`, stageOrder }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 

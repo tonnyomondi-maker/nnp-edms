@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 
 const trainerItems = [
   { to: '/', icon: Home, label: 'Home' },
-  { to: '/teaching', icon: BookOpen, label: 'Units' },
+  { to: '/teaching', icon: BookOpen, label: 'My Teaching' },
   { to: '/upload', icon: Upload, label: 'Upload' },
   { to: '/submissions', icon: FileText, label: 'Submissions' },
   { to: '/approved', icon: FileArchive, label: 'Approved' },

@@ -4,7 +4,7 @@ import { useMyAssignments } from '@/hooks/useAssignments';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
-import { FileText, Clock, CheckCircle2, XCircle, Archive, Users, BookOpen, Loader2, Shield } from 'lucide-react';
+import { FileText, Clock, CheckCircle2, XCircle, Archive, Users, BookOpen, Loader2, Shield, Upload, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { HodBlock, DpBlock, IqaBlock, SuperAdminBlock } from '@/components/dashboard/RoleDashboardBlocks';
 import { RoleGuideCard } from '@/components/common/RoleGuideCard';
@@ -75,27 +75,32 @@ export default function Dashboard() {
 
 
           {activeRole === 'TRAINER' && (
-            <div className="mb-6">
-              <h2 className="text-sm font-semibold mb-3">Quick Actions</h2>
-              <div className="grid grid-cols-2 gap-3">
-                <Link to="/teaching">
-                  <Card className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4 text-center">
-                      <BookOpen className="w-8 h-8 mx-auto mb-2 text-primary" />
-                      <p className="text-xs font-medium">My Teaching</p>
-                      <p className="text-xs text-muted-foreground">{(assignments || []).length} units</p>
-                    </CardContent>
-                  </Card>
-                </Link>
-                <Link to="/submissions">
-                  <Card className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4 text-center">
-                      <FileText className="w-8 h-8 mx-auto mb-2 text-primary" />
-                      <p className="text-xs font-medium">Submissions</p>
-                      <p className="text-xs text-muted-foreground">{docs.length} docs</p>
-                    </CardContent>
-                  </Card>
-                </Link>
+            <div className="mb-6 space-y-3">
+              <h2 className="text-sm font-semibold">What needs your attention?</h2>
+              {rejected > 0 ? (
+                <Card className="border-destructive/40 bg-destructive/5">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold">{rejected} document{rejected === 1 ? '' : 's'} need correction</p>
+                      <p className="text-xs text-muted-foreground">Open My Submissions to see the reason and resubmit.</p>
+                    </div>
+                    <Link to="/submissions" className="text-xs font-medium underline shrink-0">Review</Link>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <div><p className="text-sm font-semibold">No rejected documents</p><p className="text-xs text-muted-foreground">Keep your unit records up to date.</p></div>
+                  </CardContent>
+                </Card>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <QuickLink to="/teaching" icon={<BookOpen className="w-5 h-5" />} label="My Teaching" value={`${(assignments || []).length} units`} />
+                <QuickLink to="/upload" icon={<Upload className="w-5 h-5" />} label="Upload" value="Add document" />
+                <QuickLink to="/submissions" icon={<FileText className="w-5 h-5" />} label="Submissions" value={`${docs.length} total`} />
+                <QuickLink to="/approved" icon={<Archive className="w-5 h-5" />} label="Approved" value={`${approved} ready`} />
               </div>
             </div>
           )}
@@ -127,5 +132,20 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
         <p className="text-[10px] text-muted-foreground">{label}</p>
       </CardContent>
     </Card>
+  );
+}
+
+
+function QuickLink({ to, icon, label, value }: { to: string; icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <Link to={to}>
+      <Card className="h-full hover:border-primary/50 hover:shadow-sm transition-all">
+        <CardContent className="p-3">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2">{icon}</div>
+          <p className="text-xs font-semibold">{label}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">{value}</p>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

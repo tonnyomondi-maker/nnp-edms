@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { unitCoverage, sessionLevelCoverage, type ReportDoc } from '@/lib/reportMetrics';
-import { AlertTriangle, BookOpen, CheckCircle2, ChevronRight, Loader2, Paperclip, Plus, Save, Upload } from 'lucide-react';
+import { unitCoverage, type ReportDoc } from '@/lib/reportMetrics';
+import { AlertTriangle, BookOpen, CalendarDays, CheckCircle2, ChevronRight, ClipboardCheck, FileText, Loader2, Paperclip, Plus, Save, Upload } from 'lucide-react';
 
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +21,7 @@ import {
   DEPARTMENTS,
   ONE_TIME_DOC_TYPES,
   WEEKLY_DOC_TYPES,
+  SESSION_LEVEL_DOC_TYPES,
   COURSE_TYPES,
   MODULE_NUMBERS,
   getCurrentSession,
@@ -158,7 +159,7 @@ export default function MyTeaching() {
 
   return (
     <div className="pb-8">
-      <PageHeader title="My Units" subtitle={`${sessionLabel(year, term)} • ${units.length} unit(s)`} />
+      <PageHeader title="My Teaching" subtitle={`${sessionLabel(year, term)} • ${units.length} unit(s)`} />
 
       <div className="flex items-center gap-3 mb-4">
         {adminSession ? (
@@ -188,8 +189,7 @@ export default function MyTeaching() {
       </div>
 
       <p className="text-xs text-muted-foreground mb-3">
-        Key in every unit you teach this session. Units must be linked to a course in your department —
-        the Upload tab only offers units listed here. No documents are uploaded from this screen.
+        Manage the units you teach and complete the documents attached to each unit. Start uploads from the specific document action so the system carries the unit details forward automatically.
       </p>
 
       {showForm && (
@@ -278,34 +278,43 @@ export default function MyTeaching() {
         </Card>
       )}
 
-      {units.length > 0 && (() => {
-        const wl = sessionLevelCoverage(allDocs as unknown as ReportDoc[]);
-        const done = wl.missing.length === 0;
+      {(() => {
+        const sessionDocs = SESSION_LEVEL_DOC_TYPES.map((type) => {
+          const doc = allDocs.find((d) => d.document_type === type && d.status !== 'REJECTED');
+          const rejected = allDocs.find((d) => d.document_type === type && d.status === 'REJECTED');
+          return { type, doc, rejected };
+        });
         return (
-          <Card className={`mb-3 ${done ? 'border-emerald-500/40' : 'border-amber-500/50'}`}>
-            <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex items-start gap-3 flex-1 min-w-0">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${done ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
-                  {done ? <CheckCircle2 className="w-5 h-5 text-emerald-600" /> : <Paperclip className="w-5 h-5 text-amber-600" />}
+          <Card className="mb-4">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="font-semibold text-sm">Current Session Documents</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">One-time documents for {sessionLabel(year, term)}. They apply across all your units.</p>
                 </div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-sm">Workload allocation — once per session</p>
-                  <p className="text-xs text-muted-foreground">
-                    {done
-                      ? 'On file for this training session — it covers all your units.'
-                      : wl.rejected.length
-                        ? 'Returned for correction — resubmit it from My Submissions.'
-                        : 'Upload one workload allocation form listing every unit you teach this session.'}
-                  </p>
-                </div>
+                <CalendarDays className="w-5 h-5 text-primary shrink-0" />
               </div>
-              {!done && (
-                <Button asChild size="sm" className="h-11 sm:h-9 sm:w-auto w-full">
-                  <Link to={wl.rejected.length ? '/submissions' : `/upload?type=${encodeURIComponent('Workload Allocation')}`}>
-                    <Upload className="w-4 h-4 mr-1" /> {wl.rejected.length ? 'Fix and resubmit' : 'Upload workload allocation'}
-                  </Link>
-                </Button>
-              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {sessionDocs.map(({ type, doc, rejected }) => {
+                  const done = !!doc;
+                  return (
+                    <div key={type} className="rounded-lg border p-3 flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${done ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
+                        {type === 'Personal Timetable' ? <CalendarDays className={`w-4 h-4 ${done ? 'text-emerald-600' : 'text-amber-600'}`} /> : <ClipboardCheck className={`w-4 h-4 ${done ? 'text-emerald-600' : 'text-amber-600'}`} />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{type}</p>
+                        <p className="text-[11px] text-muted-foreground">{done ? (doc?.status === 'SUBMITTED' ? 'Awaiting approval' : 'On file') : rejected ? 'Returned for correction' : 'Not submitted yet'}</p>
+                      </div>
+                      {done ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : (
+                        <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+                          <Link to={rejected ? '/submissions' : `/upload?type=${encodeURIComponent(type)}`}>{rejected ? 'Fix' : 'Upload'}</Link>
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
         );
@@ -320,13 +329,17 @@ export default function MyTeaching() {
               weeklyKeys.add(`${d.document_type}_${d.week_number}_${d.session_index || 1}`);
             }
           });
+          const rocCount = new Set(
+            u.docs.filter((d) => d.document_type === 'Records of Work Covered' && d.status !== 'REJECTED' && d.session_index)
+              .map((d) => d.session_index),
+          ).size;
           const complete = cov.missing.length === 0;
 
 
           return (
             <Card key={u.unit_code} className={complete ? 'border-emerald-500/40' : undefined}>
               <CardContent className="p-4">
-                <Link to={`/upload?unit=${encodeURIComponent(u.unit_code)}`} className="block">
+                <div className="block">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${complete ? 'bg-emerald-500/10' : 'bg-primary/10'}`}>
@@ -352,7 +365,7 @@ export default function MyTeaching() {
                   </div>
                   <Progress value={cov.pct} className="h-2" />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {weeklyKeys.size} weekly record(s) on file
+                    {weeklyKeys.size} weekly record(s) on file · Records of Work Covered {rocCount}/2
                   </p>
                 </div>
 
@@ -378,10 +391,17 @@ export default function MyTeaching() {
                   </div>
                 )}
 
-                <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                  <Button asChild size="sm" variant="outline" className="h-11 sm:h-9 flex-1">
-                    <Link to={`/upload?unit=${encodeURIComponent(u.unit_code)}`}>
-                      <Upload className="w-4 h-4 mr-1" /> Upload for this unit
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {cov.missing.length > 0 && (
+                    <Button asChild size="sm" variant="outline" className="h-10 sm:h-9">
+                      <Link to={`/upload?unit=${encodeURIComponent(u.unit_code)}&type=${encodeURIComponent(cov.missing[0])}`}>
+                        <Upload className="w-4 h-4 mr-1" /> Upload next required
+                      </Link>
+                    </Button>
+                  )}
+                  <Button asChild size="sm" variant="ghost" className="h-10 sm:h-9">
+                    <Link to="/submissions">
+                      <FileText className="w-4 h-4 mr-1" /> View submissions
                     </Link>
                   </Button>
                 </div>

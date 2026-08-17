@@ -58,25 +58,28 @@ export const ONE_TIME_DOC_TYPES = [
  * load (not per unit). The workload allocation form lists every unit, so a
  * single upload covers them all.
  */
-export const SESSION_LEVEL_DOC_TYPES = ['Workload Allocation'] as const;
+export const SESSION_LEVEL_DOC_TYPES = ['Workload Allocation', 'Personal Timetable'] as const;
 
 /** One-time document types expected once per UNIT. */
 export const PER_UNIT_ONE_TIME_DOC_TYPES = ONE_TIME_DOC_TYPES.filter(
   (t) => !(SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(t),
 ) as readonly string[];
 
-export const WEEKLY_DOC_TYPES = ['Session Plan', 'Class Attendance', 'Records of Work Covered'] as const;
+export const WEEKLY_DOC_TYPES = ['Session Plan', 'Class Attendance'] as const;
+
+/** Submitted twice during the training session: once mid-session and once at the end. */
+export const SESSION_RECORD_DOC_TYPES = ['Records of Work Covered'] as const;
 
 
 /** All document types the system knows about (policies, SLA targets, templates). */
-export const ALL_DOC_TYPES = [...ONE_TIME_DOC_TYPES, ...WEEKLY_DOC_TYPES] as const;
+export const ALL_DOC_TYPES = [...ONE_TIME_DOC_TYPES, ...WEEKLY_DOC_TYPES, ...SESSION_RECORD_DOC_TYPES] as const;
 
 /**
  * How many submissions of a weekly document type are expected per unit per session.
- * Session Plan / Class Attendance follow the teaching weeks; Records of Work Covered
- * is submitted twice a session (mid and end), tracked by week number like the others.
+ * Session Plan / Class Attendance follow the teaching weeks. Records of Work Covered
+ * is handled separately as two session milestones (mid-session and end-session).
  */
-export const WEEKLY_EXPECTED_PER_SESSION: Record<string, number> = {
+export const SESSION_RECORD_EXPECTED: Record<string, number> = {
   'Records of Work Covered': 2,
 };
 

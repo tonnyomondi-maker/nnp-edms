@@ -44,7 +44,7 @@ const CHECKLISTS: Record<UserRole, Step[]> = {
     PROFILE_STEP,
     { id: 'units', title: 'Key in your units for the session', detail: 'Add every unit you teach, linked to its course. The upload form only offers units you have keyed in.', to: '/teaching', cta: 'My Units' },
     { id: 'templates', title: 'Download the approved templates', detail: 'Use the published sample for each document type so verification is straightforward.', to: '/upload', cta: 'Templates' },
-    { id: 'upload', title: 'Upload your documents as PDF', detail: 'Pick the unit, then attach PDFs. Word files must be exported to PDF first.', to: '/upload', cta: 'Upload' },
+    { id: 'upload', title: 'Upload your documents as PDF', detail: 'Choose the document type. Session documents are uploaded once per session; Learning Plan and Course Outline are once per unit; Session Plan and Class Attendance are weekly; Records of Work Covered is submitted twice per training session. Word files must be exported to PDF first.', to: '/upload', cta: 'Upload' },
     { id: 'track', title: 'Track approvals and fix rejections', detail: 'Follow HOD → IQAO review → DP Academics → IQAO archival, and resubmit anything rejected.', to: '/submissions', cta: 'My Submissions' },
   ],
   HOD: [

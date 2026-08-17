@@ -18,7 +18,7 @@ const GUIDES: Record<UserRole, { headline: string; steps: GuideStep[] }> = {
     steps: [
       { title: '1. Set up your units', detail: 'Add the units you teach for the open session, with course type (Cycle or Modular) and sessions per week.', to: '/teaching', cta: 'My Units' },
       { title: '2. Download the approved samples', detail: 'Open the Sample templates panel on the upload screen and use the published format for each document type.', to: '/upload', cta: 'Templates' },
-      { title: '3. Upload your documents', detail: 'One-time documents (Learning Plan, Course Outline, etc.) plus weekly ones — Session Plan, Class Attendance and Records of Work Covered (twice per session).', to: '/upload', cta: 'Upload' },
+      { title: '3. Upload your documents', detail: 'Session documents (Personal Timetable and Workload Allocation), unit documents (Learning Plan and Course Outline), weekly teaching records (Session Plan and Class Attendance), and Records of Work Covered twice per training session (mid-session and end-session).', to: '/upload', cta: 'Upload' },
       { title: '4. Track and fix rejections', detail: 'Follow each document from HOD to DP Academics to IQAO. If rejected, read the comment, edit and resubmit.', to: '/submissions', cta: 'My Submissions' },
     ],
   },
@@ -45,7 +45,7 @@ const GUIDES: Record<UserRole, { headline: string; steps: GuideStep[] }> = {
       { title: '1. Archive DP-approved documents', detail: 'Sign and archive individually or in bulk; a nested Department/Trainer ZIP is produced for your records.', to: '/iqa/archive', cta: 'Archive' },
       { title: '2. Build verification packs', detail: 'Create department packs, choose which document types they contain, and share secure links with verifiers.', to: '/iqa/verifier-packs', cta: 'Packs' },
       { title: '3. Assign verifiers', detail: 'Maintain the verifier directory and assign the same verifier set to many packs at once.', to: '/iqa/bulk-assign', cta: 'Bulk assign' },
-      { title: '4. Keep Drive mirrors healthy', detail: 'Retry failed Google Drive syncs per department so archived files stay recoverable.', to: '/iqa/archive', cta: 'Archive' },
+      { title: '4. Keep Google Drive storage healthy', detail: 'Use the Drive health and archive tools to confirm approved files remain recoverable.', to: '/iqa/archive', cta: 'Archive' },
     ],
   },
   SUPER_ADMIN: {
@@ -54,7 +54,7 @@ const GUIDES: Record<UserRole, { headline: string; steps: GuideStep[] }> = {
       { title: '1. Open the training session', detail: 'Set the academic year and term (Jan–Apr, May–Aug, Sep–Dec) and mark it current — this drives every upload and view.', to: '/admin/session-config', cta: 'Sessions' },
       { title: '2. Publish document templates', detail: 'Upload the approved sample for each document type so trainers submit — and approvers verify — the same format.', to: '/admin/templates', cta: 'Templates' },
       { title: '3. Manage users and roles', detail: 'Create accounts, assign departments and roles. Roles decide what each person can do.', to: '/admin/users', cta: 'Users' },
-      { title: '4. Watch efficiency and storage', detail: 'Track cycle times and bottlenecks, and offload archived files to Google Drive before storage fills up.', to: '/admin/efficiency', cta: 'Efficiency' },
+      { title: '4. Watch efficiency and storage', detail: 'Track workflow and storage health; new academic PDFs are stored directly in Google Drive while Supabase retains metadata and workflow records.', to: '/admin/efficiency', cta: 'Efficiency' },
     ],
   },
 };
