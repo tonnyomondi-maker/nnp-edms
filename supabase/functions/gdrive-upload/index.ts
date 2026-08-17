@@ -1,15 +1,20 @@
-// Mirrors a document file from Lovable Cloud Storage to Google Drive with
-// retry + exponential backoff. Returns { fileId, webViewLink }.
+// NNP ADMS Google Drive document storage.
+// Primary mode: receives the PDF directly as multipart/form-data and stores it
+// in the PENDING Drive tree. No Supabase document-storage object is created.
+// Finalize/mirror mode: JSON { documentId, replace?: boolean } moves the same
+// Drive file into the APPROVED archive after final approval.
 //
-// Body: { documentId: string }
-// Auth: bearer JWT of the document owner (or any authenticated user with read
-// access). The function uses the service role to read storage so RLS is bypassed.
+// Auth: bearer JWT. The function uses the service role only for metadata/RLS-safe
+// server operations and the configured Google Drive connector.
 
 import { corsHeaders } from "npm:@supabase/supabase-js@2.95.0/cors";
 import { createClient } from "npm:@supabase/supabase-js@2.95.0";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_drive";
 const MAX_ATTEMPTS = 4;
+// Existing institutional Google Drive root folder.
+// This is the NNP EDMS shared Drive folder, not a folder to be created.
+const NNP_EDMS_ROOT_FOLDER_ID = "0AOij6d_FfJPzUk9PVA";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -17,7 +22,23 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
-    const { documentId, replace } = await req.json().catch(() => ({}));
+    const contentType = req.headers.get("content-type") || "";
+    let documentId = "";
+    let replace = false;
+    let primaryFile: File | null = null;
+
+    if (contentType.includes("multipart/form-data")) {
+      const form = await req.formData();
+      documentId = String(form.get("documentId") || "");
+      replace = String(form.get("replace") || "false") === "true";
+      const candidate = form.get("file");
+      if (candidate instanceof File) primaryFile = candidate;
+    } else {
+      const body = await req.json().catch(() => ({}));
+      documentId = String(body?.documentId || "");
+      replace = !!body?.replace;
+    }
+
     if (!documentId) return json({ error: "documentId is required" }, 400);
 
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
@@ -61,43 +82,66 @@ Deno.serve(async (req) => {
     }
     if (!allowed) return json({ error: "Forbidden" }, 403);
 
-    // Google Drive holds APPROVED documents only — raw trainer submissions and
-    // in-flight approvals are never mirrored, even via manual retry.
-    if (!["DP_APPROVED", "ARCHIVED", "EXPORTED"].includes(String(doc.status))) {
-      return json({
-        error: `Only DP-approved or archived documents are mirrored to Google Drive (this one is ${doc.status}).`,
-      }, 400);
+    const primaryMode = !!primaryFile;
+
+    // In primary mode, trainers can upload SUBMITTED documents (and rejected
+    // documents during resubmission). In finalize mode only the final approval
+    // stages may move a file into the approved archive.
+    if (primaryMode) {
+      if (doc.trainer_id !== callerId) return json({ error: "Only the document owner may upload its primary file" }, 403);
+      if (!["SUBMITTED", "REJECTED"].includes(String(doc.status))) {
+        return json({ error: `Primary upload is not allowed for status ${doc.status}` }, 400);
+      }
+    } else if (!["DP_APPROVED", "ARCHIVED", "EXPORTED"].includes(String(doc.status))) {
+      return json({ error: `Only DP-approved, archived or exported documents can be finalized to the approved archive (this one is ${doc.status}).` }, 400);
     }
 
-    if (doc.gdrive_file_id && !replace) {
+    if (doc.gdrive_file_id && !replace && !primaryMode) {
       // Already mirrored — return cached info
       return json({ fileId: doc.gdrive_file_id, alreadyMirrored: true });
     }
 
-    // Mirror the FINAL (signed) rendition when one exists, else the original.
-    const fileUrl = (doc.signed_file_url || doc.file_url) as string;
-    const marker = "/object/public/documents/";
-    const idx = fileUrl.indexOf(marker);
-    let storagePath: string | null = null;
-    if (idx >= 0) storagePath = decodeURIComponent(fileUrl.substring(idx + marker.length));
-    if (!storagePath && !/^https?:\/\//i.test(fileUrl)) {
-      // Bare storage path (private bucket default)
-      storagePath = fileUrl.replace(/^\/+/, "");
+    // Primary mode receives the PDF directly from the browser. Legacy/finalize
+    // mode may still read the old Supabase Storage copy for older documents.
+    let bytes: Uint8Array;
+    let mimeType = "application/pdf";
+    if (primaryFile) {
+      bytes = new Uint8Array(await primaryFile.arrayBuffer());
+      mimeType = primaryFile.type || "application/pdf";
+    } else {
+      const fileUrl = (doc.signed_file_url || doc.file_url) as string;
+      const marker = "/object/public/documents/";
+      const idx = fileUrl?.indexOf(marker) ?? -1;
+      let storagePath: string | null = null;
+      if (idx >= 0) storagePath = decodeURIComponent(fileUrl.substring(idx + marker.length));
+      if (!storagePath && fileUrl && !/^https?:\/\//i.test(fileUrl) && !fileUrl.startsWith("gdrive://")) {
+        storagePath = fileUrl.replace(/^\/+/, "");
+      }
+      if (!storagePath) {
+        const m2 = fileUrl?.indexOf("/object/sign/documents/") ?? -1;
+        if (m2 >= 0) storagePath = decodeURIComponent(fileUrl.substring(m2 + "/object/sign/documents/".length).split("?")[0]);
+      }
+      if (!storagePath) {
+        // If the document is already Drive-primary, finalize is a move operation;
+        // the bytes do not need to be downloaded here.
+        if (doc.gdrive_file_id && String(doc.file_url || "").startsWith("gdrive://")) {
+          bytes = new Uint8Array();
+        } else {
+          return json({ error: "Could not parse legacy storage path" }, 500);
+        }
+      } else {
+        const { data: blob, error: dlErr } = await admin.storage.from("documents").download(storagePath);
+        if (dlErr || !blob) return json({ error: `Storage download failed: ${dlErr?.message}` }, 500);
+        bytes = new Uint8Array(await blob.arrayBuffer());
+        mimeType = blob.type || "application/pdf";
+      }
     }
-    if (!storagePath) {
-      // Try sign route
-      const m2 = fileUrl.indexOf("/object/sign/documents/");
-      if (m2 >= 0) storagePath = decodeURIComponent(fileUrl.substring(m2 + "/object/sign/documents/".length).split("?")[0]);
-    }
-    if (!storagePath) return json({ error: "Could not parse storage path" }, 500);
 
-    // Download from storage
-    const { data: blob, error: dlErr } = await admin.storage.from("documents").download(storagePath);
-    if (dlErr || !blob) return json({ error: `Storage download failed: ${dlErr?.message}` }, 500);
-    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (primaryFile && bytes.length === 0) return json({ error: "Uploaded file is empty" }, 400);
 
-    // Resolve (or create) the organised Drive folder tree:
-    //   EDMS / <Session> / <Department> / <Course> / <PF - Trainer> / <Unit>
+    // Resolve the lifecycle-aware Drive tree:
+    //   EDMS / 01 - PENDING / <Session> / <Department> / <Course> / <Trainer> / ...
+    //   EDMS / 02 - APPROVED - ARCHIVE / <Session> / <Department> / <Course> / <Trainer> / ...
     const { data: trainerProfile } = await admin
       .from("profiles").select("full_name, pf_number").eq("user_id", doc.trainer_id).maybeSingle();
     let courseFolder = "Unassigned course";
@@ -111,12 +155,16 @@ Deno.serve(async (req) => {
       (trainerProfile?.full_name || "Unknown Trainer").toString().trim(),
     ].filter(Boolean).join(" - ");
     const unitFolder = [doc.unit_code, doc.unit_name].filter(Boolean).join(" - ") || "Unspecified unit";
+    const isSessionLevel = ["Workload Allocation", "Personal Timetable"].includes(String(doc.document_type));
+    const lifecycleFolder = primaryMode ? "01 - PENDING" : "02 - APPROVED - ARCHIVE";
     const segments = [
+      lifecycleFolder,
       `${doc.session_year ?? "Unknown"}_${doc.session_term ?? "Session"}`,
       doc.department || "Unspecified department",
       courseFolder,
       trainerFolder,
-      unitFolder,
+      isSessionLevel ? "00 - Session Documents" : "01 - Units",
+      ...(isSessionLevel ? [] : [unitFolder]),
     ];
 
 
@@ -129,14 +177,22 @@ Deno.serve(async (req) => {
         folderPath += `/${seg}`;
       }
     } catch (e) {
-      // Folder creation is best-effort — never block the mirror itself.
-      console.error("Drive folder resolution failed:", (e as Error).message);
-      parentId = null;
-    }
+  console.error(
+    "Drive folder resolution failed:",
+    (e as Error).message,
+  );
+
+  return json(
+    {
+      error: `Could not resolve the NNP ADMS Google Drive folder: ${(e as Error).message}`,
+    },
+    502,
+  );
+}
 
     const meta: Record<string, unknown> = {
       name: doc.file_name || `${documentId}.pdf`,
-      mimeType: blob.type || "application/pdf",
+      mimeType,
       description: `EDMS doc ${documentId} • ${folderPath}`,
     };
     if (parentId) meta.parents = [parentId];
@@ -154,23 +210,56 @@ Deno.serve(async (req) => {
     let lastErr = "";
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const existingId = replace ? (doc.gdrive_file_id as string | null) : null;
-        const resp = await fetch(
-          existingId
-            ? `${GATEWAY}/upload/drive/v3/files/${existingId}?uploadType=media&fields=id,webViewLink`
-            : `${GATEWAY}/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink`,
-          {
-            method: existingId ? "PATCH" : "POST",
-            headers: {
-              "Authorization": `Bearer ${lovableKey}`,
-              "X-Connection-Api-Key": gdriveKey,
-              "Content-Type": existingId
-                ? String(meta.mimeType)
-                : `multipart/related; boundary=${boundary}`,
+        const existingId = (replace || primaryMode) ? (doc.gdrive_file_id as string | null) : null;
+        let resp: Response;
+        if (existingId && !primaryMode && bytes.length === 0) {
+          // Finalize an already Drive-primary file by moving it into the
+          // approved archive. The file ID stays unchanged.
+          const fileInfo = await fetch(
+            `${GATEWAY}/drive/v3/files/${existingId}?fields=id,parents`,
+            { headers: { "Authorization": `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
+          );
+          const currentParents = fileInfo.ok ? ((await fileInfo.json()).parents || []) : [];
+          const oldParents = Array.isArray(currentParents) ? currentParents.join(",") : "";
+          resp = await fetch(
+            `${GATEWAY}/drive/v3/files/${existingId}?addParents=${encodeURIComponent(parentId || "")}&removeParents=${encodeURIComponent(oldParents)}&supportsAllDrives=true&fields=id,webViewLink,parents`,
+            {
+              method: "PATCH",
+              headers: {
+                "Authorization": `Bearer ${lovableKey}`,
+                "X-Connection-Api-Key": gdriveKey,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({}),
             },
-            body: existingId ? bytes : body,
-          },
-        );
+          );
+        } else if (existingId) {
+          resp = await fetch(
+            `${GATEWAY}/upload/drive/v3/files/${existingId}?uploadType=media&supportsAllDrives=true&fields=id,webViewLink`,
+            {
+              method: "PATCH",
+              headers: {
+                "Authorization": `Bearer ${lovableKey}`,
+                "X-Connection-Api-Key": gdriveKey,
+                "Content-Type": String(meta.mimeType),
+              },
+              body: bytes,
+            },
+          );
+        } else {
+          resp = await fetch(
+            `${GATEWAY}/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink`,
+            {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${lovableKey}`,
+                "X-Connection-Api-Key": gdriveKey,
+                "Content-Type": `multipart/related; boundary=${boundary}`,
+              },
+              body,
+            },
+          );
+        }
         if (!resp.ok) {
           lastErr = `HTTP ${resp.status}: ${(await resp.text()).slice(0, 300)}`;
           if (resp.status < 500 && resp.status !== 429) break; // don't retry 4xx (except rate limit)
@@ -178,6 +267,10 @@ Deno.serve(async (req) => {
           const json_ = await resp.json();
           await admin.from("documents").update({
             gdrive_file_id: json_.id,
+            file_drive_id: json_.id,
+            file_url: `gdrive://${json_.id}`,
+            signed_file_url: primaryMode ? null : (String(doc.signed_file_url || "").startsWith("gdrive://") ? doc.signed_file_url : null),
+            storage_tier: "drive",
             gdrive_web_view_link: json_.webViewLink ?? null,
             gdrive_sync_status: "success",
             gdrive_last_error: null,
@@ -187,7 +280,7 @@ Deno.serve(async (req) => {
 
           await admin.from("audit_logs").insert({
             document_id: documentId,
-            action: "GDRIVE_MIRRORED",
+            action: primaryMode ? "GDRIVE_PRIMARY_UPLOAD" : "GDRIVE_FINALIZED",
             performed_by: u.user.id,
             details: { file_id: json_.id, attempt, size: bytes.length },
           });
@@ -242,7 +335,7 @@ async function ensureFolder(
   const safe = name.replace(/'/g, "\\'");
   const q = `name='${safe}' and mimeType='${FOLDER_MIME}' and trashed=false and ${parentId ? `'${parentId}' in parents` : `'root' in parents`}`;
   const listRes = await fetch(
-    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10`,
+    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`,
     { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
   );
   if (listRes.ok) {
@@ -251,7 +344,7 @@ async function ensureFolder(
   }
   const body: Record<string, unknown> = { name, mimeType: FOLDER_MIME };
   if (parentId) body.parents = [parentId];
-  const createRes = await fetch(`${GATEWAY}/drive/v3/files?fields=id`, {
+  const createRes = await fetch(`${GATEWAY}/drive/v3/files?supportsAllDrives=true&fields=id`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${lovableKey}`,
@@ -271,10 +364,33 @@ async function resolveRootFolder(
   lovableKey: string,
   gdriveKey: string,
 ): Promise<string> {
+  // First honour an explicitly mapped institutional root.
   const { data: mapped } = await admin
-    .from("drive_folder_map").select("folder_id").eq("scope", "root").maybeSingle();
-  if (mapped?.folder_id) return mapped.folder_id as string;
-  const id = await ensureFolder(lovableKey, gdriveKey, "EDMS", null);
-  await admin.from("drive_folder_map").insert({ scope: "root", department: null, folder_id: id, folder_name: "EDMS" });
-  return id;
+    .from("drive_folder_map")
+    .select("folder_id")
+    .eq("scope", "root")
+    .maybeSingle();
+
+  if (mapped?.folder_id) {
+    return mapped.folder_id as string;
+  }
+
+  // The NNP EDMS shared-drive root already exists.
+  // Never create another "EDMS" folder at My Drive root.
+  try {
+    await admin
+      .from("drive_folder_map")
+      .insert({
+        scope: "root",
+        department: null,
+        folder_id: NNP_EDMS_ROOT_FOLDER_ID,
+        folder_name: "NNP EDMS",
+      });
+  } catch {
+    // Mapping may already exist because of a race/duplicate.
+    // The known root ID remains authoritative.
+  }
+
+  return NNP_EDMS_ROOT_FOLDER_ID;
 }
+  
