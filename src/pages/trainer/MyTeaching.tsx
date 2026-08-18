@@ -356,7 +356,7 @@ export default function MyTeaching() {
                     </div>
                     <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                   </div>
-                </Link>
+                </div>
 
                 <div className="mt-3">
                   <div className="flex justify-between text-xs mb-1">
