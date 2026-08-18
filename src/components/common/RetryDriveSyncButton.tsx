@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { getEdgeFunctionErrorMessage } from '@/lib/edgeFunctionError';
 
 interface Props {
   documentId: string;
@@ -32,7 +33,9 @@ export function RetryDriveSyncButton({ documentId, syncStatus, lastError, size =
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke('gdrive-upload', { body: { documentId } });
-      const errMsg = error?.message || (data as { error?: string })?.error;
+      const errMsg = (error || (data as { error?: string })?.error)
+        ? await getEdgeFunctionErrorMessage(error, data, 'Google Drive sync failed')
+        : '';
       if (errMsg) {
         toast.error('Google Drive sync failed', { description: errMsg });
       } else {

@@ -317,6 +317,9 @@ Deno.serve(async (req) => {
 });
 
 function json(payload: unknown, status = 200) {
+  if (status >= 400) {
+    console.error(`gdrive-upload ${status}:`, JSON.stringify(payload));
+  }
   return new Response(JSON.stringify(payload), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
