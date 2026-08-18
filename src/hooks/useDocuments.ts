@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { clearSignedUrlCache } from '@/hooks/useSignedDocUrl';
 import { assertSystemNotLocked } from '@/lib/systemLock';
+import { getEdgeFunctionErrorMessage } from '@/lib/edgeFunctionError';
 import { fetchPolicyFor } from '@/hooks/useDocTypePolicy';
 import { notifyDocumentEvent, stageForStatus, STAGE_ORDER, STAGE_LABEL, CLIENT_STAMP_VERSION } from '@/lib/notify';
 import { SESSION_LEVEL_DOC_TYPES } from '@/lib/sessions';
@@ -380,11 +381,11 @@ async function performApproval(
       body: { documentId: docId, replace: true },
     });
     if (driveErr || (driveResp as { error?: string } | null)?.error) {
-      throw new Error(
-        (driveResp as { error?: string } | null)?.error ||
-        driveErr?.message ||
+      throw new Error(await getEdgeFunctionErrorMessage(
+        driveErr,
+        driveResp,
         'Approval succeeded, but moving the document to the approved Google Drive archive failed. Retry the Drive finalization.'
-      );
+      ));
     }
   }
   return data;
@@ -610,7 +611,7 @@ export function useSubmitDocument() {
         form.append('file', file, file.name);
         const { data: driveResp, error: driveErr } = await supabase.functions.invoke('gdrive-upload', { body: form });
         if (driveErr || (driveResp as { error?: string } | null)?.error) {
-          throw new Error((driveResp as { error?: string } | null)?.error || driveErr?.message || 'Google Drive upload failed');
+          throw new Error(await getEdgeFunctionErrorMessage(driveErr, driveResp, 'Google Drive upload failed'));
         }
         return driveResp;
       }
@@ -630,7 +631,7 @@ export function useSubmitDocument() {
       form.append('file', file, file.name);
       const { data: driveResp, error: driveErr } = await supabase.functions.invoke('gdrive-upload', { body: form });
       if (driveErr || (driveResp as { error?: string } | null)?.error) {
-        throw new Error((driveResp as { error?: string } | null)?.error || driveErr?.message || 'Google Drive upload failed');
+        throw new Error(await getEdgeFunctionErrorMessage(driveErr, driveResp, 'Google Drive upload failed'));
       }
 
       return { ...data, ...(driveResp || {}) };

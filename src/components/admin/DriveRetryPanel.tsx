@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { AlertTriangle, CheckCircle2, CloudUpload, Loader2, RotateCw, XCircle } from 'lucide-react';
+import { getEdgeFunctionErrorMessage } from '@/lib/edgeFunctionError';
 
 const APPROVED_STATES = ['DP_APPROVED', 'ARCHIVED', 'EXPORTED'];
 
@@ -97,7 +98,9 @@ export function DriveRetryPanel() {
   const mirrorOne = async (doc: DocRow): Promise<Outcome> => {
     try {
       const { data, error } = await supabase.functions.invoke('gdrive-upload', { body: { documentId: doc.id } });
-      const msg = error?.message || (data as { error?: string } | null)?.error;
+      const msg = (error || (data as { error?: string } | null)?.error)
+        ? await getEdgeFunctionErrorMessage(error, data, 'Google Drive sync failed')
+        : '';
       if (msg) {
         setResults((r) => ({ ...r, [doc.id]: { outcome: 'fail', message: msg } }));
         return 'fail';
