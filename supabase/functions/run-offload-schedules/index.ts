@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
         if (dryRun) { offloaded++; continue; }
         // verify Drive
         const verify = await fetch(
-          `${GATEWAY}/drive/v3/files/${d.gdrive_file_id}?fields=id,size`,
+          `${GATEWAY}/drive/v3/files/${d.gdrive_file_id}?fields=id,size&supportsAllDrives=true`,
           { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
         );
         if (!verify.ok) { errors.push(`${d.id}: verify HTTP ${verify.status}`); continue; }

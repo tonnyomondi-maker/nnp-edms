@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { unitCoverage, type ReportDoc } from '@/lib/reportMetrics';
-import { AlertTriangle, BookOpen, CalendarDays, CheckCircle2, ChevronRight, ClipboardCheck, FileText, Loader2, Paperclip, Plus, Save, Upload } from 'lucide-react';
+import { TriangleAlert as AlertTriangle, BookOpen, CalendarDays, CircleCheck as CheckCircle2, ChevronRight, ClipboardCheck, FileText, Loader as Loader2, Paperclip, Plus, Save, Upload } from 'lucide-react';
 
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -156,6 +156,17 @@ export default function MyTeaching() {
   });
 
   const units = Array.from(unitMap.values()).sort((a, b) => a.unit_code.localeCompare(b.unit_code));
+
+  // Group units by course for visual clustering
+  const courseGroups = new Map<string, { courseName: string; units: typeof units }>();
+  units.forEach((u) => {
+    const key = u.course_id || 'no-course';
+    if (!courseGroups.has(key)) {
+      courseGroups.set(key, { courseName: courseName(u.course_id) || 'Unassigned course', units: [] });
+    }
+    courseGroups.get(key)!.units.push(u);
+  });
+  const courseGroupList = Array.from(courseGroups.values()).sort((a, b) => a.courseName.localeCompare(b.courseName));
 
   return (
     <div className="pb-8">

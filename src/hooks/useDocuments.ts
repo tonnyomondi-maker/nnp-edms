@@ -611,6 +611,17 @@ export function useSubmitDocument() {
         form.append('file', file, file.name);
         const { data: driveResp, error: driveErr } = await supabase.functions.invoke('gdrive-upload', { body: form });
         if (driveErr || (driveResp as { error?: string } | null)?.error) {
+          // Restore the document to its prior rejected state so the trainer can retry.
+          await supabase.from('documents').update({
+            status: 'REJECTED',
+            submitted_at: null,
+            signed_file_url: null,
+            file_url: oldRow?.file_url ?? null,
+            gdrive_file_id: oldRow?.gdrive_file_id ?? null,
+            file_drive_id: oldRow?.gdrive_file_id ?? null,
+            storage_tier: oldRow?.gdrive_file_id ? 'drive' : 'cloud',
+            gdrive_sync_status: 'failed',
+          } as never).eq('id', resubmitOf);
           throw new Error(await getEdgeFunctionErrorMessage(driveErr, driveResp, 'Google Drive upload failed'));
         }
         return driveResp;
@@ -631,6 +642,8 @@ export function useSubmitDocument() {
       form.append('file', file, file.name);
       const { data: driveResp, error: driveErr } = await supabase.functions.invoke('gdrive-upload', { body: form });
       if (driveErr || (driveResp as { error?: string } | null)?.error) {
+        // Clean up the orphaned document row so the trainer can retry without a ghost record.
+        await supabase.from('documents').delete().eq('id', data.id);
         throw new Error(await getEdgeFunctionErrorMessage(driveErr, driveResp, 'Google Drive upload failed'));
       }
 

@@ -9,8 +9,10 @@ const corsHeaders = {
 const GATEWAY = "https://connector-gateway.lovable.dev/google_drive";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 
+const NNP_EDMS_ROOT_FOLDER_ID = "0AOij6d_FfJPzUk9PVA";
+
 async function driveList(lovableKey: string, gdriveKey: string, q: string) {
-  const url = `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,parents,trashed)&pageSize=100`;
+  const url = `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,parents,trashed)&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=drive&driveId=${encodeURIComponent(NNP_EDMS_ROOT_FOLDER_ID)}`;
   const r = await fetch(url, { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } });
   const txt = await r.text();
   if (!r.ok) throw new Error(`Drive list ${r.status}: ${txt.slice(0, 200)}`);
@@ -20,7 +22,7 @@ async function driveList(lovableKey: string, gdriveKey: string, q: string) {
 async function driveCreateFolder(lovableKey: string, gdriveKey: string, name: string, parentId: string | null) {
   const body: Record<string, unknown> = { name, mimeType: FOLDER_MIME };
   if (parentId) body.parents = [parentId];
-  const r = await fetch(`${GATEWAY}/drive/v3/files?fields=id,name`, {
+  const r = await fetch(`${GATEWAY}/drive/v3/files?supportsAllDrives=true&fields=id,name`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${lovableKey}`,
@@ -62,14 +64,25 @@ Deno.serve(async (req) => {
     const { data: profs } = await admin.from("profiles").select("department").not("department", "is", null);
     const departments = Array.from(new Set((profs || []).map((p: any) => p.department).filter(Boolean))).sort();
 
-    // Find or create root
-    const rootMatches = await driveList(
-      lovableKey, gdriveKey,
-      `name='${rootName.replace(/'/g, "\\'")}' and mimeType='${FOLDER_MIME}' and trashed=false and 'root' in parents`,
-    );
-    let root = rootMatches[0] ?? null;
-    if (!root && mode === "create") {
-      root = await driveCreateFolder(lovableKey, gdriveKey, rootName, null);
+    // Find or create root — the NNP EDMS Shared Drive root already exists.
+    // Search within the Shared Drive itself, not My Drive root.
+    let root: { id: string; name: string } | null = null;
+    if (mode === "discover") {
+      // In discover mode, use the known Shared Drive root ID directly.
+      root = { id: NNP_EDMS_ROOT_FOLDER_ID, name: rootName };
+    } else {
+      // In create mode, verify the root exists by fetching it.
+      try {
+        const resp = await fetch(
+          `${GATEWAY}/drive/v3/files/${NNP_EDMS_ROOT_FOLDER_ID}?fields=id,name&supportsAllDrives=true`,
+          { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
+        );
+        if (resp.ok) {
+          root = await resp.json();
+        }
+      } catch {
+        // fall through
+      }
     }
 
     const map: Array<Record<string, unknown>> = [];

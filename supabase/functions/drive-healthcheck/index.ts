@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
   for (const f of folders ?? []) {
     try {
       const resp = await fetch(
-        `${GATEWAY}/drive/v3/files/${f.folder_id}?fields=id,name,capabilities(canAddChildren,canEdit),trashed`,
+        `${GATEWAY}/drive/v3/files/${f.folder_id}?fields=id,name,capabilities(canAddChildren,canEdit),trashed&supportsAllDrives=true`,
         { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey ?? "" } },
       );
       const body = await resp.text();

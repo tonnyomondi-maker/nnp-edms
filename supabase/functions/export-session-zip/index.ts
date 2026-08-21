@@ -259,7 +259,7 @@ Deno.serve(async (req) => {
     async function downloadFromDrive(fileId: string) {
       if (!lovableKey || !gdriveKey) return null;
       const resp = await fetch(
-        `${GDRIVE_GATEWAY}/drive/v3/files/${fileId}?alt=media`,
+        `${GDRIVE_GATEWAY}/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true`,
         { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
       );
       if (!resp.ok) throw new Error(`Drive HTTP ${resp.status}`);

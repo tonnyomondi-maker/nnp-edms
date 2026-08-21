@@ -336,9 +336,11 @@ async function ensureFolder(
   parentId: string | null,
 ): Promise<string> {
   const safe = name.replace(/'/g, "\\'");
-  const q = `name='${safe}' and mimeType='${FOLDER_MIME}' and trashed=false and ${parentId ? `'${parentId}' in parents` : `'root' in parents`}`;
+  const parentClause = parentId ? `'${parentId}' in parents` : `'${NNP_EDMS_ROOT_FOLDER_ID}' in parents`;
+  const q = `name='${safe}' and mimeType='${FOLDER_MIME}' and trashed=false and ${parentClause}`;
+  const corporaParam = `&corpora=drive&driveId=${encodeURIComponent(NNP_EDMS_ROOT_FOLDER_ID)}`;
   const listRes = await fetch(
-    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true${corporaParam}`,
     { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
   );
   if (listRes.ok) {
