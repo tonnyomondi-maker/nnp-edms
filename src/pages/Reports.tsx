@@ -22,6 +22,7 @@ import {
   type ReportDoc,
   type ReportConfig,
   type ReportProfile,
+  coverageBreakdown,
 } from '@/lib/reportMetrics';
 import { exportReportPdf } from '@/lib/reportPdf';
 
@@ -51,7 +52,7 @@ export default function Reports() {
     queryFn: async () => {
       let docsQ = supabase
         .from('documents')
-        .select('id, trainer_id, department, unit_code, document_type, status, version, rejection_count, submitted_at, hod_approved_at, iqa_reviewed_at, dp_approved_at, archived_at')
+        .select('id, trainer_id, department, unit_code, document_type, status, version, rejection_count, submitted_at, hod_approved_at, iqa_reviewed_at, dp_approved_at, archived_at, week_number, session_index, course_type, module_number, term_number')
         .eq('session_year', year)
         .eq('session_term', term);
       if (scopeDept) docsQ = docsQ.eq('department', scopeDept);
@@ -59,7 +60,7 @@ export default function Reports() {
 
       let cfgQ = supabase
         .from('unit_session_config')
-        .select('trainer_id, department, unit_code')
+        .select('trainer_id, department, unit_code, sessions_per_week, course_type, module_number, term_number')
         .eq('session_year', year)
         .eq('session_term', term);
       if (scopeDept) cfgQ = cfgQ.eq('department', scopeDept);
@@ -111,6 +112,7 @@ export default function Reports() {
   );
   const deptRows = useMemo(() => departmentCoverage(scoped, allDepts), [scoped, allDepts]);
   const flow = useMemo(() => flowStats(scoped.docs), [scoped]);
+  const breakdown = useMemo(() => coverageBreakdown(scoped), [scoped]);
 
   // Trainer list for the quick filter, scoped to the current department view.
   const trainerOptions = useMemo(() => {
@@ -185,6 +187,30 @@ export default function Reports() {
   return (
     <div className="pb-6">
       <PageHeader title="Reports" subtitle={`${sessionLabel(year, term)} • ${scopeLabel}`} />
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+        {[
+          { label: 'Session one-time', value: breakdown.sessionOneTime },
+          { label: 'Unit one-time', value: breakdown.unitOneTime },
+          { label: 'Weekly teaching records', value: breakdown.weeklyTeaching },
+          { label: 'Session milestones', value: breakdown.sessionMilestones },
+        ].map((item) => (
+          <Card key={item.label}>
+            <CardContent className="p-3">
+              <p className="text-[11px] text-muted-foreground">{item.label}</p>
+              <div className="flex items-end justify-between gap-2 mt-1">
+                <p className="text-xl font-bold">{item.value.pct}%</p>
+                <p className="text-[10px] text-muted-foreground">{item.value.covered}/{item.value.expected}</p>
+              </div>
+              <Progress value={item.value.pct} className="h-1.5 mt-2" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mb-4 rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
+        <strong className="text-foreground">Completion rules:</strong> session documents count once per trainer, unit one-time documents once per trainer/unit, weekly records once per unit/type/week/session, and Records of Work Covered once per unit/milestone. Rejected and repeated correction uploads do not inflate completion. Weekly planning uses 16 teaching weeks × the configured sessions per week.
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
         <Select

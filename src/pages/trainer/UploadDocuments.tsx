@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, Cloud, CloudOff, Lock, History, Paperclip, BookOpen, ChevronRight, CalendarDays, ClipboardCheck, ListChecks, ChevronDown } from 'lucide-react';
+import { Upload, FileText, X, Loader2, AlertCircle, CheckCircle2, Cloud, CloudOff, Lock, History, Paperclip, BookOpen, ChevronRight, CalendarDays, ClipboardCheck, ListChecks, ChevronDown, ArrowRight, Eye, RotateCcw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useSubmitDocument, useMyDocumentsBySession } from '@/hooks/useDocuments';
 import { compressForUpload, formatBytes } from '@/lib/compressUpload';
@@ -101,6 +101,7 @@ export default function UploadDocuments() {
   const [termNumber, setTermNumber] = useState<number>(1);
   const [moduleNumber, setModuleNumber] = useState<number>(1);
   const [files, setFiles] = useState<FileEntry[]>([]);
+  const [submissionComplete, setSubmissionComplete] = useState<{ count: number; names: string[] } | null>(null);
   // Files the browser refused before they ever entered the queue — shown
   // inline (not just as a toast) with the exact filename and the fix.
   const [rejectedFiles, setRejectedFiles] = useState<{ id: string; name: string; reason: string; fix: string }[]>([]);
@@ -524,9 +525,13 @@ export default function UploadDocuments() {
       }
 
       if (success > 0) {
+        const successfulNames = files
+          .filter((f) => f.stage === 'gdrive_ok')
+          .map((f) => f.documentType || f.fileName);
+        setSubmissionComplete({ count: success, names: successfulNames });
         toast({
-          title: 'Upload complete',
-          description: `${success} of ${files.length} document(s) submitted directly to Google Drive.`,
+          title: 'Submission received',
+          description: `${success} document(s) were submitted and sent to the approval queue.`,
         });
       }
       if (failures.length > 0) {
@@ -551,6 +556,38 @@ export default function UploadDocuments() {
         title="Upload Documents"
         subtitle={sessionLabel(sessionYear, sessionTerm)}
       />
+
+      {submissionComplete && (
+        <Card className="mb-4 border-emerald-500/40 bg-emerald-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-semibold text-sm">Document submitted successfully</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {submissionComplete.count} document(s) are now in the approval workflow. You do not need to upload them again unless an approver returns one for correction.
+                </p>
+                {submissionComplete.names.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-1 truncate">{submissionComplete.names.join(' • ')}</p>
+                )}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <Button asChild size="sm" className="h-9 gap-1">
+                    <Link to="/submissions"><Eye className="w-3.5 h-3.5" /> View My Submissions <ArrowRight className="w-3.5 h-3.5" /></Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline" className="h-9 gap-1">
+                    <Link to="/teaching"><BookOpen className="w-3.5 h-3.5" /> Back to My Units</Link>
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-9 gap-1" onClick={() => { setSubmissionComplete(null); setFiles([]); setRejectedFiles([]); }}>
+                    <RotateCcw className="w-3.5 h-3.5" /> Upload another
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {profileBlocked && (
         <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-xs p-3 flex items-start gap-2">

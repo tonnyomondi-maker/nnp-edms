@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
     // Load document row
     const { data: doc, error: docErr } = await admin
       .from("documents")
-      .select("id, status, file_url, signed_file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, unit_name, course_id, session_year, session_term, term_number, module_number, course_type")
+      .select("id, status, file_url, signed_file_url, file_name, gdrive_file_id, trainer_id, department, unit_code, unit_name, course_id, session_year, session_term, term_number, module_number, course_type, document_type")
       .eq("id", documentId)
       .single();
 
@@ -139,9 +139,17 @@ Deno.serve(async (req) => {
 
     if (primaryFile && bytes.length === 0) return json({ error: "Uploaded file is empty" }, 400);
 
-    // Resolve the lifecycle-aware Drive tree:
-    //   EDMS / 01 - PENDING / <Session> / <Department> / <Course> / <Trainer> / ...
-    //   EDMS / 02 - APPROVED - ARCHIVE / <Session> / <Department> / <Course> / <Trainer> / ...
+    // Resolve the lifecycle-aware Drive tree. The trainer is the final common
+    // owner node. Session documents and unit documents intentionally branch
+    // only AFTER the trainer so session documents can never inherit a course
+    // or unit fallback.
+    //
+    // PENDING / Session / Department / Trainer /
+    //   00 - Session Documents / ...
+    //   01 - Unit Documents / 01 - One-Time / Course / Unit / ...
+    //   01 - Unit Documents / 02 - Recurring / Course / Unit / ...
+    //
+    // APPROVED - ARCHIVE uses the same structure.
     const { data: trainerProfile } = await admin
       .from("profiles").select("full_name, pf_number").eq("user_id", doc.trainer_id).maybeSingle();
     let courseFolder = "Unassigned course";
@@ -156,16 +164,24 @@ Deno.serve(async (req) => {
     ].filter(Boolean).join(" - ");
     const unitFolder = [doc.unit_code, doc.unit_name].filter(Boolean).join(" - ") || "Unspecified unit";
     const isSessionLevel = ["Workload Allocation", "Personal Timetable"].includes(String(doc.document_type));
+    const isRecurring = ["Session Plan", "Class Attendance", "Records of Work Covered", "Weekly Teaching Record", "Session Milestone"].includes(String(doc.document_type));
     const lifecycleFolder = primaryMode ? "01 - PENDING" : "02 - APPROVED - ARCHIVE";
-    const segments = [
-      lifecycleFolder,
-      `${doc.session_year ?? "Unknown"}_${doc.session_term ?? "Session"}`,
-      doc.department || "Unspecified department",
-      courseFolder,
-      trainerFolder,
-      isSessionLevel ? "00 - Session Documents" : "01 - Units",
-      ...(isSessionLevel ? [] : [unitFolder]),
-    ];
+    const sessionFolder = `${doc.session_year ?? "Unknown"}_${doc.session_term ?? "Session"}`;
+
+    // HARD GUARD: session-level documents MUST NOT contain course/unit nodes.
+    // Unit documents always branch beneath the trainer into one-time/recurring.
+    const segments = isSessionLevel
+      ? [lifecycleFolder, sessionFolder, doc.department || "Unspecified department", trainerFolder, "00 - Session Documents"]
+      : [
+          lifecycleFolder,
+          sessionFolder,
+          doc.department || "Unspecified department",
+          trainerFolder,
+          "01 - Unit Documents",
+          isRecurring ? "02 - Recurring" : "01 - One-Time",
+          courseFolder,
+          unitFolder,
+        ];
 
 
     let parentId: string | null = null;
@@ -211,6 +227,30 @@ Deno.serve(async (req) => {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         const existingId = (replace || primaryMode) ? (doc.gdrive_file_id as string | null) : null;
+        // A resubmission may reuse a Drive file that was created under an old
+        // classification. Move it to the newly resolved parent before replacing
+        // its bytes so corrected session documents also leave the old hierarchy.
+        if (existingId && primaryMode && parentId) {
+          const fileInfo = await fetch(
+            `${GATEWAY}/drive/v3/files/${existingId}?fields=id,parents`,
+            { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
+          );
+          if (fileInfo.ok) {
+            const currentParents = ((await fileInfo.json()).parents || []) as string[];
+            const oldParents = currentParents.filter(Boolean).join(",");
+            if (!currentParents.includes(parentId)) {
+              const moveResp = await fetch(
+                `${GATEWAY}/drive/v3/files/${existingId}?addParents=${encodeURIComponent(parentId)}&removeParents=${encodeURIComponent(oldParents)}&supportsAllDrives=true&fields=id,parents`,
+                {
+                  method: "PATCH",
+                  headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey, "Content-Type": "application/json" },
+                  body: JSON.stringify({}),
+                },
+              );
+              if (!moveResp.ok) throw new Error(`Drive reclassification failed: HTTP ${moveResp.status}`);
+            }
+          }
+        }
         let resp: Response;
         if (existingId && !primaryMode && bytes.length === 0) {
           // Finalize an already Drive-primary file by moving it into the
@@ -336,9 +376,11 @@ async function ensureFolder(
   parentId: string | null,
 ): Promise<string> {
   const safe = name.replace(/'/g, "\\'");
-  const q = `name='${safe}' and mimeType='${FOLDER_MIME}' and trashed=false and ${parentId ? `'${parentId}' in parents` : `'root' in parents`}`;
+  const parentClause = parentId ? `'${parentId}' in parents` : `'${NNP_EDMS_ROOT_FOLDER_ID}' in parents`;
+  const q = `name='${safe}' and mimeType='${FOLDER_MIME}' and trashed=false and ${parentClause}`;
+  const corporaParam = `&corpora=drive&driveId=${encodeURIComponent(NNP_EDMS_ROOT_FOLDER_ID)}`;
   const listRes = await fetch(
-    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true${corporaParam}`,
     { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
   );
   if (listRes.ok) {

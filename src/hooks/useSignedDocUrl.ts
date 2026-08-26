@@ -35,6 +35,18 @@ function getGDriveFileId(value: string): string | null {
   return isGDriveRef(value) ? value.slice('gdrive://'.length) : null;
 }
 
+/** Prefer the authoritative Google Drive file ID whenever one exists. Older
+ * rows may still contain a stale signed_file_url; using that first caused
+ * approver previews to fail with 'Storage reference is invalid'. */
+export function getPreferredDocumentFileRef(doc: {
+  gdrive_file_id?: string | null;
+  signed_file_url?: string | null;
+  file_url?: string | null;
+}): string {
+  if (doc.gdrive_file_id) return `gdrive://${doc.gdrive_file_id}`;
+  return doc.signed_file_url || doc.file_url || '';
+}
+
 interface SignedUrlState {
   url: string | null;
   loading: boolean;
@@ -164,6 +176,31 @@ export async function resolveSignatureUrl(
 }
 
 /** Get (or fetch) a cached signed URL imperatively — used by approval flows. */
+
+/** Resolve a document preview by document ID, with Drive as the authoritative
+ * source. This is deliberately document-ID based so an approver never depends
+ * on a stale/legacy file_url value in the browser. */
+export async function getCachedDocumentUrl(
+  documentId: string,
+  doc?: { gdrive_file_id?: string | null; signed_file_url?: string | null; file_url?: string | null },
+  expiresIn = 3600,
+): Promise<string> {
+  const preferred = doc ? getPreferredDocumentFileRef(doc) : '';
+  if (preferred) return getCachedSignedUrl(preferred, expiresIn);
+
+  const { data, error } = await supabase.functions.invoke('gdrive-download', {
+    body: { documentId },
+  });
+  if (error) throw new Error(error.message || 'Could not load Google Drive document');
+  if (!(data instanceof Blob)) throw new Error('Google Drive returned an invalid document');
+  const objectUrl = URL.createObjectURL(data);
+  signedUrlCache.set(`document:${documentId}`, {
+    url: objectUrl,
+    expiresAt: Date.now() + expiresIn * 1000 - SAFETY_MARGIN_MS,
+  });
+  return objectUrl;
+}
+
 export async function getCachedSignedUrl(
   fileRef: string | null | undefined,
   expiresIn = 3600,

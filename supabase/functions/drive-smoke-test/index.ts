@@ -44,7 +44,7 @@ async function driveUpload(lovableKey: string, gdriveKey: string, name: string, 
   const tail = enc.encode(`\r\n--${boundary}--`);
   const body = new Uint8Array(head.length + bytes.length + tail.length);
   body.set(head, 0); body.set(bytes, head.length); body.set(tail, head.length + bytes.length);
-  const resp = await fetch(`${GATEWAY}/upload/drive/v3/files?uploadType=multipart`, {
+  const resp = await fetch(`${GATEWAY}/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${lovableKey}`,
@@ -59,7 +59,7 @@ async function driveUpload(lovableKey: string, gdriveKey: string, name: string, 
 }
 
 async function driveDownload(lovableKey: string, gdriveKey: string, fileId: string) {
-  const resp = await fetch(`${GATEWAY}/drive/v3/files/${fileId}?alt=media`, {
+  const resp = await fetch(`${GATEWAY}/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true`, {
     headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey },
   });
   if (!resp.ok) throw new Error(`Drive download ${resp.status}`);
@@ -67,7 +67,7 @@ async function driveDownload(lovableKey: string, gdriveKey: string, fileId: stri
 }
 
 async function driveDelete(lovableKey: string, gdriveKey: string, fileId: string) {
-  await fetch(`${GATEWAY}/drive/v3/files/${fileId}`, {
+  await fetch(`${GATEWAY}/drive/v3/files/${fileId}?supportsAllDrives=true`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey },
   });
@@ -80,7 +80,7 @@ function driveHeaders(lovableKey: string, gdriveKey: string) {
 /** Metadata incl. parents so we can prove a file landed in the right folder. */
 async function driveMeta(lovableKey: string, gdriveKey: string, fileId: string) {
   const resp = await fetch(
-    `${GATEWAY}/drive/v3/files/${fileId}?fields=id,name,parents,mimeType,trashed`,
+    `${GATEWAY}/drive/v3/files/${fileId}?fields=id,name,parents,mimeType,trashed&supportsAllDrives=true`,
     { headers: driveHeaders(lovableKey, gdriveKey) },
   );
   const txt = await resp.text();
@@ -91,7 +91,7 @@ async function driveMeta(lovableKey: string, gdriveKey: string, fileId: string) 
 /** Sharing state — the test fails the file if it is public ("anyone"/"domain"). */
 async function drivePermissions(lovableKey: string, gdriveKey: string, fileId: string) {
   const resp = await fetch(
-    `${GATEWAY}/drive/v3/files/${fileId}/permissions?fields=permissions(id,type,role,emailAddress)`,
+    `${GATEWAY}/drive/v3/files/${fileId}/permissions?fields=permissions(id,type,role,emailAddress)&supportsAllDrives=true`,
     { headers: driveHeaders(lovableKey, gdriveKey) },
   );
   const txt = await resp.text();
@@ -117,7 +117,7 @@ async function ensureFolder(
     parentId ? `'${parentId}' in parents` : null,
   ].filter(Boolean).join(" and ");
   const findRes = await fetch(
-    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=1`,
+    `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=1&supportsAllDrives=true&includeItemsFromAllDrives=true`,
     { headers: driveHeaders(lovableKey, gdriveKey) },
   );
   if (findRes.ok) {
@@ -126,7 +126,7 @@ async function ensureFolder(
   }
   const meta: Record<string, unknown> = { name, mimeType: FOLDER_MIME };
   if (parentId) meta.parents = [parentId];
-  const createRes = await fetch(`${GATEWAY}/drive/v3/files`, {
+  const createRes = await fetch(`${GATEWAY}/drive/v3/files?supportsAllDrives=true`, {
     method: "POST",
     headers: { ...driveHeaders(lovableKey, gdriveKey), "Content-Type": "application/json" },
     body: JSON.stringify(meta),

@@ -551,6 +551,37 @@ export function useSubmitDocument() {
       // NNP ADMS storage policy: the PDF itself goes directly to Google Drive.
       // Supabase stores the document record, workflow state and Drive metadata;
       // it is no longer the primary PDF repository.
+      // For unit documents, the saved My Units configuration is authoritative.
+      // Do not trust the upload form's initial Term 1 / Module 1 defaults; a
+      // trainer may be uploading against a different module/term. Session-level
+      // documents intentionally carry no course-stage metadata.
+      let resolvedCourseType: 'CYCLE' | 'MODULAR' | null = courseType ?? 'CYCLE';
+      let resolvedTermNumber = termNumber ?? null;
+      let resolvedModuleNumber = moduleNumber ?? null;
+      let resolvedCourseId = courseId ?? null;
+      if (!(SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(documentType) && unitCode) {
+        const { data: cfg } = await supabase
+          .from('unit_session_config' as never)
+          .select('course_id, course_type, term_number, module_number, unit_name, class_code, department, sessions_per_week')
+          .eq('trainer_id', user!.id)
+          .eq('unit_code', unitCode)
+          .eq('session_year', sessionYear)
+          .eq('session_term', sessionTerm)
+          .maybeSingle();
+        const c = cfg as unknown as { course_id?: string | null; course_type?: string | null; term_number?: number | null; module_number?: number | null; unit_name?: string | null; class_code?: string | null; department?: string | null; sessions_per_week?: number | null } | null;
+        if (c) {
+          resolvedCourseType = c.course_type === 'MODULAR' ? 'MODULAR' : 'CYCLE';
+          resolvedTermNumber = resolvedCourseType === 'MODULAR' ? null : (c.term_number ?? null);
+          resolvedModuleNumber = resolvedCourseType === 'MODULAR' ? (c.module_number ?? null) : null;
+          resolvedCourseId = c.course_id ?? null;
+        }
+      } else {
+        resolvedCourseType = null;
+        resolvedTermNumber = null;
+        resolvedModuleNumber = null;
+        resolvedCourseId = null;
+      }
+
       const insertPayload: Record<string, unknown> = {
         assignment_id: assignmentId || null,
         trainer_id: user!.id,
@@ -567,10 +598,10 @@ export function useSubmitDocument() {
         session_term: sessionTerm,
         sessions_per_week: sessionsPerWeek || null,
         session_index: sessionIndex || null,
-        term_number: courseType === 'MODULAR' ? null : (termNumber ?? null),
-        course_type: courseType ?? 'CYCLE',
-        module_number: courseType === 'MODULAR' ? (moduleNumber ?? null) : null,
-        course_id: courseId ?? null,
+        term_number: resolvedTermNumber,
+        course_type: resolvedCourseType ?? null,
+        module_number: resolvedModuleNumber,
+        course_id: resolvedCourseId,
       };
 
       if (resubmitOf) {
@@ -611,6 +642,17 @@ export function useSubmitDocument() {
         form.append('file', file, file.name);
         const { data: driveResp, error: driveErr } = await supabase.functions.invoke('gdrive-upload', { body: form });
         if (driveErr || (driveResp as { error?: string } | null)?.error) {
+          // Restore the document to its prior rejected state so the trainer can retry.
+          await supabase.from('documents').update({
+            status: 'REJECTED',
+            submitted_at: null,
+            signed_file_url: null,
+            file_url: oldRow?.file_url ?? null,
+            gdrive_file_id: oldRow?.gdrive_file_id ?? null,
+            file_drive_id: oldRow?.gdrive_file_id ?? null,
+            storage_tier: oldRow?.gdrive_file_id ? 'drive' : 'cloud',
+            gdrive_sync_status: 'failed',
+          } as never).eq('id', resubmitOf);
           throw new Error(await getEdgeFunctionErrorMessage(driveErr, driveResp, 'Google Drive upload failed'));
         }
         return driveResp;
@@ -631,6 +673,8 @@ export function useSubmitDocument() {
       form.append('file', file, file.name);
       const { data: driveResp, error: driveErr } = await supabase.functions.invoke('gdrive-upload', { body: form });
       if (driveErr || (driveResp as { error?: string } | null)?.error) {
+        // Clean up the orphaned document row so the trainer can retry without a ghost record.
+        await supabase.from('documents').delete().eq('id', data.id);
         throw new Error(await getEdgeFunctionErrorMessage(driveErr, driveResp, 'Google Drive upload failed'));
       }
 

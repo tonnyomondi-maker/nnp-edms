@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       }
       // Verify Drive file is retrievable
       const verify = await fetch(
-        `${GATEWAY}/drive/v3/files/${d.gdrive_file_id}?fields=id,size,md5Checksum`,
+        `${GATEWAY}/drive/v3/files/${d.gdrive_file_id}?fields=id,size,md5Checksum&supportsAllDrives=true`,
         { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
       );
       if (!verify.ok) {

@@ -4,7 +4,7 @@
 // number of uploaded rows. A Learning Plan rejected three times and corrected
 // is still ONE covered document type, not four.
 
-import { PER_UNIT_ONE_TIME_DOC_TYPES, SESSION_LEVEL_DOC_TYPES } from '@/lib/sessions';
+import { PER_UNIT_ONE_TIME_DOC_TYPES, SESSION_LEVEL_DOC_TYPES, WEEKLY_DOC_TYPES, SESSION_RECORD_EXPECTED } from '@/lib/sessions';
 
 export interface ReportDoc {
   id: string;
@@ -20,12 +20,21 @@ export interface ReportDoc {
   iqa_reviewed_at?: string | null;
   dp_approved_at: string | null;
   archived_at: string | null;
+  week_number?: number | null;
+  session_index?: number | null;
+  course_type?: string | null;
+  module_number?: number | null;
+  term_number?: number | null;
 }
 
 export interface ReportConfig {
   trainer_id: string;
   department: string;
   unit_code: string;
+  sessions_per_week?: number | null;
+  course_type?: string | null;
+  module_number?: number | null;
+  term_number?: number | null;
 }
 
 export interface ReportProfile {
@@ -259,5 +268,56 @@ export function sessionLevelCoverage(docs: ReportDoc[]) {
     rejected: [...rejected],
     done: SESSION_LEVEL_DOC_TYPES.length - missing.length,
     total: SESSION_LEVEL_DOC_TYPES.length,
+  };
+}
+
+
+export interface CoverageBreakdown {
+  sessionOneTime: { expected: number; covered: number; pct: number };
+  unitOneTime: { expected: number; covered: number; pct: number };
+  weeklyTeaching: { expected: number; covered: number; pct: number };
+  sessionMilestones: { expected: number; covered: number; pct: number };
+}
+
+const WEEKLY_WEEKS = 16;
+const pct = (covered: number, expected: number) => expected > 0 ? Math.round((covered / expected) * 100) : 0;
+
+/**
+ * Completion is based on distinct required keys, not upload-row count. A
+ * rejected/re-uploaded document therefore cannot inflate completion.
+ */
+export function coverageBreakdown({ docs, configs }: Pick<Input, 'docs' | 'configs'>): CoverageBreakdown {
+  const trainerIds = new Set(configs.map((c) => c.trainer_id));
+  const unitKeys = new Set(configs.map((c) => `${c.trainer_id}::${c.unit_code}`));
+
+  const sessionSeen = new Set<string>();
+  docs.filter((d) => isLive(d.status) && (SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(d.document_type))
+    .forEach((d) => sessionSeen.add(`${d.trainer_id}::${d.document_type}`));
+  const sessionExpected = trainerIds.size * SESSION_LEVEL_DOC_TYPES.length;
+  const sessionCovered = Math.min(sessionSeen.size, sessionExpected);
+
+  const unitSeen = new Set<string>();
+  docs.filter((d) => isLive(d.status) && (PER_UNIT_ONE_TIME_DOC_TYPES as readonly string[]).includes(d.document_type) && d.unit_code)
+    .forEach((d) => unitSeen.add(`${d.trainer_id}::${d.unit_code}::${d.document_type}`));
+  const unitExpected = unitKeys.size * PER_UNIT_ONE_TIME_DOC_TYPES.length;
+  const unitCovered = Math.min(unitSeen.size, unitExpected);
+
+  const weeklySeen = new Set<string>();
+  docs.filter((d) => isLive(d.status) && (['Session Plan', 'Class Attendance'] as readonly string[]).includes(d.document_type) && d.unit_code && d.week_number && d.session_index)
+    .forEach((d) => weeklySeen.add(`${d.trainer_id}::${d.unit_code}::${d.document_type}::${d.week_number}::${d.session_index}`));
+  const weeklyExpected = configs.reduce((sum, c) => sum + Math.max(1, c.sessions_per_week ?? 1) * WEEKLY_WEEKS * WEEKLY_DOC_TYPES.length, 0);
+  const weeklyCovered = Math.min(weeklySeen.size, weeklyExpected);
+
+  const milestoneSeen = new Set<string>();
+  docs.filter((d) => isLive(d.status) && d.document_type === 'Records of Work Covered' && d.unit_code && d.session_index)
+    .forEach((d) => milestoneSeen.add(`${d.trainer_id}::${d.unit_code}::Records of Work Covered::${d.session_index}`));
+  const milestoneExpected = unitKeys.size * SESSION_RECORD_EXPECTED['Records of Work Covered'];
+  const milestoneCovered = Math.min(milestoneSeen.size, milestoneExpected);
+
+  return {
+    sessionOneTime: { expected: sessionExpected, covered: sessionCovered, pct: pct(sessionCovered, sessionExpected) },
+    unitOneTime: { expected: unitExpected, covered: unitCovered, pct: pct(unitCovered, unitExpected) },
+    weeklyTeaching: { expected: weeklyExpected, covered: weeklyCovered, pct: pct(weeklyCovered, weeklyExpected) },
+    sessionMilestones: { expected: milestoneExpected, covered: milestoneCovered, pct: pct(milestoneCovered, milestoneExpected) },
   };
 }

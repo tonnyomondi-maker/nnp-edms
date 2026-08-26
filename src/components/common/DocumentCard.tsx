@@ -15,6 +15,7 @@ import { RetryDriveSyncButton } from './RetryDriveSyncButton';
 import { ProgressTracker } from './ProgressTracker';
 import { AiSummaryButton } from './AiSummaryButton';
 import { RejectionHistoryBanner } from './RejectionHistoryBanner';
+import { getPreferredDocumentFileRef } from '@/hooks/useSignedDocUrl';
 
 
 
@@ -85,7 +86,7 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
   const [showTimeline, setShowTimeline] = useState(false);
   const unitCode = doc.unit_code || doc.teaching_assignments?.unit_code || '';
   const className = doc.class_code || doc.teaching_assignments?.class_code || '';
-  const fileRef = doc.signed_file_url || doc.file_url;
+  const fileRef = getPreferredDocumentFileRef(doc);
 
 
   return (

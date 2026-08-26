@@ -6,9 +6,10 @@ import { DocumentCard } from '@/components/common/DocumentCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 import { RejectedResubmitButton } from '@/components/common/RejectedResubmitButton';
-import { sessionLabel, type SessionTerm } from '@/lib/sessions';
+import { sessionLabel, SESSION_LEVEL_DOC_TYPES, type SessionTerm } from '@/lib/sessions';
 import { useCurrentSession } from '@/hooks/useAcademicSession';
 
 const ALL = 'ALL';
@@ -88,23 +89,74 @@ export default function MySubmissions() {
           <TabsTrigger value="completed" className="flex-1">Completed ({completed.length})</TabsTrigger>
           <TabsTrigger value="rejected" className="flex-1">Rejected ({rejected.length})</TabsTrigger>
         </TabsList>
-        <TabsContent value="pending" className="space-y-3">
-          {pending.length > 0 ? pending.map(d => <DocumentCard key={d.id} doc={d} />) : <EmptyState text="No pending documents" />}
+        <TabsContent value="pending">
+          <SubmissionGroups docs={pending} />
         </TabsContent>
-        <TabsContent value="completed" className="space-y-3">
-          {completed.length > 0 ? completed.map(d => <DocumentCard key={d.id} doc={d} />) : <EmptyState text="No completed documents" />}
+        <TabsContent value="completed">
+          <SubmissionGroups docs={completed} />
         </TabsContent>
-        <TabsContent value="rejected" className="space-y-3">
-          {rejected.map(d => (
-            <div key={d.id} className="rounded-lg border border-destructive/40 bg-destructive/5 p-2">
-              <DocumentCard doc={d} />
-              <RejectionDetail doc={d} />
-              <RejectedResubmitButton docId={d.id} />
-            </div>
-          ))}
-          {rejected.length === 0 && <EmptyState text="No rejected documents" />}
+        <TabsContent value="rejected">
+          {rejected.length > 0 ? <SubmissionGroups docs={rejected} rejected /> : <EmptyState text="No rejected documents" />}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function SubmissionGroups({ docs, rejected = false }: { docs: any[]; rejected?: boolean }) {
+  const sessionDocs = docs.filter((d) => (SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(d.document_type));
+  const unitMap = new Map<string, any[]>();
+  docs.filter((d) => !(SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(d.document_type)).forEach((d) => {
+    const key = d.unit_code || 'Unassigned unit';
+    unitMap.set(key, [...(unitMap.get(key) || []), d]);
+  });
+  const unitGroups = Array.from(unitMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+  if (!docs.length) return <EmptyState text={rejected ? 'No rejected documents' : 'No documents in this section'} />;
+
+  return (
+    <div className="space-y-4">
+      {sessionDocs.length > 0 && (
+        <section className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div>
+              <h3 className="text-sm font-semibold">Session Documents</h3>
+              <p className="text-[11px] text-muted-foreground">Applies across your entire teaching load for this session.</p>
+            </div>
+            <Badge variant="secondary">{sessionDocs.length}</Badge>
+          </div>
+          <div className="space-y-2">
+            {sessionDocs.map((d) => rejected ? (
+              <div key={d.id} className="rounded-lg border border-destructive/40 bg-destructive/5 p-2">
+                <DocumentCard doc={d} />
+                <RejectionDetail doc={d} />
+                <RejectedResubmitButton docId={d.id} />
+              </div>
+            ) : <DocumentCard key={d.id} doc={d} />)}
+          </div>
+        </section>
+      )}
+
+      {unitGroups.map(([unit, unitDocs]) => (
+        <section key={unit} className="rounded-lg border bg-card p-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div>
+              <h3 className="text-sm font-semibold">{unit}</h3>
+              <p className="text-[11px] text-muted-foreground">Documents submitted for this unit.</p>
+            </div>
+            <Badge variant="outline">{unitDocs.length}</Badge>
+          </div>
+          <div className="space-y-2">
+            {unitDocs.map((d) => rejected ? (
+              <div key={d.id} className="rounded-lg border border-destructive/40 bg-destructive/5 p-2">
+                <DocumentCard doc={d} />
+                <RejectionDetail doc={d} />
+                <RejectedResubmitButton docId={d.id} />
+              </div>
+            ) : <DocumentCard key={d.id} doc={d} />)}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAllDocuments } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DocumentCard } from '@/components/common/DocumentCard';
-import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
+import { TermFilter, type TermFilterValue, filterByTerm, termCounts } from '@/components/common/TermFilter';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
 import { HierarchyView, hierarchyFor } from '@/components/common/HierarchyGroups';
 
@@ -19,17 +19,10 @@ import { Loader2, Sheet } from 'lucide-react';
 export default function AllDocuments() {
   const { data, isLoading } = useAllDocuments();
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
-  const [termInitialized, setTermInitialized] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupByKey>('HIERARCHY');
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER });
 
   const baseDocs = useMemo(() => data || [], [data]);
-  useEffect(() => {
-    if (!termInitialized && baseDocs.length > 0) {
-      setTermFilter(pickDefaultTerm(baseDocs));
-      setTermInitialized(true);
-    }
-  }, [baseDocs, termInitialized]);
 
   const counts = useMemo(() => termCounts(baseDocs), [baseDocs]);
   const docs = useMemo(
@@ -67,7 +60,7 @@ export default function AllDocuments() {
           Audit CSV ({docs.length})
         </Button>
         <GroupByControl value={groupBy} onChange={setGroupBy} />
-        <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
+        <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); }} counts={counts} />
       </div>
       <QueueFilterBar value={filter} onChange={setFilter} docs={baseDocs} />
       <div className="space-y-3 mt-3">

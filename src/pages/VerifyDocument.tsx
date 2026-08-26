@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Loader2, Download, ExternalLink, CheckCircle2, Clock } from 'lucide-react';
 import { DocPreviewLink } from '@/components/common/DocPreviewLink';
+import { getPreferredDocumentFileRef } from '@/hooks/useSignedDocUrl';
 import { toast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -121,7 +122,7 @@ export default function VerifyDocument() {
   }
 
   const trainer = profiles.get(doc.trainer_id);
-  const fileRef = doc.signed_file_url || doc.file_url;
+  const fileRef = getPreferredDocumentFileRef(doc);
 
   return (
     <div className="space-y-4">

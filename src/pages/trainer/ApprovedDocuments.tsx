@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Download, Eye, FileCheck2 } from 'lucide-react';
-import { getCachedSignedUrl } from '@/hooks/useSignedDocUrl';
+import { getCachedSignedUrl, getPreferredDocumentFileRef } from '@/hooks/useSignedDocUrl';
 import { toast } from '@/hooks/use-toast';
 import { sessionLabel, SESSION_LEVEL_DOC_TYPES, type SessionTerm } from '@/lib/sessions';
 import { useCurrentSession } from '@/hooks/useAcademicSession';
@@ -55,8 +55,8 @@ export default function ApprovedDocuments() {
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [filtered]);
 
-  const open = async (doc: { id: string; signed_file_url?: string | null; file_url?: string | null; file_name?: string | null }, download: boolean) => {
-    const ref = doc.signed_file_url || doc.file_url;
+  const open = async (doc: { id: string; gdrive_file_id?: string | null; signed_file_url?: string | null; file_url?: string | null; file_name?: string | null }, download: boolean) => {
+    const ref = getPreferredDocumentFileRef(doc);
     if (!ref) {
       toast({ title: 'File unavailable', description: 'No stored Google Drive reference for this document.', variant: 'destructive' });
       return;

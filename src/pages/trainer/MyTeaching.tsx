@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { unitCoverage, type ReportDoc } from '@/lib/reportMetrics';
-import { AlertTriangle, BookOpen, CalendarDays, CheckCircle2, ChevronRight, ClipboardCheck, FileText, Loader2, Paperclip, Plus, Save, Upload } from 'lucide-react';
+import { TriangleAlert as AlertTriangle, BookOpen, CalendarDays, CircleCheck as CheckCircle2, ChevronRight, ClipboardCheck, FileText, Loader as Loader2, Paperclip, Plus, Save, Upload } from 'lucide-react';
 
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -117,6 +117,12 @@ export default function MyTeaching() {
 
   const courseName = (id: string | null) => courses.find((c) => c.id === id)?.name || null;
 
+  // Session-level documents belong to the session, not to any unit.
+  // Never let them fall through to the synthetic `Unknown` unit bucket.
+  const unitDocs = allDocs.filter(
+    (d) => !(SESSION_LEVEL_DOC_TYPES as readonly string[]).includes(d.document_type || ''),
+  );
+
   const unitMap = new Map<string, {
     unit_code: string;
     unit_name: string;
@@ -139,8 +145,8 @@ export default function MyTeaching() {
     });
   });
 
-  allDocs.forEach((d) => {
-    const code = (d.unit_code as string) || 'Unknown';
+  unitDocs.forEach((d) => {
+    const code = (d.unit_code as string) || 'Unassigned';
     if (!unitMap.has(code)) {
       unitMap.set(code, {
         unit_code: code,
@@ -156,6 +162,17 @@ export default function MyTeaching() {
   });
 
   const units = Array.from(unitMap.values()).sort((a, b) => a.unit_code.localeCompare(b.unit_code));
+
+  // Group units by course for visual clustering
+  const courseGroups = new Map<string, { courseName: string; units: typeof units }>();
+  units.forEach((u) => {
+    const key = u.course_id || 'no-course';
+    if (!courseGroups.has(key)) {
+      courseGroups.set(key, { courseName: courseName(u.course_id) || 'Unassigned course', units: [] });
+    }
+    courseGroups.get(key)!.units.push(u);
+  });
+  const courseGroupList = Array.from(courseGroups.values()).sort((a, b) => a.courseName.localeCompare(b.courseName));
 
   return (
     <div className="pb-8">
@@ -320,6 +337,10 @@ export default function MyTeaching() {
         );
       })()}
 
+      <div className="mb-3 mt-5">
+        <h2 className="text-base font-semibold">My Units</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">Units you are teaching in {sessionLabel(year, term)}. Uploads for unit documents are grouped under each unit.</p>
+      </div>
       <div className="space-y-3">
         {units.map((u) => {
           const cov = unitCoverage(u.docs as unknown as ReportDoc[], u.unit_code);

@@ -17,7 +17,7 @@ import { QueueFilterBar, applyQueueFilter, DEFAULT_QUEUE_FILTER, type QueueFilte
 import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl';
+import { getCachedDocumentUrl, getCachedSignedUrl, resolveSignatureUrl, getPreferredDocumentFileRef } from '@/hooks/useSignedDocUrl';
 import { CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
 
 /**
@@ -76,7 +76,7 @@ export default function ReviewQueue() {
     }
     try {
       const [pdfUrl, sigUrl, stampUrl] = await Promise.all([
-        getCachedSignedUrl(doc.signed_file_url || doc.file_url || ''),
+        getCachedDocumentUrl(doc.id, doc),
         resolveSignatureUrl(profAny.signature_url),
         resolveSignatureUrl(profAny.stamp_url),
       ]);

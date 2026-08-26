@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     if (!lovableKey || !gdriveKey) return json({ error: "Google Drive connector not configured" }, 500);
 
     const resp = await fetch(
-      `${GATEWAY}/drive/v3/files/${encodeURIComponent(doc.gdrive_file_id)}?alt=media`,
+      `${GATEWAY}/drive/v3/files/${encodeURIComponent(doc.gdrive_file_id)}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true`,
       { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
     );
     if (!resp.ok) return json({ error: `Google Drive download failed: HTTP ${resp.status}` }, 502);

@@ -7,7 +7,7 @@ import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
 import { ReturnStageDialog } from '@/components/common/ReturnStageDialog';
 
-import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
+import { TermFilter, type TermFilterValue, filterByTerm, termCounts } from '@/components/common/TermFilter';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
 import { HierarchyView, hierarchyFor } from '@/components/common/HierarchyGroups';
 
@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl';
+import { getCachedSignedUrl, resolveSignatureUrl, getPreferredDocumentFileRef } from '@/hooks/useSignedDocUrl';
 import { Archive, Loader2, Download, ShieldAlert, RotateCw, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -35,12 +35,11 @@ export default function ArchiveScreen() {
   const bulkUpdate = useBulkUpdateDocumentStatus();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
-  const [earlyDoc, setEarlyDoc] = useState<{ id: string; fileUrl: string; fileName: string; status: string; documentType: string } | null>(null);
+  const [earlyDoc, setEarlyDoc] = useState<{ id: string; fileUrl: string; gdriveFileId?: string | null; fileName: string; status: string; documentType: string } | null>(null);
   const [earlyReason, setEarlyReason] = useState('');
   const [earlyBusy, setEarlyBusy] = useState(false);
   const [dpaAck, setDpaAck] = useState(false);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
-  const [termInitialized, setTermInitialized] = useState(false);
   const [deptFilter, setDeptFilter] = useState<string>('');
   const [bulkRetrying, setBulkRetrying] = useState(false);
   const [returnDocId, setReturnDocId] = useState<string | null>(null);
@@ -50,13 +49,6 @@ export default function ArchiveScreen() {
 
   const allPending = useMemo(() => pendingDocs || [], [pendingDocs]);
   const allArchived = useMemo(() => archivedDocs || [], [archivedDocs]);
-
-  useEffect(() => {
-    if (!termInitialized && allPending.length > 0) {
-      setTermFilter(pickDefaultTerm(allPending));
-      setTermInitialized(true);
-    }
-  }, [allPending, termInitialized]);
 
   const counts = useMemo(
     () => termCounts([...allPending, ...allArchived]),
@@ -105,7 +97,7 @@ export default function ArchiveScreen() {
       if (logErr) throw logErr;
 
       // 2) Fetch signed URL and trigger download
-      const url = await getCachedSignedUrl(earlyDoc.fileUrl);
+      const url = await getCachedSignedUrl(earlyDoc.gdriveFileId ? `gdrive://${earlyDoc.gdriveFileId}` : earlyDoc.fileUrl);
       const a = document.createElement('a');
       a.href = url;
       a.download = earlyDoc.fileName || 'document.pdf';
@@ -140,7 +132,7 @@ export default function ArchiveScreen() {
     }
     try {
       const [pdfUrl, sigUrl, stampUrl] = await Promise.all([
-        getCachedSignedUrl(doc.signed_file_url || doc.file_url || ''),
+        getCachedDocumentUrl(doc.id, doc),
         resolveSignatureUrl(profAny.signature_url),
         resolveSignatureUrl(profAny.stamp_url),
       ]);
@@ -341,7 +333,7 @@ export default function ArchiveScreen() {
           Download archived ZIP
         </ActionGuardButton>
         <GroupByControl value={groupBy} onChange={setGroupBy} />
-        <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
+        <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); }} counts={counts} />
       </div>
       <Tabs defaultValue="pending">
         <TabsList className="w-full mb-4">
@@ -426,6 +418,7 @@ export default function ArchiveScreen() {
                         setEarlyDoc({
                           id: doc.id,
                           fileUrl: doc.signed_file_url || doc.file_url || '',
+                          gdriveFileId: doc.gdrive_file_id,
                           fileName: doc.file_name || 'document.pdf',
                           status: doc.status,
                           documentType: doc.document_type,

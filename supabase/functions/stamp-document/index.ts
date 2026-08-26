@@ -264,7 +264,7 @@ async function downloadFromStorage(
 
 async function downloadFromDrive(fileId: string, lovableKey: string, gdriveKey: string): Promise<ArrayBuffer> {
   const resp = await fetch(
-    `${GATEWAY}/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+    `${GATEWAY}/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true`,
     { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
   );
   if (!resp.ok) throw new Error(`Google Drive download failed: HTTP ${resp.status} ${(await resp.text()).slice(0, 200)}`);
@@ -273,7 +273,7 @@ async function downloadFromDrive(fileId: string, lovableKey: string, gdriveKey: 
 
 async function replaceDriveFile(fileId: string, bytes: Uint8Array, lovableKey: string, gdriveKey: string): Promise<void> {
   const resp = await fetch(
-    `${GATEWAY}/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id`,
+    `${GATEWAY}/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id&supportsAllDrives=true`,
     {
       method: "PATCH",
       headers: {

@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl';
+import { getCachedDocumentUrl, getCachedSignedUrl, resolveSignatureUrl, getPreferredDocumentFileRef } from '@/hooks/useSignedDocUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBulkApproveWithPlacement, type ApprovalPlacement } from '@/hooks/useDocuments';
 import type { Database } from '@/integrations/supabase/types';
@@ -65,7 +65,7 @@ export function BulkSignButton({ docs, status, stage, label, onDone }: Props) {
       }
       const sample = docs[0];
       const [pdfUrl, sigUrl, stampUrl] = await Promise.all([
-        getCachedSignedUrl(sample.signed_file_url || sample.file_url || ''),
+        getCachedDocumentUrl(sample.id, sample),
         resolveSignatureUrl(prof.signature_url),
         resolveSignatureUrl(prof.stamp_url),
       ]);

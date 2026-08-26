@@ -9,7 +9,7 @@ import { DocumentCard } from '@/components/common/DocumentCard';
 import { BulkActionBar } from '@/components/common/BulkActionBar';
 import { PlacementModal } from '@/components/common/PlacementModal';
 import { RejectDialog } from '@/components/common/RejectDialog';
-import { TermFilter, type TermFilterValue, filterByTerm, termCounts, pickDefaultTerm } from '@/components/common/TermFilter';
+import { TermFilter, type TermFilterValue, filterByTerm, termCounts } from '@/components/common/TermFilter';
 import { GroupByControl, groupDocs, GroupSection, type GroupByKey } from '@/components/common/GroupByControl';
 import { HierarchyView, hierarchyFor } from '@/components/common/HierarchyGroups';
 
@@ -23,7 +23,7 @@ import { ActionGuardButton } from '@/components/common/ActionGuardButton';
 import { useCourses } from '@/hooks/useCourses';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedSignedUrl, resolveSignatureUrl } from '@/hooks/useSignedDocUrl';
+import { getCachedDocumentUrl, getCachedSignedUrl, resolveSignatureUrl, getPreferredDocumentFileRef } from '@/hooks/useSignedDocUrl';
 import { CheckCircle2, XCircle, Loader2, Zap, Search, ArrowUpDown } from 'lucide-react';
 
 type SortKey = 'RECENT' | 'TRAINER' | 'UNIT' | 'STATUS' | 'TYPE';
@@ -72,7 +72,6 @@ export default function DepartmentQueue() {
   const [placementDoc, setPlacementDoc] = useState<{ id: string; pdfUrl: string; sigUrl: string; stampUrl: string } | null>(null);
   const [rejectDoc, setRejectDoc] = useState<{ id: string; label: string } | null>(null);
   const [termFilter, setTermFilter] = useState<TermFilterValue>('ALL');
-  const [termInitialized, setTermInitialized] = useState(false);
   const [filter, setFilter] = useState<QueueFilterValue>({ ...DEFAULT_QUEUE_FILTER, status: 'SUBMITTED' });
   const [groupBy, setGroupBy] = useState<GroupByKey>('HIERARCHY');
   const [courseFilter, setCourseFilter] = useState<string>('ALL');
@@ -92,13 +91,6 @@ export default function DepartmentQueue() {
     () => (queue || []).filter((d) => d.hod_approved_by === currentUser?.id),
     [queue, currentUser?.id],
   );
-
-  useEffect(() => {
-    if (!termInitialized && baseQueue.length > 0) {
-      setTermFilter(pickDefaultTerm(baseQueue));
-      setTermInitialized(true);
-    }
-  }, [baseQueue, termInitialized]);
 
   const counts = useMemo(() => termCounts(baseQueue), [baseQueue]);
   const byCourse = useMemo(
@@ -161,7 +153,7 @@ export default function DepartmentQueue() {
     }
     try {
       const [pdfUrl, sigUrl, stampUrl] = await Promise.all([
-        getCachedSignedUrl(doc.signed_file_url || doc.file_url || ''),
+        getCachedDocumentUrl(doc.id, doc),
         resolveSignatureUrl(profAny.signature_url),
         resolveSignatureUrl(profAny.stamp_url),
       ]);
@@ -284,7 +276,7 @@ export default function DepartmentQueue() {
           </SelectContent>
         </Select>
         <GroupByControl value={groupBy} onChange={setGroupBy} />
-        <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); setTermInitialized(true); }} counts={counts} />
+        <TermFilter value={termFilter} onChange={(v) => { setTermFilter(v); }} counts={counts} />
       </div>
 
       <Tabs defaultValue="queue">
