@@ -78,6 +78,12 @@ function bucketOf(d: HierarchyDoc, level: HierarchyLevel, courses: CourseMap) {
   }
 }
 
+export interface HierarchyUnit {
+  code: string;
+  label: string;
+  count: number;
+}
+
 export interface HierarchyNode<T> {
   key: string;
   label: string;
@@ -86,8 +92,8 @@ export interface HierarchyNode<T> {
   children: HierarchyNode<T>[];
   /** Session-level documents (workload allocation) pinned at the trainer level. */
   pinned: T[];
-  /** Unit codes the trainer has registered inside this node. */
-  units: string[];
+  /** Units the trainer has registered inside this node, with document counts. */
+  units: HierarchyUnit[];
 }
 
 const isSessionLevelDoc = (d: HierarchyDoc) =>
@@ -116,9 +122,18 @@ export function buildHierarchy<T extends HierarchyDoc>(
       // allocated unit was actually registered.
       const pinned = level === 'TRAINER' ? v.docs.filter(isSessionLevelDoc) : [];
       const remaining = pinned.length ? v.docs.filter((d) => !isSessionLevelDoc(d)) : v.docs;
-      const units = level === 'TRAINER'
-        ? Array.from(new Set(v.docs.map((d) => d.unit_code).filter(Boolean) as string[])).sort()
-        : [];
+      let units: HierarchyUnit[] = [];
+      if (level === 'TRAINER') {
+        const m = new Map<string, HierarchyUnit>();
+        for (const d of v.docs) {
+          const code = d.unit_code;
+          if (!code) continue;
+          const cur = m.get(code) || { code, label: d.unit_name ? `${code} — ${d.unit_name}` : code, count: 0 };
+          cur.count += 1;
+          m.set(code, cur);
+        }
+        units = Array.from(m.values()).sort((a, b) => a.code.localeCompare(b.code));
+      }
       return {
         key,
         label: v.label,
@@ -130,6 +145,7 @@ export function buildHierarchy<T extends HierarchyDoc>(
       };
     });
 }
+
 
 const LEVEL_TINT: Record<HierarchyLevel, string> = {
   SESSION: 'bg-primary/10',
