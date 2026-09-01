@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { getCachedSignedUrl, resolveSignatureUrl, getPreferredDocumentFileRef } from '@/hooks/useSignedDocUrl';
+import { getCachedSignedUrl, resolveSignatureUrl, getPreferredDocumentFileRef, getCachedDocumentUrl } from '@/hooks/useSignedDocUrl';
 import { Archive, Loader2, Download, ShieldAlert, RotateCw, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
