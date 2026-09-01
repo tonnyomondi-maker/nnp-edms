@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { FileDown, Loader2 } from 'lucide-react';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabaseConfig';
 
 interface AuditTrailButtonProps {
   documentId: string;
@@ -20,13 +21,13 @@ export function AuditTrailButton({ documentId, fileNameHint }: AuditTrailButtonP
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess?.session?.access_token;
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-audit-trail`;
+      const url = `${SUPABASE_URL}/functions/v1/generate-audit-trail`;
       const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+          apikey: SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({ documentId }),
       });

@@ -21,6 +21,7 @@ import { Download, Archive, Loader2, FileArchive } from 'lucide-react';
 import { toast } from 'sonner';
 import { Navigate, Link } from 'react-router-dom';
 import { ExportProgressPanel } from '@/components/admin/ExportProgressPanel';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabaseConfig';
 
 type SessionKey = 'JAN_APR' | 'MAY_AUG' | 'SEP_DEC';
 
@@ -123,13 +124,13 @@ export default function SessionExports() {
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) throw new Error('Not authenticated');
 
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-session-zip`;
+      const url = `${SUPABASE_URL}/functions/v1/export-session-zip`;
       const resp = await fetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          apikey: SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({
           year, session, deleteAfter,

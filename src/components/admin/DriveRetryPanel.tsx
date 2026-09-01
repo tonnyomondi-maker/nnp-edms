@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { AlertTriangle, CheckCircle2, CloudUpload, Loader2, RotateCw, XCircle } from 'lucide-react';
 import { getEdgeFunctionErrorMessage } from '@/lib/edgeFunctionError';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabaseConfig';
 
 const APPROVED_STATES = ['DP_APPROVED', 'ARCHIVED', 'EXPORTED'];
 
@@ -149,12 +150,12 @@ export function DriveRetryPanel() {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-session-zip`, {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/export-session-zip`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+          apikey: SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({
           year: job.session_year,

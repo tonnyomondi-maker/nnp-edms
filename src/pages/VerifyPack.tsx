@@ -13,8 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabaseConfig';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+
 
 interface Meta {
   department: string; session_year: number; session_term: string;
