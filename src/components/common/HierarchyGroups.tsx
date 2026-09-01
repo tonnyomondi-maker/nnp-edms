@@ -196,9 +196,9 @@ function NodeView<T extends HierarchyDoc>({
                 <ClipboardList className="w-3.5 h-3.5 text-primary" />
                 <span className="text-xs font-semibold">Workload allocation</span>
                 <span className="text-[11px] text-muted-foreground">
-                  {node.units.length
-                    ? `Units registered this session: ${node.units.join(', ')}`
-                    : 'No units registered yet'}
+                  {node.pinned.length
+                    ? 'Compare the form against the units registered below'
+                    : 'Not submitted for this session'}
                 </span>
               </div>
               {node.pinned.length
@@ -209,8 +209,31 @@ function NodeView<T extends HierarchyDoc>({
                     No workload allocation submitted — you cannot confirm every allocated unit was registered.
                   </p>
                 )}
+              <div className="pt-1.5 border-t border-primary/20">
+                <p className="text-[11px] font-medium text-muted-foreground mb-1">
+                  Counter-check: units registered this session ({node.units.length})
+                </p>
+                {node.units.length ? (
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    {node.units.map((u) => (
+                      <li key={u.code} className="flex items-center gap-1.5 text-[11px] min-h-[28px]">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        <span className="truncate">{u.label}</span>
+                        <span className="ml-auto shrink-0 text-muted-foreground">
+                          {u.count} doc{u.count === 1 ? '' : 's'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+                    <Circle className="w-3.5 h-3.5" /> No units registered yet
+                  </p>
+                )}
+              </div>
             </div>
           )}
+
           {node.children.length
             ? node.children.map((c) => (
                 <NodeView key={c.key} node={c} depth={depth + 1} renderDoc={renderDoc} pendingOf={pendingOf} />
