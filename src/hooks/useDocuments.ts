@@ -19,6 +19,27 @@ export type DocumentRow = Tables<'documents'>;
 /** Trainer identity attached client-side (documents has no FK embed to profiles). */
 export type TrainerProfileLite = { full_name: string | null; pf_number: string | null; department: string | null };
 
+/**
+ * A document row is only usable by approvers once Google Drive (or, for legacy
+ * rows, Storage) actually holds the file. Uploads that end without a file
+ * reference produce "ghost" submissions that fail at stamping time, so we
+ * verify right after the upload call and roll the row back when it is missing.
+ */
+export async function assertDriveFileAttached(docId: string, rollback: () => Promise<void>) {
+  const { data } = await supabase
+    .from('documents')
+    .select('gdrive_file_id, file_url')
+    .eq('id', docId)
+    .maybeSingle();
+  const row = data as { gdrive_file_id?: string | null; file_url?: string | null } | null;
+  if (row?.gdrive_file_id || row?.file_url) return;
+  await rollback();
+  throw new Error(
+    'The file did not reach Google Drive, so the submission was cancelled. Please check your connection and upload again.',
+  );
+}
+
+
 async function attachTrainerProfiles<T extends { trainer_id: string }>(
   rows: T[],
 ): Promise<(T & { profiles: TrainerProfileLite | null })[]> {
