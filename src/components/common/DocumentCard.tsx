@@ -125,7 +125,7 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                 <ApprovalThumb label="HOD" sig={doc.hod_signature_url} stamp={doc.hod_stamp_url} />
                 <ApprovalThumb label="DP" sig={doc.dp_signature_url} stamp={doc.dp_stamp_url} />
                 <ApprovalThumb label="IQA" sig={doc.iqa_signature_url} stamp={doc.iqa_stamp_url} />
-                <DocPreviewLink fileRef={fileRef} />
+                <DocPreviewLink fileRef={fileRef} title={`${doc.document_type}${unitCode ? ` • ${unitCode}` : ''}`} />
                 <Link
                   to={`/verify/${doc.id}`}
                   className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted hover:bg-muted/70 transition-colors text-[10px] font-medium"
