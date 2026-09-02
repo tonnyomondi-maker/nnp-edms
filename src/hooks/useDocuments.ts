@@ -646,6 +646,13 @@ export function useSubmitDocument() {
           } as never).eq('id', resubmitOf);
           throw new Error(await getEdgeFunctionErrorMessage(driveErr, driveResp, 'Google Drive upload failed'));
         }
+        await assertDriveFileAttached(resubmitOf, async () => {
+          await supabase.from('documents').update({
+            status: 'REJECTED',
+            submitted_at: null,
+            gdrive_sync_status: 'failed',
+          } as never).eq('id', resubmitOf);
+        });
         return driveResp;
       }
 
@@ -668,6 +675,11 @@ export function useSubmitDocument() {
         await supabase.from('documents').delete().eq('id', data.id);
         throw new Error(await getEdgeFunctionErrorMessage(driveErr, driveResp, 'Google Drive upload failed'));
       }
+      // Never leave a "submitted" record without a file behind it: approvers
+      // would only discover the problem when stamping fails.
+      await assertDriveFileAttached(data.id, async () => {
+        await supabase.from('documents').delete().eq('id', data.id);
+      });
 
       return { ...data, ...(driveResp || {}) };
     },
