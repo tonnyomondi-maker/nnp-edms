@@ -19,6 +19,27 @@ export type DocumentRow = Tables<'documents'>;
 /** Trainer identity attached client-side (documents has no FK embed to profiles). */
 export type TrainerProfileLite = { full_name: string | null; pf_number: string | null; department: string | null };
 
+/**
+ * A document row is only usable by approvers once Google Drive (or, for legacy
+ * rows, Storage) actually holds the file. Uploads that end without a file
+ * reference produce "ghost" submissions that fail at stamping time, so we
+ * verify right after the upload call and roll the row back when it is missing.
+ */
+export async function assertDriveFileAttached(docId: string, rollback: () => Promise<void>) {
+  const { data } = await supabase
+    .from('documents')
+    .select('gdrive_file_id, file_url')
+    .eq('id', docId)
+    .maybeSingle();
+  const row = data as { gdrive_file_id?: string | null; file_url?: string | null } | null;
+  if (row?.gdrive_file_id || row?.file_url) return;
+  await rollback();
+  throw new Error(
+    'The file did not reach Google Drive, so the submission was cancelled. Please check your connection and upload again.',
+  );
+}
+
+
 async function attachTrainerProfiles<T extends { trainer_id: string }>(
   rows: T[],
 ): Promise<(T & { profiles: TrainerProfileLite | null })[]> {
@@ -269,18 +290,9 @@ async function performApproval(
     },
   });
   if (stampErr || (stampResp as { error?: string } | null)?.error) {
-    // Try to extract the real server error body so approvers see the actual reason
-    // (e.g. "Policy requires an embedded stamp for this document type.")
-    let msg = (stampResp as { error?: string } | null)?.error || stampErr?.message || 'Failed to stamp document';
-    try {
-      const ctx = (stampErr as unknown as { context?: { body?: ReadableStream | Response } })?.context;
-      const body = ctx?.body as unknown as { text?: () => Promise<string> } | undefined;
-      if (body?.text) {
-        const text = await body.text();
-        try { const parsed = JSON.parse(text); if (parsed?.error) msg = parsed.error; } catch { if (text) msg = text; }
-      }
-    } catch { /* keep msg */ }
-    throw new Error(msg);
+    // Surface the real server message (missing file, drive not connected,
+    // policy violation…) instead of the generic "non-2xx status code".
+    throw new Error(await getEdgeFunctionErrorMessage(stampErr, stampResp, 'Failed to stamp document'));
   }
   const signedFileUrl = (stampResp as { signedFileUrl?: string })?.signedFileUrl;
   if (signedFileUrl) {
@@ -655,6 +667,13 @@ export function useSubmitDocument() {
           } as never).eq('id', resubmitOf);
           throw new Error(await getEdgeFunctionErrorMessage(driveErr, driveResp, 'Google Drive upload failed'));
         }
+        await assertDriveFileAttached(resubmitOf, async () => {
+          await supabase.from('documents').update({
+            status: 'REJECTED',
+            submitted_at: null,
+            gdrive_sync_status: 'failed',
+          } as never).eq('id', resubmitOf);
+        });
         return driveResp;
       }
 
@@ -677,6 +696,11 @@ export function useSubmitDocument() {
         await supabase.from('documents').delete().eq('id', data.id);
         throw new Error(await getEdgeFunctionErrorMessage(driveErr, driveResp, 'Google Drive upload failed'));
       }
+      // Never leave a "submitted" record without a file behind it: approvers
+      // would only discover the problem when stamping fails.
+      await assertDriveFileAttached(data.id, async () => {
+        await supabase.from('documents').delete().eq('id', data.id);
+      });
 
       return { ...data, ...(driveResp || {}) };
     },

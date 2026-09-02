@@ -4,7 +4,7 @@ import { StatusBadge } from './StatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { FileText, Calendar, ShieldCheck, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import { FileText, Calendar, ShieldCheck, ChevronDown, ChevronUp, RotateCcw, FileWarning } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Link } from 'react-router-dom';
 import { DocPreviewLink } from './DocPreviewLink';
@@ -125,7 +125,7 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                 <ApprovalThumb label="HOD" sig={doc.hod_signature_url} stamp={doc.hod_stamp_url} />
                 <ApprovalThumb label="DP" sig={doc.dp_signature_url} stamp={doc.dp_stamp_url} />
                 <ApprovalThumb label="IQA" sig={doc.iqa_signature_url} stamp={doc.iqa_stamp_url} />
-                <DocPreviewLink fileRef={fileRef} />
+                <DocPreviewLink fileRef={fileRef} title={`${doc.document_type}${unitCode ? ` • ${unitCode}` : ''}`} />
                 <Link
                   to={`/verify/${doc.id}`}
                   className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-muted hover:bg-muted/70 transition-colors text-[10px] font-medium"
@@ -158,6 +158,12 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                   </a>
                 )}
               </div>
+              {!fileRef && (
+                <p className="mt-2 flex items-start gap-1 text-[11px] px-2 py-1 rounded bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 border border-amber-400/40">
+                  <FileWarning className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                  <span><span className="font-semibold">No file attached. </span>The upload did not reach Google Drive — the trainer must upload this document again before it can be verified, reviewed or approved.</span>
+                </p>
+              )}
               {doc.status === 'REJECTED' && doc.rejection_reason && (
                 <p className="mt-2 text-[11px] px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/20">
                   <span className="font-semibold">Rejected: </span>{doc.rejection_reason}

@@ -424,18 +424,30 @@ Deno.serve(async (req) => {
 
     const { data: doc, error: docErr } = await supabase
       .from("documents").select("*").eq("id", documentId).single();
-    if (docErr || !doc) throw new Error("Document not found");
+    if (docErr || !doc) {
+      return new Response(JSON.stringify({ error: "Document not found." }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const drivePrimary = !!doc.gdrive_file_id || String(doc.file_url || "").startsWith("gdrive://");
     const sourceRef = drivePrimary ? null : parseStorageRef(doc.signed_file_url || doc.file_url || "");
-    if (!drivePrimary && !sourceRef) throw new Error("Document has no parseable file reference");
+    if (!drivePrimary && !sourceRef) {
+      return new Response(JSON.stringify({
+        error: "This document has no attached file — the trainer must re-upload it before it can be verified, reviewed or approved.",
+        code: "NO_FILE",
+      }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // NNP ADMS primary storage: download the PDF from Google Drive. Legacy
     // documents can still be stamped from the old Supabase Storage bucket.
     const lovableKey = Deno.env.get("LOVABLE_API_KEY");
     const gdriveKey = Deno.env.get("GOOGLE_DRIVE_API_KEY");
     if (drivePrimary && (!lovableKey || !gdriveKey)) {
-      throw new Error("Google Drive connector is not configured");
+      return new Response(JSON.stringify({
+        error: "Google Drive storage is not connected for this project, so the document file cannot be opened. Ask the Super Admin to reconnect Google Drive.",
+        code: "DRIVE_NOT_CONFIGURED",
+      }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     const pdfBytes = drivePrimary
       ? await downloadFromDrive(doc.gdrive_file_id, lovableKey!, gdriveKey!)
