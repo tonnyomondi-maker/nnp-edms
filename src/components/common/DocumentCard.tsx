@@ -4,7 +4,7 @@ import { StatusBadge } from './StatusBadge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { FileText, Calendar, ShieldCheck, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import { FileText, Calendar, ShieldCheck, ChevronDown, ChevronUp, RotateCcw, FileWarning } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Link } from 'react-router-dom';
 import { DocPreviewLink } from './DocPreviewLink';
