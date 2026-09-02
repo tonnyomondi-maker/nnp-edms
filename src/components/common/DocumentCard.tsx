@@ -158,6 +158,12 @@ export function DocumentCard({ doc, showTrainer = false, actions, selectable, se
                   </a>
                 )}
               </div>
+              {!fileRef && (
+                <p className="mt-2 flex items-start gap-1 text-[11px] px-2 py-1 rounded bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100 border border-amber-400/40">
+                  <FileWarning className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                  <span><span className="font-semibold">No file attached. </span>The upload did not reach Google Drive — the trainer must upload this document again before it can be verified, reviewed or approved.</span>
+                </p>
+              )}
               {doc.status === 'REJECTED' && doc.rejection_reason && (
                 <p className="mt-2 text-[11px] px-2 py-1 rounded bg-destructive/10 text-destructive border border-destructive/20">
                   <span className="font-semibold">Rejected: </span>{doc.rejection_reason}
