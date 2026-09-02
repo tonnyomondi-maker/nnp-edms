@@ -22,8 +22,17 @@ export const ActionGuardButton = forwardRef<HTMLButtonElement, ActionGuardButton
   ref,
 ) {
   const guard = useRoleGuard();
-  const allowed = forceEnable || guard.canActOn(action, doc);
-  const reason = allowed ? null : guard.reasonFor(action, doc);
+  // A document with no file behind it can never be stamped — block approvals
+  // early with a readable reason instead of failing inside the edge function.
+  const docAny = doc as (Doc & { gdrive_file_id?: string | null; signed_file_url?: string | null }) | null | undefined;
+  const missingFile =
+    action === 'approve' && !!doc && !docAny?.gdrive_file_id && !docAny?.signed_file_url && !doc.file_url;
+  const allowed = !missingFile && (forceEnable || guard.canActOn(action, doc));
+  const reason = allowed
+    ? null
+    : missingFile
+      ? 'This document has no attached file — the trainer must upload it again before it can be verified, reviewed or approved.'
+      : guard.reasonFor(action, doc);
   const finalDisabled = disabled || !allowed;
 
   const button = (
