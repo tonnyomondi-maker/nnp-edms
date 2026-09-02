@@ -11,25 +11,32 @@ So there are two problems: file-less documents were allowed to exist, and the er
 ## Plan
 
 ### 1. Make upload failures impossible to miss
+
 - After the Drive upload step in the upload flow, confirm the document row actually received a Drive file ID. If it did not, delete the ghost row and show the real reason to the trainer instead of a silent "submitted".
 - Show the true server message on failure (the app already has a helper for this; the approval path is not using it).
 
 ### 2. Clear errors instead of "non-2xx"
+
 - Stamping returns a proper JSON error with a plain message such as "This document has no attached file — the trainer must re-upload it before it can be verified", rather than crashing with a 500.
 - The approve/verify/review actions surface that exact message in the toast.
 
 ### 3. Flag file-less documents in every queue
+
 - Documents without an attached file get a visible "No file attached" warning badge, and approve/verify/review buttons are disabled for them with a tooltip explaining the trainer must re-upload.
 - Super Admin gets a small maintenance action to remove these orphan records so trainers can re-submit cleanly (the five existing ones fall in this group).
 
 ### 4. Proper in-app document preview for approvers
+
 - Replace the current "View PDF" link with a **View** action that opens a full-screen, mobile-friendly PDF viewer dialog (with page scrolling, download, and open-in-new-tab), sitting alongside Verify / Audit / CSV / Timeline on every document card.
 - Works for Drive-stored and storage-stored files, shows a spinner while the file resolves, a retry on failure, and a clear "No file attached" state.
 - Available in HOD Department Queue, IQAO Review Queue, DP Approval Queue, IQAO Archive, and Admin All Documents.
 
 ### 5. End-to-end re-check of the flow
+
 - Upload as trainer → Drive receives the PDF and the row records the file ID → HOD verify → IQAO review → DP approve → IQAO archive, confirming the approval sheet stamping and Drive placement work at each stage.
 - Run the Drive integration health check and smoke test afterwards and report the results.
+- Make sure google drive remains the storage for documents and optimize this for multi user uploads
+- &nbsp;
 
 ## Technical notes
 
