@@ -369,12 +369,17 @@ function json(payload: unknown, status = 200) {
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 
 /** Find a child folder by exact name, creating it when missing. */
-async function ensureFolder(
+// Folder ids are stable, so cache them per isolate. With many trainers
+// uploading at once this removes ~8 Drive "list folder" calls per upload and
+// keeps the connector well inside its rate limits.
+const folderCache = new Map<string, string>();
+
+async function findFolder(
   lovableKey: string,
   gdriveKey: string,
   name: string,
   parentId: string | null,
-): Promise<string> {
+): Promise<string | null> {
   const safe = name.replace(/'/g, "\\'");
   const parentClause = parentId ? `'${parentId}' in parents` : `'${NNP_EDMS_ROOT_FOLDER_ID}' in parents`;
   const q = `name='${safe}' and mimeType='${FOLDER_MIME}' and trashed=false and ${parentClause}`;
@@ -383,10 +388,26 @@ async function ensureFolder(
     `${GATEWAY}/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true${corporaParam}`,
     { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
   );
-  if (listRes.ok) {
-    const found = (await listRes.json()).files?.[0];
-    if (found?.id) return found.id as string;
+  if (!listRes.ok) return null;
+  return ((await listRes.json()).files?.[0]?.id as string | undefined) ?? null;
+}
+
+async function ensureFolder(
+  lovableKey: string,
+  gdriveKey: string,
+  name: string,
+  parentId: string | null,
+): Promise<string> {
+  const cacheKey = `${parentId || "root"}/${name}`;
+  const cached = folderCache.get(cacheKey);
+  if (cached) return cached;
+
+  const existing = await findFolder(lovableKey, gdriveKey, name, parentId);
+  if (existing) {
+    folderCache.set(cacheKey, existing);
+    return existing;
   }
+
   const body: Record<string, unknown> = { name, mimeType: FOLDER_MIME };
   if (parentId) body.parents = [parentId];
   const createRes = await fetch(`${GATEWAY}/drive/v3/files?supportsAllDrives=true&fields=id`, {
@@ -398,8 +419,19 @@ async function ensureFolder(
     },
     body: JSON.stringify(body),
   });
-  if (!createRes.ok) throw new Error(`Drive create folder "${name}" ${createRes.status}`);
-  return (await createRes.json()).id as string;
+  if (!createRes.ok) {
+    // Another concurrent upload may have just created the same folder — look
+    // again before failing so simultaneous trainers don't break each other.
+    const raced = await findFolder(lovableKey, gdriveKey, name, parentId);
+    if (raced) {
+      folderCache.set(cacheKey, raced);
+      return raced;
+    }
+    throw new Error(`Drive create folder "${name}" ${createRes.status}`);
+  }
+  const id = (await createRes.json()).id as string;
+  folderCache.set(cacheKey, id);
+  return id;
 }
 
 /** Root "EDMS" folder id — from drive_folder_map when mapped, else resolved/created. */
