@@ -10,6 +10,7 @@ import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Loader2, Trash2 } from 'lucide-react';
+import { OrphanDocumentsCard } from '@/components/admin/OrphanDocumentsCard';
 
 const ACTIONS = [
   'ALL',
@@ -115,6 +116,10 @@ export default function StorageAudit() {
         title="Storage & Export Audit"
         subtitle="Every offload and session export — who ran it, when, and how many files"
       />
+
+      {activeRole === 'SUPER_ADMIN' && <OrphanDocumentsCard />}
+
+
 
       <Card>
         <CardHeader className="pb-2">
