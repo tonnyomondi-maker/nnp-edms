@@ -116,6 +116,10 @@ export default function StorageAudit() {
         subtitle="Every offload and session export — who ran it, when, and how many files"
       />
 
+      {activeRole === 'SUPER_ADMIN' && <OrphanDocumentsCard />}
+
+
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Reclaim storage from corrected documents</CardTitle>
