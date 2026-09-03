@@ -10,6 +10,7 @@ import { Navigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Loader2, Trash2 } from 'lucide-react';
+import { OrphanDocumentsCard } from '@/components/admin/OrphanDocumentsCard';
 
 const ACTIONS = [
   'ALL',
