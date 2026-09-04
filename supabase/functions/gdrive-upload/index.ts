@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
           if (resp.status < 500 && resp.status !== 429) break; // don't retry 4xx (except rate limit)
         } else {
           const json_ = await resp.json();
-          await admin.from("documents").update({
+          const { error: updErr } = await admin.from("documents").update({
             gdrive_file_id: json_.id,
             file_drive_id: json_.id,
             file_url: `gdrive://${json_.id}`,
@@ -317,6 +317,13 @@ Deno.serve(async (req) => {
             gdrive_last_attempt_at: new Date().toISOString(),
             gdrive_attempt_count: attempt,
           }).eq("id", documentId);
+          if (updErr) {
+            // The bytes are safely in Drive but the metadata link failed — surface
+            // it instead of silently leaving a file-less document behind.
+            console.error("Drive metadata update failed:", updErr.message);
+            return json({ error: `File uploaded to Drive but linking it to the document failed: ${updErr.message}`, fileId: json_.id }, 500);
+          }
+
 
           await admin.from("audit_logs").insert({
             document_id: documentId,
