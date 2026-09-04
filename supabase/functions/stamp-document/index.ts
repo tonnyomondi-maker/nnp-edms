@@ -798,8 +798,9 @@ Deno.serve(async (req) => {
 
   } catch (e) {
     console.error("stamp-document error:", e);
+    const status = (e as Error & { statusCode?: number }).statusCode ?? 500;
     return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
