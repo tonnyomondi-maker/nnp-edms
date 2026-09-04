@@ -90,8 +90,10 @@ export interface HierarchyNode<T> {
   level: HierarchyLevel;
   docs: T[];
   children: HierarchyNode<T>[];
-  /** Session-level documents (workload allocation) pinned at the trainer level. */
+  /** Session-level documents (workload allocation, personal timetable) pinned at the trainer level. */
   pinned: T[];
+  /** Documents left after the pinned ones are removed — what the leaf list shows. */
+  unpinned: T[];
   /** Units the trainer has registered inside this node, with document counts. */
   units: HierarchyUnit[];
 }

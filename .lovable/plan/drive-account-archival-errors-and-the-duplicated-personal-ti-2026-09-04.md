@@ -2,7 +2,7 @@
 
 ## 1. Google Drive account
 
-Checked the live connection: the portal is already authenticated as **Power Manager – Nyamira National Polytechnic (ups@nyamirapoly.ac.ke)**, and uploads target the shared drive **"NNP EDMS"** (the only mapped root folder). So it is not a personal test Gmail account.
+Checked the live connection: the portal is already authenticated as **Power Manager – Nyamira National Polytechnic ([ups@nyamirapoly.ac.ke](mailto:ups@nyamirapoly.ac.ke))**, and uploads target the shared drive **"NNP EDMS"** (the only mapped root folder). So it is not a personal test Gmail account.
 
 Two things to settle:
 
@@ -10,6 +10,8 @@ Two things to settle:
 - If it is the right account but the wrong destination folder, I will re-point the root mapping to the official EDMS shared drive and rebuild the Session / Department / Trainer / Unit branches under it.
 
 Either way, after the switch I run the integration health check plus one end-to-end submission so a file is proven to land in `NNP EDMS / 01 - PENDING / <Session> / ...`.
+
+The email is okay just recheck the root mapping to check it places the files in the right folders
 
 ## 2. Errors during DP Academics approval and IQAO archival
 

@@ -232,22 +232,34 @@ Deno.serve(async (req) => {
         // its bytes so corrected session documents also leave the old hierarchy.
         if (existingId && primaryMode && parentId) {
           const fileInfo = await fetch(
-            `${GATEWAY}/drive/v3/files/${existingId}?fields=id,parents`,
+            `${GATEWAY}/drive/v3/files/${existingId}?fields=id,parents&supportsAllDrives=true`,
             { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
           );
-          if (fileInfo.ok) {
-            const currentParents = ((await fileInfo.json()).parents || []) as string[];
-            const oldParents = currentParents.filter(Boolean).join(",");
-            if (!currentParents.includes(parentId)) {
-              const moveResp = await fetch(
-                `${GATEWAY}/drive/v3/files/${existingId}?addParents=${encodeURIComponent(parentId)}&removeParents=${encodeURIComponent(oldParents)}&supportsAllDrives=true&fields=id,parents`,
-                {
-                  method: "PATCH",
-                  headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey, "Content-Type": "application/json" },
-                  body: JSON.stringify({}),
-                },
+          if (!fileInfo.ok) {
+            throw new Error(
+              `Could not read the current Drive folder of ${existingId}: HTTP ${fileInfo.status} ${(await fileInfo.text()).slice(0, 200)}`,
+            );
+          }
+          const currentParents = ((await fileInfo.json()).parents || []) as string[];
+          const oldParents = currentParents.filter(Boolean).join(",");
+          if (!currentParents.includes(parentId)) {
+            // Shared-drive items must have exactly one parent, so the old
+            // parent list must be known before we attach a new one.
+            if (!oldParents) {
+              throw new Error(
+                `Drive reclassification aborted: current folder of ${existingId} is unknown, moving it would give the file two parents.`,
               );
-              if (!moveResp.ok) throw new Error(`Drive reclassification failed: HTTP ${moveResp.status}`);
+            }
+            const moveResp = await fetch(
+              `${GATEWAY}/drive/v3/files/${existingId}?addParents=${encodeURIComponent(parentId)}&removeParents=${encodeURIComponent(oldParents)}&supportsAllDrives=true&fields=id,parents`,
+              {
+                method: "PATCH",
+                headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey, "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+              },
+            );
+            if (!moveResp.ok) {
+              throw new Error(`Drive reclassification failed: HTTP ${moveResp.status} ${(await moveResp.text()).slice(0, 200)}`);
             }
           }
         }
@@ -256,11 +268,21 @@ Deno.serve(async (req) => {
           // Finalize an already Drive-primary file by moving it into the
           // approved archive. The file ID stays unchanged.
           const fileInfo = await fetch(
-            `${GATEWAY}/drive/v3/files/${existingId}?fields=id,parents`,
+            `${GATEWAY}/drive/v3/files/${existingId}?fields=id,parents&supportsAllDrives=true`,
             { headers: { "Authorization": `Bearer ${lovableKey}`, "X-Connection-Api-Key": gdriveKey } },
           );
-          const currentParents = fileInfo.ok ? ((await fileInfo.json()).parents || []) : [];
-          const oldParents = Array.isArray(currentParents) ? currentParents.join(",") : "";
+          if (!fileInfo.ok) {
+            throw new Error(
+              `Could not read the current Drive folder of ${existingId}: HTTP ${fileInfo.status} ${(await fileInfo.text()).slice(0, 200)}`,
+            );
+          }
+          const currentParents = ((await fileInfo.json()).parents || []) as string[];
+          const oldParents = Array.isArray(currentParents) ? currentParents.filter(Boolean).join(",") : "";
+          if (!oldParents) {
+            throw new Error(
+              `Drive archival aborted: current folder of ${existingId} is unknown, moving it would give the file two parents.`,
+            );
+          }
           resp = await fetch(
             `${GATEWAY}/drive/v3/files/${existingId}?addParents=${encodeURIComponent(parentId || "")}&removeParents=${encodeURIComponent(oldParents)}&supportsAllDrives=true&fields=id,webViewLink,parents`,
             {
