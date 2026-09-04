@@ -305,10 +305,36 @@ async function fetchImageAsset(
   }
   const ref = parseStorageRef(url, "signatures");
   if (!ref) throw new Error("Could not parse storage reference for image");
-  const { data, error } = await supabase.storage.from(ref.bucket).download(ref.path);
-  if (error || !data) throw new Error(`Storage download failed for ${ref.bucket}/${ref.path}: ${error?.message || "unknown"}`);
-  const buffer = await data.arrayBuffer();
-  return { buffer, contentType: data.type || null };
+
+  // Storage occasionally answers a direct download with an empty error object.
+  // Retry once, then fall back to a short-lived signed URL before giving up.
+  let lastDetail = "";
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { data, error } = await supabase.storage.from(ref.bucket).download(ref.path);
+    if (data && !error) {
+      return { buffer: await data.arrayBuffer(), contentType: data.type || null };
+    }
+    lastDetail = error?.message || "unknown storage error";
+  }
+
+  try {
+    const { data: signed } = await supabase.storage.from(ref.bucket).createSignedUrl(ref.path, 60);
+    if (signed?.signedUrl) {
+      const resp = await fetch(signed.signedUrl);
+      if (resp.ok) {
+        return { buffer: await resp.arrayBuffer(), contentType: resp.headers.get("content-type") };
+      }
+      lastDetail = `signed URL download HTTP ${resp.status}`;
+    }
+  } catch (e) {
+    lastDetail = (e as Error).message || lastDetail;
+  }
+
+  const err = new Error(
+    `Your saved signature or stamp image could not be read (${ref.bucket}/${ref.path}: ${lastDetail}). Please re-save it in Profile Settings and try again.`,
+  );
+  (err as Error & { statusCode?: number }).statusCode = 422;
+  throw err;
 }
 
 
