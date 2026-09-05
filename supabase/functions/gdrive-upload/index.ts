@@ -474,6 +474,36 @@ async function ensureFolder(
   return id;
 }
 
+/** Cross-isolate cache of a resolved folder path, stored in drive_folder_map. */
+// deno-lint-ignore no-explicit-any
+async function loadCachedPath(admin: any, fullPath: string): Promise<string | null> {
+  try {
+    const { data } = await admin
+      .from("drive_folder_map")
+      .select("folder_id")
+      .eq("scope", "path")
+      .eq("folder_name", fullPath)
+      .maybeSingle();
+    return (data?.folder_id as string | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+async function saveCachedPath(admin: any, fullPath: string, folderId: string): Promise<void> {
+  try {
+    await admin.from("drive_folder_map").insert({
+      scope: "path",
+      department: null,
+      folder_id: folderId,
+      folder_name: fullPath,
+    });
+  } catch {
+    // A concurrent upload may have cached the same path first — harmless.
+  }
+}
+
 /** Root "EDMS" folder id — from drive_folder_map when mapped, else resolved/created. */
 async function resolveRootFolder(
   // deno-lint-ignore no-explicit-any
