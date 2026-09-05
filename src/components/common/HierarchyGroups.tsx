@@ -142,6 +142,7 @@ export function buildHierarchy<T extends HierarchyDoc>(
         level,
         docs: v.docs,
         pinned,
+        unpinned: remaining,
         units,
         children: rest.length ? buildHierarchy(remaining, rest, courses) : [],
       };
@@ -196,7 +197,7 @@ function NodeView<T extends HierarchyDoc>({
             <div className="rounded-md border border-primary/30 bg-primary/5 p-2 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <ClipboardList className="w-3.5 h-3.5 text-primary" />
-                <span className="text-xs font-semibold">Workload allocation</span>
+                <span className="text-xs font-semibold">Session documents</span>
                 <span className="text-[11px] text-muted-foreground">
                   {node.pinned.length
                     ? 'Compare the form against the units registered below'
@@ -240,7 +241,7 @@ function NodeView<T extends HierarchyDoc>({
             ? node.children.map((c) => (
                 <NodeView key={c.key} node={c} depth={depth + 1} renderDoc={renderDoc} pendingOf={pendingOf} />
               ))
-            : node.docs.map((d) => <div key={d.id}>{renderDoc(d)}</div>)}
+            : node.unpinned.map((d) => <div key={d.id}>{renderDoc(d)}</div>)}
         </div>
       )}
     </div>
