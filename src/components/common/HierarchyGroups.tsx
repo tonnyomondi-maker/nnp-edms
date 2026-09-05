@@ -142,6 +142,7 @@ export function buildHierarchy<T extends HierarchyDoc>(
         level,
         docs: v.docs,
         pinned,
+        unpinned: remaining,
         units,
         children: rest.length ? buildHierarchy(remaining, rest, courses) : [],
       };
