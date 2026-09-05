@@ -517,12 +517,21 @@ export default function UploadDocuments() {
 
       let success = 0;
       const failures: string[] = [];
-      // Only process files not already uploaded to storage
-      for (const entry of files.filter((f) => f.stage !== 'storage_ok' && f.stage !== 'gdrive_ok' && f.stage !== 'gdrive_failed' && !f.needsReattach)) {
-        const r = await processEntry(entry);
-        if (r.ok) success++;
-        else failures.push(`${entry.fileName}: ${r.error}`);
-      }
+      // Only process files not already uploaded to storage.
+      // Uploads are network-bound, so run a few at a time instead of strictly
+      // one after another — a batch of documents finishes far quicker.
+      const pending = files.filter((f) => f.stage !== 'storage_ok' && f.stage !== 'gdrive_ok' && f.stage !== 'gdrive_failed' && !f.needsReattach);
+      const CONCURRENCY = 3;
+      const queue = [...pending];
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+          for (let entry = queue.shift(); entry; entry = queue.shift()) {
+            const r = await processEntry(entry);
+            if (r.ok) success++;
+            else failures.push(`${entry.fileName}: ${r.error}`);
+          }
+        }),
+      );
 
       if (success > 0) {
         const successfulNames = files

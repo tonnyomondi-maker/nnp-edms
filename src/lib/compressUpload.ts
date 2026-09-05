@@ -10,14 +10,20 @@ import { PDFDocument } from 'pdf-lib';
 const MIN_SIZE = 50 * 1024;
 const IMG_MAX_DIM = 2200;
 const IMG_QUALITY = 0.85;
+// Re-saving a PDF costs seconds of main-thread work and only pays off on
+// bigger files. Small PDFs upload faster than they compress, so skip them.
+const PDF_COMPRESS_MIN = 1.5 * 1024 * 1024;
+// Meaningful gains only: a 2% shrink is not worth the extra wait.
+const MIN_GAIN_RATIO = 0.95;
 
 async function compressPdf(file: File): Promise<File> {
+  if (file.size < PDF_COMPRESS_MIN) return file;
   try {
     const bytes = await file.arrayBuffer();
-    const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
     const out = await doc.save({ useObjectStreams: true, addDefaultPage: false });
     const candidate = new File([new Uint8Array(out)], file.name, { type: 'application/pdf' });
-    if (candidate.size < file.size && (candidate.size >= MIN_SIZE || file.size < MIN_SIZE)) {
+    if (candidate.size < file.size * MIN_GAIN_RATIO && (candidate.size >= MIN_SIZE || file.size < MIN_SIZE)) {
       return candidate;
     }
     return file;
@@ -47,12 +53,24 @@ async function compressImage(file: File): Promise<File> {
   }
 }
 
-export async function compressForUpload(file: File): Promise<{ file: File; originalSize: number; finalSize: number }> {
-  const originalSize = file.size;
-  let out = file;
-  if (file.type === 'application/pdf') out = await compressPdf(file);
-  else if (file.type.startsWith('image/')) out = await compressImage(file);
-  return { file: out, originalSize, finalSize: out.size };
+export type CompressResult = { file: File; originalSize: number; finalSize: number };
+
+// The picker shows a size preview and the submit step needs the optimised
+// bytes: without this cache the same file is compressed twice.
+const cache = new WeakMap<File, Promise<CompressResult>>();
+
+export function compressForUpload(file: File): Promise<CompressResult> {
+  const cached = cache.get(file);
+  if (cached) return cached;
+  const run = (async (): Promise<CompressResult> => {
+    const originalSize = file.size;
+    let out = file;
+    if (file.type === 'application/pdf') out = await compressPdf(file);
+    else if (file.type.startsWith('image/')) out = await compressImage(file);
+    return { file: out, originalSize, finalSize: out.size };
+  })();
+  cache.set(file, run);
+  return run;
 }
 
 export function formatBytes(b: number): string {

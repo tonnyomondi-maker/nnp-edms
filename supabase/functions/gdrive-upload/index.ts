@@ -188,9 +188,20 @@ Deno.serve(async (req) => {
     let folderPath = "EDMS";
     try {
       parentId = await resolveRootFolder(admin, lovableKey, gdriveKey);
-      for (const seg of segments) {
-        parentId = await ensureFolder(lovableKey, gdriveKey, seg, parentId);
-        folderPath += `/${seg}`;
+      // Folder ids never change, so a previously resolved full path is reused
+      // straight from the database. This removes up to eight sequential Drive
+      // lookups per upload — the single biggest delay in a submission.
+      const fullPath = segments.join("/");
+      const cachedLeaf = await loadCachedPath(admin, fullPath);
+      if (cachedLeaf) {
+        parentId = cachedLeaf;
+        folderPath += `/${fullPath}`;
+      } else {
+        for (const seg of segments) {
+          parentId = await ensureFolder(lovableKey, gdriveKey, seg, parentId);
+          folderPath += `/${seg}`;
+        }
+        await saveCachedPath(admin, fullPath, parentId!);
       }
     } catch (e) {
   console.error(
@@ -461,6 +472,36 @@ async function ensureFolder(
   const id = (await createRes.json()).id as string;
   folderCache.set(cacheKey, id);
   return id;
+}
+
+/** Cross-isolate cache of a resolved folder path, stored in drive_folder_map. */
+// deno-lint-ignore no-explicit-any
+async function loadCachedPath(admin: any, fullPath: string): Promise<string | null> {
+  try {
+    const { data } = await admin
+      .from("drive_folder_map")
+      .select("folder_id")
+      .eq("scope", "path")
+      .eq("folder_name", fullPath)
+      .maybeSingle();
+    return (data?.folder_id as string | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+async function saveCachedPath(admin: any, fullPath: string, folderId: string): Promise<void> {
+  try {
+    await admin.from("drive_folder_map").insert({
+      scope: "path",
+      department: null,
+      folder_id: folderId,
+      folder_name: fullPath,
+    });
+  } catch {
+    // A concurrent upload may have cached the same path first — harmless.
+  }
 }
 
 /** Root "EDMS" folder id — from drive_folder_map when mapped, else resolved/created. */
