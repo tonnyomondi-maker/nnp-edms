@@ -188,9 +188,20 @@ Deno.serve(async (req) => {
     let folderPath = "EDMS";
     try {
       parentId = await resolveRootFolder(admin, lovableKey, gdriveKey);
-      for (const seg of segments) {
-        parentId = await ensureFolder(lovableKey, gdriveKey, seg, parentId);
-        folderPath += `/${seg}`;
+      // Folder ids never change, so a previously resolved full path is reused
+      // straight from the database. This removes up to eight sequential Drive
+      // lookups per upload — the single biggest delay in a submission.
+      const fullPath = segments.join("/");
+      const cachedLeaf = await loadCachedPath(admin, fullPath);
+      if (cachedLeaf) {
+        parentId = cachedLeaf;
+        folderPath += `/${fullPath}`;
+      } else {
+        for (const seg of segments) {
+          parentId = await ensureFolder(lovableKey, gdriveKey, seg, parentId);
+          folderPath += `/${seg}`;
+        }
+        await saveCachedPath(admin, fullPath, parentId!);
       }
     } catch (e) {
   console.error(
