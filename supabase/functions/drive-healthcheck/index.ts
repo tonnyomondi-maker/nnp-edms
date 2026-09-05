@@ -63,7 +63,9 @@ Deno.serve(async (req) => {
   steps.push({ name: "drive_about", ok: aboutOk, latency_ms: latencyMs, detail: about });
 
   // Folder checks
-  const { data: folders } = await admin.from("drive_folder_map").select("*");
+  // "path" rows are just a resolved-folder cache used to speed up uploads;
+  // only the mapped root/department folders are health-checked.
+  const { data: folders } = await admin.from("drive_folder_map").select("*").neq("scope", "path");
   const folderResults: Array<Record<string, unknown>> = [];
   for (const f of folders ?? []) {
     try {
