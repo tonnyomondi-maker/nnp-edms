@@ -53,12 +53,24 @@ async function compressImage(file: File): Promise<File> {
   }
 }
 
-export async function compressForUpload(file: File): Promise<{ file: File; originalSize: number; finalSize: number }> {
-  const originalSize = file.size;
-  let out = file;
-  if (file.type === 'application/pdf') out = await compressPdf(file);
-  else if (file.type.startsWith('image/')) out = await compressImage(file);
-  return { file: out, originalSize, finalSize: out.size };
+export type CompressResult = { file: File; originalSize: number; finalSize: number };
+
+// The picker shows a size preview and the submit step needs the optimised
+// bytes: without this cache the same file is compressed twice.
+const cache = new WeakMap<File, Promise<CompressResult>>();
+
+export function compressForUpload(file: File): Promise<CompressResult> {
+  const cached = cache.get(file);
+  if (cached) return cached;
+  const run = (async (): Promise<CompressResult> => {
+    const originalSize = file.size;
+    let out = file;
+    if (file.type === 'application/pdf') out = await compressPdf(file);
+    else if (file.type.startsWith('image/')) out = await compressImage(file);
+    return { file: out, originalSize, finalSize: out.size };
+  })();
+  cache.set(file, run);
+  return run;
 }
 
 export function formatBytes(b: number): string {
