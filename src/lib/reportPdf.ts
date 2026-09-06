@@ -44,7 +44,7 @@ export async function exportReportPdf({
   onProgress?.('Adding institution branding');
   const logo = await loadLogo();
   if (logo) {
-    try { doc.addImage(logo, 'JPEG', 40, 24, 52, 52); } catch { /* non-fatal */ }
+    try { doc.addImage(logo, 'PNG', 40, 24, 52, 52); } catch { /* non-fatal */ }
   }
 
   doc.setFont('helvetica', 'bold');
@@ -115,7 +115,7 @@ export async function exportReportPdf({
 
   doc.addPage();
   if (logo) {
-    try { doc.addImage(logo, 'JPEG', 40, 24, 32, 32); } catch { /* non-fatal */ }
+    try { doc.addImage(logo, 'PNG', 40, 24, 32, 32); } catch { /* non-fatal */ }
   }
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);

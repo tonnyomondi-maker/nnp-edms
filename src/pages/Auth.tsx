@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import polytechnicLogo from '@/assets/polytechnic-logo.jpg';
+import polytechnicLogo from '@/assets/polytechnic-logo.png';
 import { Footer } from '@/components/layout/Footer';
 import { DEPARTMENTS } from '@/lib/sessions';
 
