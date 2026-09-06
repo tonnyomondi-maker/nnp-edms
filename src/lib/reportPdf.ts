@@ -1,7 +1,7 @@
 // Client-side PDF generation for submission reports.
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import logoUrl from '@/assets/polytechnic-logo.jpg';
+import logoUrl from '@/assets/polytechnic-logo.png';
 import type { TrainerCoverage, MissingRow, DeptCoverage, FlowStats } from '@/lib/reportMetrics';
 
 interface Args {
