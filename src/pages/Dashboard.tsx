@@ -7,7 +7,6 @@ import { DocumentCard } from '@/components/common/DocumentCard';
 import { FileText, Clock, CheckCircle2, XCircle, Archive, Users, BookOpen, Loader2, Shield, Upload, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { HodBlock, DpBlock, IqaBlock, SuperAdminBlock } from '@/components/dashboard/RoleDashboardBlocks';
-import { RoleGuideCard } from '@/components/common/RoleGuideCard';
 import { OnboardingChecklist } from '@/components/common/OnboardingChecklist';
 
 
@@ -40,7 +39,7 @@ export default function Dashboard() {
       <PageHeader title={`Welcome, ${currentUser.name.split(' ')[0]}`} subtitle={`${currentUser.department || ''} • ${currentUser.pfNumber || ''}`} />
 
       <OnboardingChecklist />
-      <RoleGuideCard />
+
 
 
       <Card className="mb-4">
