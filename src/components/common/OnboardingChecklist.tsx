@@ -6,7 +6,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useProfileCompleteness } from '@/hooks/useProfileCompleteness';
-import { CheckCircle2, ArrowRight, ListChecks, AlertTriangle } from 'lucide-react';
+import { StatusBadge } from '@/components/common/StatusBadge';
+import { CheckCircle2, ArrowRight, ListChecks, AlertTriangle, Compass, FileUp, Eye, Stamp, Archive } from 'lucide-react';
 
 interface Step {
   id: string;
@@ -73,13 +74,40 @@ const CHECKLISTS: Record<UserRole, Step[]> = {
   ],
 };
 
+/** Short headline per role, absorbed from the former role guide card. */
+const HEADLINES: Record<UserRole, string> = {
+  TRAINER: 'As a Trainer you prepare and submit your teaching documents each training session.',
+  HOD: 'As Head of Department you are the first verification stage for your department.',
+  DP_ACADEMICS: 'As Deputy Principal Academics you approve IQAO-reviewed documents across all departments.',
+  IQA: 'As IQAO you review HOD-verified documents and archive the final approved record.',
+  SUPER_ADMIN: 'As Super Admin you configure the portal and keep the institution-wide record safe.',
+};
+
+const LIFECYCLE = [
+  { icon: FileUp, title: 'You submit', detail: 'Upload the PDF and pick its unit and type. You can open the PDF preview any time before and after submitting.' },
+  { icon: Eye, title: 'HOD verifies', detail: 'Your Head of Department checks the document against the approved sample.' },
+  { icon: Eye, title: 'IQAO reviews', detail: 'The IQAO confirms quality before it goes for final approval.' },
+  { icon: Stamp, title: 'DP Academics approves', detail: 'The Deputy Principal Academics signs it off — an approval sheet is appended to your PDF.' },
+  { icon: Archive, title: 'IQAO archives', detail: 'The final signed PDF is stored on Google Drive and appears under your Approved documents.' },
+];
+
+const STATUS_LEGEND: { status: Parameters<typeof StatusBadge>[0]['status']; meaning: string }[] = [
+  { status: 'SUBMITTED', meaning: 'Waiting for your HOD to verify.' },
+  { status: 'HOD_APPROVED', meaning: 'Verified — now with IQAO for review.' },
+  { status: 'IQA_REVIEWED', meaning: 'Reviewed — now with DP Academics for approval.' },
+  { status: 'DP_APPROVED', meaning: 'Approved — awaiting IQAO archival.' },
+  { status: 'ARCHIVED', meaning: 'Final — signed, stored on Google Drive, and listed under Approved documents.' },
+  { status: 'REJECTED', meaning: 'Needs correction — read the comment, then use Edit & resubmit.' },
+];
+
 const storeKey = (role: UserRole, userId?: string) => `edms_checklist_${userId || 'anon'}_${role}`;
+const dismissKey = (role: UserRole, userId?: string) => `edms_guide_dismissed_${userId || 'anon'}_${role}`;
 
 export function OnboardingChecklist() {
   const { activeRole, currentUser } = useAuth();
   const profile = useProfileCompleteness();
   const [done, setDone] = useState<Record<string, boolean>>({});
-  const [hidden, setHidden] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -88,9 +116,10 @@ export function OnboardingChecklist() {
     } catch {
       setDone({});
     }
+    setDismissed(localStorage.getItem(dismissKey(activeRole, currentUser.id)) === '1');
   }, [activeRole, currentUser]);
 
-  if (!currentUser || hidden) return null;
+  if (!currentUser || dismissed) return null;
   const steps = CHECKLISTS[activeRole] || [];
 
   const isDone = (s: Step) => {
@@ -106,9 +135,15 @@ export function OnboardingChecklist() {
     localStorage.setItem(storeKey(activeRole, currentUser.id), JSON.stringify(next));
   };
 
+  const dismiss = () => {
+    localStorage.setItem(dismissKey(activeRole, currentUser.id), '1');
+    setDismissed(true);
+  };
+
   const completed = steps.filter(isDone).length;
   const pct = steps.length ? (completed / steps.length) * 100 : 0;
   const profileBlocked = !profile.loading && !profile.complete;
+  const isTrainer = activeRole === 'TRAINER';
 
   if (completed === steps.length) return null;
 
@@ -118,7 +153,8 @@ export function OnboardingChecklist() {
         <div className="flex items-start gap-2">
           <ListChecks className="w-4 h-4 text-primary mt-0.5 shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Your setup checklist</p>
+            <p className="text-sm font-semibold">Getting started</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{HEADLINES[activeRole]}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{completed} of {steps.length} steps done</p>
             <Progress value={pct} className="h-1.5 mt-2" />
           </div>
@@ -131,6 +167,25 @@ export function OnboardingChecklist() {
               Uploads and submissions are blocked until your profile is complete. Missing: <strong>{profile.missing.join(', ')}</strong>.{' '}
               <Link to="/profile" className="underline font-medium">Update profile</Link>
             </div>
+          </div>
+        )}
+
+        {isTrainer && (
+          <div className="mt-3 rounded-md border bg-card p-2.5">
+            <p className="text-xs font-semibold mb-2">How a document moves through the portal</p>
+            <ol className="space-y-2">
+              {LIFECYCLE.map((s, i) => (
+                <li key={s.title} className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-[10px] font-bold">{i + 1}</span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold flex items-center gap-1">
+                      <s.icon className="w-3 h-3 text-primary" /> {s.title}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">{s.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
           </div>
         )}
 
@@ -158,10 +213,43 @@ export function OnboardingChecklist() {
           })}
         </ol>
 
-        <Button size="sm" variant="ghost" className="mt-3 h-7 text-xs" onClick={() => setHidden(true)}>
-          Hide for now
+        {isTrainer && (
+          <div className="mt-3 rounded-md border bg-card p-2.5">
+            <p className="text-xs font-semibold mb-2">What each status on your cards means</p>
+            <ul className="space-y-1.5">
+              {STATUS_LEGEND.map((s) => (
+                <li key={s.status} className="flex items-center gap-2">
+                  <StatusBadge status={s.status} className="text-[10px] px-2 py-0.5 shrink-0" />
+                  <span className="text-[11px] text-muted-foreground">{s.meaning}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <Button size="sm" variant="ghost" className="mt-3 h-7 text-xs" onClick={dismiss}>
+          Got it, hide this
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+/** Small link that lets a user bring the guide back. */
+export function ReplayGuideButton() {
+  const { activeRole, currentUser } = useAuth();
+  if (!currentUser) return null;
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="h-7 text-xs"
+      onClick={() => {
+        localStorage.removeItem(dismissKey(activeRole, currentUser.id));
+        window.location.reload();
+      }}
+    >
+      <Compass className="w-3.5 h-3.5 mr-1" /> Show guide
+    </Button>
   );
 }
