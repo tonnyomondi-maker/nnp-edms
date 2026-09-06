@@ -1,4 +1,4 @@
-import polytechnicLogo from '@/assets/polytechnic-logo.jpg';
+import polytechnicLogo from '@/assets/polytechnic-logo.png';
 import { ExternalLink } from 'lucide-react';
 
 const APP_VERSION = 'EDMS v1.0';
