@@ -1067,6 +1067,39 @@ export type Database = {
         }
         Relationships: []
       }
+      session_approver_targets: {
+        Row: {
+          department: string
+          id: string
+          session_term: string
+          session_year: number
+          stage: string
+          target: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          department?: string
+          id?: string
+          session_term: string
+          session_year: number
+          stage: string
+          target?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          department?: string
+          id?: string
+          session_term?: string
+          session_year?: number
+          stage?: string
+          target?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       sla_targets: {
         Row: {
           created_at: string
@@ -1503,6 +1536,20 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      trainer_update_unit: {
+        Args: {
+          _class_code: string
+          _config_id: string
+          _course_id: string
+          _course_type: string
+          _module_number: number
+          _sessions_per_week: number
+          _term_number: number
+          _unit_code: string
+          _unit_name: string
+        }
+        Returns: number
       }
       verification_pack_stats: {
         Args: { _capacity?: number; _department?: string }

@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { unitCoverage, type ReportDoc } from '@/lib/reportMetrics';
-import { TriangleAlert as AlertTriangle, BookOpen, CalendarDays, CircleCheck as CheckCircle2, ChevronRight, ClipboardCheck, FileText, Loader as Loader2, Paperclip, Plus, Save, Upload } from 'lucide-react';
+import { TriangleAlert as AlertTriangle, BookOpen, CalendarDays, CircleCheck as CheckCircle2, ChevronRight, ClipboardCheck, FileText, Loader as Loader2, Paperclip, Pencil, Plus, Save, Upload } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,9 +50,12 @@ export default function MyTeaching() {
   const { data: docs, isLoading } = useMyDocumentsBySession(year, term);
   const { data: configs = [] } = useMyUnitConfigs(year, term);
   const upsertConfig = useUpsertUnitConfig();
+  const queryClient = useQueryClient();
 
   // --- Add / edit a unit (course-linked) ---
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [department, setDepartment] = useState(currentUser?.department || '');
   const [courseId, setCourseId] = useState('');
   const [unitCode, setUnitCode] = useState('');
@@ -68,6 +73,7 @@ export default function MyTeaching() {
   }, [currentUser?.department, department]);
 
   const resetForm = () => {
+    setEditingId(null);
     setCourseId('');
     setUnitCode('');
     setUnitName('');
@@ -81,6 +87,27 @@ export default function MyTeaching() {
   const saveUnit = async () => {
     if (!department || !courseId || !unitCode.trim() || !unitName.trim() || !classCode.trim()) {
       toast({ title: 'Missing details', description: 'Department, course, unit code, unit name and class code are all required.', variant: 'destructive' });
+      return;
+    }
+    if (editingId) {
+      setSavingEdit(true);
+      try {
+        const { data: n, error } = await supabase.rpc('trainer_update_unit' as never, {
+          _config_id: editingId, _unit_code: unitCode.trim(), _unit_name: unitName.trim(), _class_code: classCode.trim(),
+          _course_id: courseId, _sessions_per_week: sessionsPerWeek, _course_type: courseType,
+          _term_number: termNumber, _module_number: moduleNumber,
+        } as never);
+        if (error) throw error;
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['unit-configs'] }),
+          queryClient.invalidateQueries({ queryKey: ['documents'] }),
+        ]);
+        toast({ title: 'Unit updated', description: `${n ?? 0} linked document(s) updated too.` });
+        resetForm();
+        setShowForm(false);
+      } catch (e) {
+        toast({ title: 'Could not update unit', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
+      } finally { setSavingEdit(false); }
       return;
     }
     try {
@@ -130,6 +157,7 @@ export default function MyTeaching() {
     sessionsPerWeek: number;
     termNumber: number | null;
     course_id: string | null;
+    configId: string | null;
     docs: typeof allDocs;
   }>();
 
@@ -141,6 +169,7 @@ export default function MyTeaching() {
       sessionsPerWeek: c.sessions_per_week,
       termNumber: c.term_number,
       course_id: c.course_id ?? null,
+      configId: c.id,
       docs: [],
     });
   });
@@ -155,6 +184,7 @@ export default function MyTeaching() {
         sessionsPerWeek: (d.sessions_per_week as number) || 1,
         termNumber: (d.term_number as number) ?? null,
         course_id: (d.course_id as string) ?? null,
+        configId: null,
         docs: [],
       });
     }
@@ -200,7 +230,7 @@ export default function MyTeaching() {
             </SelectContent>
           </Select>
         )}
-        <Button size="sm" onClick={() => setShowForm((s) => !s)}>
+        <Button size="sm" onClick={() => { resetForm(); setShowForm((s) => !s); }}>
           <Plus className="w-4 h-4 mr-1" /> Add unit
         </Button>
       </div>
@@ -212,6 +242,7 @@ export default function MyTeaching() {
       {showForm && (
         <Card className="mb-4">
           <CardContent className="p-4 space-y-3">
+            {editingId && <p className="text-sm font-semibold">Edit unit details — changes also apply to documents already submitted for this unit.</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-sm font-medium">Department</Label>
@@ -285,9 +316,9 @@ export default function MyTeaching() {
               )}
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={saveUnit} disabled={upsertConfig.isPending}>
-                {upsertConfig.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
-                Save unit
+              <Button size="sm" onClick={saveUnit} disabled={upsertConfig.isPending || savingEdit}>
+                {upsertConfig.isPending || savingEdit ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                {editingId ? 'Save changes' : 'Save unit'}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => { resetForm(); setShowForm(false); }}>Cancel</Button>
             </div>
@@ -418,6 +449,26 @@ export default function MyTeaching() {
                       <Link to={`/upload?unit=${encodeURIComponent(u.unit_code)}&type=${encodeURIComponent(cov.missing[0])}`}>
                         <Upload className="w-4 h-4 mr-1" /> Upload next required
                       </Link>
+                    </Button>
+                  )}
+                  {u.configId && (
+                    <Button size="sm" variant="outline" className="h-10 sm:h-9" onClick={() => {
+                      const cfg = configs.find((c) => c.id === u.configId);
+                      if (!cfg) return;
+                      setEditingId(cfg.id);
+                      setDepartment(cfg.department);
+                      setCourseId(cfg.course_id || '');
+                      setUnitCode(cfg.unit_code);
+                      setUnitName(cfg.unit_name || '');
+                      setClassCode(cfg.class_code || '');
+                      setSessionsPerWeek(cfg.sessions_per_week || 1);
+                      setCourseType((cfg.course_type as CourseType) || 'CYCLE');
+                      setTermNumber(cfg.term_number || 1);
+                      setModuleNumber(cfg.module_number || 1);
+                      setShowForm(true);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}>
+                      <Pencil className="w-4 h-4 mr-1" /> Edit unit
                     </Button>
                   )}
                   <Button asChild size="sm" variant="ghost" className="h-10 sm:h-9">

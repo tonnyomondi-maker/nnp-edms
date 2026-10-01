@@ -73,6 +73,17 @@ export default function Dashboard() {
           {activeRole === 'SUPER_ADMIN' && <div className="mb-6"><SuperAdminBlock /></div>}
 
 
+          {activeRole !== 'TRAINER' && (
+            <Link to="/approvers" className="block mb-6">
+              <Card className="hover:border-primary/50 transition-colors">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <Users className="w-5 h-5 text-primary shrink-0" />
+                  <div className="flex-1"><p className="text-sm font-semibold">Approver session dashboard</p><p className="text-xs text-muted-foreground">Pending, approved and archived per approver against session targets.</p></div>
+                </CardContent>
+              </Card>
+            </Link>
+          )}
+
           {activeRole === 'TRAINER' && (
             <div className="mb-6 space-y-3">
               <h2 className="text-sm font-semibold">What needs your attention?</h2>
