@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { unitCoverage, type ReportDoc } from '@/lib/reportMetrics';
-import { TriangleAlert as AlertTriangle, BookOpen, CalendarDays, CircleCheck as CheckCircle2, ChevronRight, ClipboardCheck, FileText, Loader as Loader2, Paperclip, Plus, Save, Upload } from 'lucide-react';
+import { TriangleAlert as AlertTriangle, BookOpen, CalendarDays, CircleCheck as CheckCircle2, ChevronRight, ClipboardCheck, FileText, Loader as Loader2, Paperclip, Pencil, Plus, Save, Upload } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,6 +50,7 @@ export default function MyTeaching() {
   const { data: docs, isLoading } = useMyDocumentsBySession(year, term);
   const { data: configs = [] } = useMyUnitConfigs(year, term);
   const upsertConfig = useUpsertUnitConfig();
+  const queryClient = useQueryClient();
 
   // --- Add / edit a unit (course-linked) ---
   const [showForm, setShowForm] = useState(false);
