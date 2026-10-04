@@ -17,6 +17,7 @@ const hodItems = [
   { to: '/hod/dashboard', icon: LayoutDashboard, label: 'Trainers' },
   { to: '/hod/queue', icon: Users, label: 'Queue' },
   { to: '/upload', icon: Upload, label: 'Upload' },
+  { to: '/approved', icon: FileArchive, label: 'My Approved' },
   { to: '/reports', icon: BarChart3, label: 'Reports' },
 ];
 
