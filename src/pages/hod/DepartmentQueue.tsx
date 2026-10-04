@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRoleGuard } from '@/hooks/useRoleGuard';
-import { useDocumentsByDepartment, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, type ApprovalPlacement } from '@/hooks/useDocuments';
+import { useDocumentsByDepartment, useBulkUpdateDocumentStatus, useUpdateDocumentStatus, useMyDocuments, type ApprovalPlacement } from '@/hooks/useDocuments';
 import { PageHeader } from '@/components/common/PageHeader';
 import { TemplateLibraryPanel } from '@/components/common/TemplateLibraryPanel';
 
@@ -90,6 +90,13 @@ export default function DepartmentQueue() {
   const myActioned = useMemo(
     () => (queue || []).filter((d) => d.hod_approved_by === currentUser?.id),
     [queue, currentUser?.id],
+  );
+
+  // HOD's own professional documents — view-only (no self-verification).
+  const { data: ownDocsRaw } = useMyDocuments();
+  const ownDocs = useMemo(
+    () => sortDocs((ownDocsRaw || []) as unknown as QueueDoc[], 'RECENT') as unknown as NonNullable<typeof ownDocsRaw>,
+    [ownDocsRaw],
   );
 
   const counts = useMemo(() => termCounts(baseQueue), [baseQueue]);
@@ -283,6 +290,7 @@ export default function DepartmentQueue() {
         <TabsList className="w-full mb-3">
           <TabsTrigger value="queue" className="flex-1">Queue ({filteredQueue.length})</TabsTrigger>
           <TabsTrigger value="mine" className="flex-1">Approved by me ({myFiltered.length})</TabsTrigger>
+          <TabsTrigger value="own" className="flex-1">My documents ({ownDocs.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="queue">
@@ -337,6 +345,17 @@ export default function DepartmentQueue() {
             {myFiltered.length > 0
               ? myFiltered.map((doc) => <DocumentCard key={doc.id} doc={doc} showTrainer />)
               : <p className="text-sm text-muted-foreground text-center py-8">You have not approved any documents yet</p>}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="own">
+          <p className="mb-3 text-[11px] text-muted-foreground rounded-md border bg-muted/30 px-3 py-2">
+            Your own professional documents. These are verified by the next approver — you can view, track and download them here, but not approve them yourself.
+          </p>
+          <div className="space-y-3">
+            {ownDocs.length > 0
+              ? ownDocs.map((doc) => <DocumentCard key={doc.id} doc={doc} />)
+              : <p className="text-sm text-muted-foreground text-center py-8">You have not submitted any documents yet</p>}
           </div>
         </TabsContent>
       </Tabs>
