@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.bootstrap_super_admin(text) FROM PUBLIC, anon, authenticated;
