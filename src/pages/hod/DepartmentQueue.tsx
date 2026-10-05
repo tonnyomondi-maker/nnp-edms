@@ -82,10 +82,9 @@ export default function DepartmentQueue() {
   // Clear selection if user switches away from HOD role mid-session
   useEffect(() => { if (!canAct) setSelected(new Set()); }, [canAct, activeRole]);
 
-  const baseQueue = useMemo(
-    () => (queue || []).filter(d => d.trainer_id !== currentUser?.id),
-    [queue, currentUser?.id]
-  );
+  // HODs teach units too and verify their own documents (NNP rule), so the
+  // queue includes the HOD's own submissions.
+  const baseQueue = useMemo(() => queue || [], [queue]);
 
   const myActioned = useMemo(
     () => (queue || []).filter((d) => d.hod_approved_by === currentUser?.id),

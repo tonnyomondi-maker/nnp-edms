@@ -12,12 +12,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { Loader2, Save, Upload, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
 import { SignatureCreator } from '@/components/common/SignatureCreator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DEPARTMENTS } from '@/lib/sessions';
 
 export default function ProfileSettings() {
   const { currentUser, activeRole } = useAuth();
   const [fullName, setFullName] = useState('');
   const [pfNumber, setPfNumber] = useState('');
   const [department, setDepartment] = useState('');
+  // Home department is set once; afterwards only the administrator can change it.
+  const [departmentLocked, setDepartmentLocked] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [stampUrl, setStampUrl] = useState<string | null>(null);
   const [stampRequired, setStampRequired] = useState(true);
@@ -56,6 +60,7 @@ export default function ProfileSettings() {
         setFullName((d.full_name as string) || '');
         setPfNumber((d.pf_number as string) || '');
         setDepartment((d.department as string) || '');
+        setDepartmentLocked(!!(d.department as string));
         setSignatureUrl(await resolvePreview((d.signature_url as string) || null));
         setStampUrl(await resolvePreview((d.stamp_url as string) || null));
         setStampRequired(d.stamp_required !== false);
@@ -136,11 +141,11 @@ export default function ProfileSettings() {
     setLoading(true);
     const { error } = await supabase
       .from('profiles')
-      .update({ full_name: fullName, pf_number: pfNumber, department })
+      .update(departmentLocked ? { full_name: fullName, pf_number: pfNumber } : { full_name: fullName, pf_number: pfNumber, department })
       .eq('user_id', currentUser.id);
     setLoading(false);
     if (error) toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    else toast({ title: 'Profile updated successfully' });
+    else { if (department) setDepartmentLocked(true); toast({ title: 'Profile updated successfully' }); }
   };
 
   if (initialLoading) {
@@ -173,7 +178,22 @@ export default function ProfileSettings() {
           </div>
           <div>
             <Label>Department</Label>
-            <Input value={department} onChange={e => setDepartment(e.target.value)} placeholder="Computer Science" className="mt-1" />
+            {departmentLocked ? (
+              <>
+                <Input value={department} disabled className="mt-1" />
+                <p className="text-[11px] text-muted-foreground mt-1">Your home department is locked. To change it, contact the System Administrator. You can still add units from other departments under My Units.</p>
+              </>
+            ) : (
+              <>
+                <Select value={department} onValueChange={setDepartment}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select your home department" /></SelectTrigger>
+                  <SelectContent>
+                    {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">Choose carefully — once saved, only the System Administrator can change it.</p>
+              </>
+            )}
           </div>
           <div>
             <Label>Roles</Label>

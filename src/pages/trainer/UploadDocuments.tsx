@@ -390,7 +390,9 @@ export default function UploadDocuments() {
   // batch is allowed, but the unit fields are required because at least one
   // selected document is unit-scoped.
   const requiresUnit = files.some((f) => f.documentType && !isSessionLevel(f.documentType));
-  const headerValid = !!department && (!requiresUnit || (!!unitCode && !!classCode)) && (!hasWeeklyType || sessionsPerWeek >= 1);
+  // A unit with no linked course would land in an "unassigned" Drive folder.
+  const unitMissingCourse = requiresUnit && !!unitCode && !courseId;
+  const headerValid = !!department && (!requiresUnit || (!!unitCode && !!classCode && !!courseId)) && (!hasWeeklyType || sessionsPerWeek >= 1);
   const fileErrors = files.map((f) => ({ id: f.id, error: validateFile(f) }));
   const allFilesValid = files.length > 0 && fileErrors.every((e) => !e.error);
   const anyInFlight = files.some((f) => ['compressing', 'uploading_storage', 'mirroring_gdrive'].includes(f.stage));
@@ -723,6 +725,11 @@ export default function UploadDocuments() {
                 <p><span className="text-muted-foreground">Course:</span> <strong>{courseName || '—'}</strong></p>
                 <p><span className="text-muted-foreground">Class:</span> <strong>{classCode || '—'}</strong></p>
                 <p className="text-[11px] text-muted-foreground">Derived from the unit you selected. Edit it under My Units.</p>
+                {unitMissingCourse && (
+                  <p className="text-[11px] text-destructive font-medium">
+                    This unit has no course selected. <Link to="/teaching" className="underline">Edit the unit under My Units</Link> and pick its course before uploading.
+                  </p>
+                )}
               </div>
             </div>
 

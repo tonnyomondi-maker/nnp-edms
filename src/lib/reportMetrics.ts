@@ -140,7 +140,8 @@ export function trainerCoverage({ docs, configs, profiles }: Input): TrainerCove
       expected,
       covered: coveredCount,
       pct: expected > 0 ? Math.round((coveredCount / expected) * 100) : 0,
-      pending: new Set(tDocs.filter((d) => d.status === 'SUBMITTED' && d.unit_code).map((d) => key(d.unit_code as string, d.document_type))).size,
+      // Awaiting = anywhere in the pipeline before DP approval (HOD, IQAO or DP stage).
+      pending: new Set(tDocs.filter((d) => ['SUBMITTED', 'HOD_APPROVED', 'IQA_REVIEWED'].includes(d.status) && d.unit_code).map((d) => key(d.unit_code as string, d.document_type))).size,
       approved: new Set(
         tDocs.filter((d) => ['DP_APPROVED', 'ARCHIVED', 'EXPORTED'].includes(d.status) && d.unit_code)
           .map((d) => key(d.unit_code as string, d.document_type)),
