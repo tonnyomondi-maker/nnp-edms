@@ -254,7 +254,7 @@ export default function MyTeaching() {
                 </Select>
               </div>
               <div>
-                <Label className="text-sm font-medium">Course</Label>
+                <Label className="text-sm font-medium">Course <span className="text-destructive">*</span></Label>
                 <Select value={courseId} onValueChange={setCourseId} disabled={!department}>
                   <SelectTrigger className="mt-1.5">
                     <SelectValue placeholder={department ? 'Select course' : 'Pick a department first'} />
@@ -316,7 +316,10 @@ export default function MyTeaching() {
               )}
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={saveUnit} disabled={upsertConfig.isPending || savingEdit}>
+              {(!department || !courseId || !unitCode.trim() || !unitName.trim() || !classCode.trim()) && (
+                <p className="text-[11px] text-destructive self-center">Department, course, unit code, unit name and class are required.</p>
+              )}
+              <Button size="sm" onClick={saveUnit} disabled={upsertConfig.isPending || savingEdit || !department || !courseId || !unitCode.trim() || !unitName.trim() || !classCode.trim()}>
                 {upsertConfig.isPending || savingEdit ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                 {editingId ? 'Save changes' : 'Save unit'}
               </Button>
