@@ -61,7 +61,6 @@ export default function ProfileSettings() {
         setPfNumber((d.pf_number as string) || '');
         setDepartment((d.department as string) || '');
         setDepartmentLocked(!!(d.department as string));
-        setDepartmentLocked(!!(d.department as string));
         setSignatureUrl(await resolvePreview((d.signature_url as string) || null));
         setStampUrl(await resolvePreview((d.stamp_url as string) || null));
         setStampRequired(d.stamp_required !== false);
