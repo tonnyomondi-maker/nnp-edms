@@ -123,6 +123,7 @@ export default function HodDashboard() {
                 <p className="text-[11px] text-muted-foreground">{r.email}{r.pf_number ? ` • ${r.pf_number}` : ''}</p>
               </div>
               <div className="flex gap-1">
+                {r.unitCount > 0 && r.total === 0 && <Badge variant="destructive" className="text-[10px]">No submissions</Badge>}
                 <Badge variant="secondary" className="text-[10px]">{r.unitCount} unit(s)</Badge>
                 <Badge variant="outline" className="text-[10px]">{r.total} doc(s)</Badge>
               </div>
