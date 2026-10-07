@@ -349,7 +349,7 @@ export default function DepartmentQueue() {
 
         <TabsContent value="own">
           <p className="mb-3 text-[11px] text-muted-foreground rounded-md border bg-muted/30 px-3 py-2">
-            Your own professional documents. These are verified by the next approver — you can view, track and download them here, but not approve them yourself.
+            All your own professional documents and where they are in the workflow. Ones waiting for HOD verification also appear in the Queue tab, where you can verify, sign and stamp them like any other document.
           </p>
           <div className="space-y-3">
             {ownDocs.length > 0
