@@ -28,6 +28,7 @@ export default function HodDashboard() {
   const [search, setSearch] = useState('');
   const [stage, setStage] = useState<Stage>('ALL');
   const [open, setOpen] = useState<string | null>(null);
+  const [attentionOnly, setAttentionOnly] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['hod-dashboard', dept],
@@ -70,11 +71,14 @@ export default function HodDashboard() {
         const oneTimeSubmitted = tDocs.filter((d) => d.status !== 'REJECTED' && (ONE_TIME_DOC_TYPES as readonly string[]).includes(d.document_type)).length;
         const missingOneTime = Math.max(0, expectedOneTime - oneTimeSubmitted);
         const shown = stage === 'ALL' ? tDocs : tDocs.filter((d) => d.status === stage);
-        return { ...t, tDocs: shown, total: tDocs.length, byStage, unitCount, missingOneTime, expectedOneTime };
+        const inFlight = (byStage.SUBMITTED || 0) + (byStage.HOD_APPROVED || 0) + (byStage.IQA_REVIEWED || 0) + (byStage.REJECTED || 0);
+        const needsAttention = inFlight > 0 || missingOneTime > 0 || (unitCount > 0 && tDocs.length === 0);
+        return { ...t, tDocs: shown, total: tDocs.length, byStage, unitCount, missingOneTime, expectedOneTime, needsAttention };
       })
       .filter((r) => stage === 'ALL' || r.tDocs.length > 0)
+      .filter((r) => !attentionOnly || r.needsAttention)
       .sort((a, b) => (b.byStage.SUBMITTED || 0) - (a.byStage.SUBMITTED || 0));
-  }, [data, search, stage]);
+  }, [data, search, stage, attentionOnly]);
 
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
@@ -97,9 +101,14 @@ export default function HodDashboard() {
         <p className="text-[11px] text-muted-foreground">Showing only “{STAGES.find((s) => s.key === stage)?.label}”. Tap it again to clear.</p>
       )}
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search trainer…" className="pl-9" />
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search trainer…" className="pl-9" />
+        </div>
+        <Button variant={attentionOnly ? 'default' : 'outline'} className="text-xs" onClick={() => setAttentionOnly((v) => !v)}>
+          {attentionOnly ? 'Needs attention ✓' : 'Needs attention'}
+        </Button>
       </div>
       {rows.length === 0 ? (
         <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">
@@ -114,6 +123,7 @@ export default function HodDashboard() {
                 <p className="text-[11px] text-muted-foreground">{r.email}{r.pf_number ? ` • ${r.pf_number}` : ''}</p>
               </div>
               <div className="flex gap-1">
+                {r.unitCount > 0 && r.total === 0 && <Badge variant="destructive" className="text-[10px]">No submissions</Badge>}
                 <Badge variant="secondary" className="text-[10px]">{r.unitCount} unit(s)</Badge>
                 <Badge variant="outline" className="text-[10px]">{r.total} doc(s)</Badge>
               </div>

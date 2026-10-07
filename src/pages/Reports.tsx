@@ -27,6 +27,14 @@ import {
 import { exportReportPdf } from '@/lib/reportPdf';
 
 const ALL_ONE_TIME = [...ONE_TIME_DOC_TYPES] as string[];
+const STAGE_CHIPS = [
+  { key: 'SUBMITTED', label: 'With HOD' },
+  { key: 'HOD_APPROVED', label: 'With IQAO' },
+  { key: 'IQA_REVIEWED', label: 'With DP' },
+  { key: 'DP_APPROVED', label: 'To archive' },
+  { key: 'ARCHIVED', label: 'Archived' },
+  { key: 'REJECTED', label: 'Needs correction' },
+];
 
 
 export default function Reports() {
@@ -103,6 +111,19 @@ export default function Reports() {
   const allDepts = scopeDept ? [scopeDept] : deptFilter === 'ALL' ? DEPARTMENTS : [deptFilter];
 
   const perTrainer = useMemo(() => trainerCoverage(scoped), [scoped]);
+  const [incompleteOnly, setIncompleteOnly] = useState(false);
+  const stageCounts = useMemo(() => {
+    const m: Record<string, Record<string, number>> = {};
+    scoped.docs.forEach((d) => {
+      m[d.trainer_id] = m[d.trainer_id] || {};
+      m[d.trainer_id][d.status] = (m[d.trainer_id][d.status] || 0) + 1;
+    });
+    return m;
+  }, [scoped]);
+  const shownTrainers = useMemo(
+    () => (incompleteOnly ? perTrainer.filter((r) => r.pct < 100) : perTrainer),
+    [perTrainer, incompleteOnly],
+  );
   const missingAll = useMemo(() => missingByUnit(scoped), [scoped]);
   const missing = useMemo(
     () => (typeFilter === 'ALL'
@@ -301,7 +322,13 @@ export default function Reports() {
             </TabsList>
 
             <TabsContent value="trainer" className="space-y-3">
-              {perTrainer.length === 0 ? <Empty /> : perTrainer.map((r) => (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">{shownTrainers.length} of {perTrainer.length} trainer(s)</p>
+                <Button size="sm" variant={incompleteOnly ? 'default' : 'outline'} className="h-8 text-xs" onClick={() => setIncompleteOnly((v) => !v)}>
+                  {incompleteOnly ? 'Showing incomplete only' : 'Incomplete only'}
+                </Button>
+              </div>
+              {shownTrainers.length === 0 ? <Empty /> : shownTrainers.map((r) => (
                 <Card
                   key={r.id}
                   role="button"
@@ -315,7 +342,10 @@ export default function Reports() {
                         <p className="text-sm font-semibold truncate">{r.name}</p>
                         <p className="text-[11px] text-muted-foreground truncate">{r.department}</p>
                       </div>
-                      <Badge variant="secondary" className="text-[10px] shrink-0">{r.units} unit(s)</Badge>
+                      <div className="flex gap-1 shrink-0">
+                        {r.covered === 0 && r.units > 0 && <Badge variant="destructive" className="text-[10px]">No submissions</Badge>}
+                        <Badge variant="secondary" className="text-[10px]">{r.units} unit(s)</Badge>
+                      </div>
                     </div>
                     <Progress value={r.pct} className="h-2" />
                     <div className="flex justify-between text-[11px] text-muted-foreground">
@@ -323,9 +353,10 @@ export default function Reports() {
                       <span>{r.pct}%</span>
                     </div>
                     <div className="flex flex-wrap gap-1 text-[10px]">
-                      <Badge variant="outline">Awaiting review {r.pending}</Badge>
-                      <Badge variant="outline">Approved {r.approved}</Badge>
-                      <Badge variant="outline">Needs correction {r.rejectedTypes}</Badge>
+                      {STAGE_CHIPS.map((s) => {
+                        const n = stageCounts[r.id]?.[s.key] || 0;
+                        return n > 0 ? <Badge key={s.key} variant={s.key === 'REJECTED' ? 'destructive' : 'outline'}>{s.label} {n}</Badge> : null;
+                      })}
                       <Badge variant={r.workloadOnFile ? 'outline' : 'destructive'}>
                         Workload {r.workloadOnFile ? 'on file' : 'missing'}
                       </Badge>
@@ -334,6 +365,7 @@ export default function Reports() {
                 </Card>
               ))}
             </TabsContent>
+
 
             <TabsContent value="missing" className="space-y-3">
               {missing.length === 0 ? <Empty text="Every unit has all required documents on file" /> : missing.map((m, i) => (
