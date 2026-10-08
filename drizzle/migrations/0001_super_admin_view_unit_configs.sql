@@ -1,0 +1,1 @@
+CREATE POLICY "Super admin can view unit configs" ON public.unit_session_config FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'SUPER_ADMIN'));

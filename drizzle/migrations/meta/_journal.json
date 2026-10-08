@@ -8,6 +8,13 @@
       "when": 1791477424933,
       "tag": "0000_delete_unit_allocation_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791477444807,
+      "tag": "0001_super_admin_view_unit_configs",
+      "breakpoints": true
     }
   ]
 }
