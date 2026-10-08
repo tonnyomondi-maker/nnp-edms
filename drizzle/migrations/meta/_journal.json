@@ -15,6 +15,13 @@
       "when": 1791477444807,
       "tag": "0001_super_admin_view_unit_configs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791477691222,
+      "tag": "0002_scope_reference_reads_to_staff",
+      "breakpoints": true
     }
   ]
 }
