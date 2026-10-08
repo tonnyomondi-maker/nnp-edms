@@ -1521,6 +1521,10 @@ export type Database = {
     Functions: {
       bootstrap_super_admin: { Args: { target_email: string }; Returns: Json }
       can_stamp_document_file: { Args: { _path: string }; Returns: boolean }
+      delete_unit_allocation: {
+        Args: { _config_id: string; _reason: string }
+        Returns: Json
+      }
       document_pack_timeline: { Args: { _document_id: string }; Returns: Json }
       get_system_lock_public: {
         Args: never
