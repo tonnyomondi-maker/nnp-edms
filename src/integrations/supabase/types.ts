@@ -1238,6 +1238,48 @@ export type Database = {
         }
         Relationships: []
       }
+      unit_deletion_requests: {
+        Row: {
+          config_id: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          department: string
+          id: string
+          reason: string
+          status: string
+          trainer_id: string
+          unit_code: string
+        }
+        Insert: {
+          config_id: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          department: string
+          id?: string
+          reason: string
+          status?: string
+          trainer_id: string
+          unit_code: string
+        }
+        Update: {
+          config_id?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          department?: string
+          id?: string
+          reason?: string
+          status?: string
+          trainer_id?: string
+          unit_code?: string
+        }
+        Relationships: []
+      }
       unit_session_config: {
         Row: {
           class_code: string | null
@@ -1521,9 +1563,17 @@ export type Database = {
     Functions: {
       bootstrap_super_admin: { Args: { target_email: string }; Returns: Json }
       can_stamp_document_file: { Args: { _path: string }; Returns: boolean }
+      cancel_unit_deletion_request: {
+        Args: { _request_id: string }
+        Returns: undefined
+      }
       delete_unit_allocation: {
         Args: { _config_id: string; _reason: string }
         Returns: Json
+      }
+      dismiss_unit_deletion_request: {
+        Args: { _note: string; _request_id: string }
+        Returns: undefined
       }
       document_pack_timeline: { Args: { _document_id: string }; Returns: Json }
       get_system_lock_public: {
@@ -1542,6 +1592,10 @@ export type Database = {
         Returns: boolean
       }
       is_portal_member: { Args: { _user_id: string }; Returns: boolean }
+      request_unit_deletion: {
+        Args: { _config_id: string; _reason: string }
+        Returns: string
+      }
       trainer_update_unit: {
         Args: {
           _class_code: string

@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { unitCoverage, type ReportDoc } from '@/lib/reportMetrics';
 import { TriangleAlert as AlertTriangle, BookOpen, CalendarDays, CircleCheck as CheckCircle2, ChevronRight, ClipboardCheck, FileText, Loader as Loader2, Paperclip, Pencil, Plus, Save, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { RequestUnitRemovalButton } from '@/components/common/RequestUnitRemovalButton';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { toast } from '@/hooks/use-toast';
@@ -474,6 +475,7 @@ export default function MyTeaching() {
                       <Pencil className="w-4 h-4 mr-1" /> Edit unit
                     </Button>
                   )}
+                  {u.configId && <RequestUnitRemovalButton configId={u.configId} unitCode={u.unit_code} />}
                   <Button asChild size="sm" variant="ghost" className="h-10 sm:h-9">
                     <Link to="/submissions">
                       <FileText className="w-4 h-4 mr-1" /> View submissions
