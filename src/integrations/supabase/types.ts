@@ -1541,6 +1541,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_portal_member: { Args: { _user_id: string }; Returns: boolean }
       trainer_update_unit: {
         Args: {
           _class_code: string
