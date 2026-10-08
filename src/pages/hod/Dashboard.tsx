@@ -7,8 +7,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
-import { ONE_TIME_DOC_TYPES } from '@/lib/sessions';
+import { Loader2, Search, AlertTriangle, ChevronDown, ChevronUp, Download, Copy, Settings2 } from 'lucide-react';
+import { ONE_TIME_DOC_TYPES, PER_UNIT_ONE_TIME_DOC_TYPES } from '@/lib/sessions';
+import { toast } from '@/hooks/use-toast';
+import { UnitAllocationsManager } from '@/components/common/UnitAllocationsManager';
 import { DocumentCard } from '@/components/common/DocumentCard';
 
 type Stage = 'ALL' | 'SUBMITTED' | 'HOD_APPROVED' | 'IQA_REVIEWED' | 'DP_APPROVED' | 'ARCHIVED' | 'REJECTED';
@@ -29,6 +31,41 @@ export default function HodDashboard() {
   const [stage, setStage] = useState<Stage>('ALL');
   const [open, setOpen] = useState<string | null>(null);
   const [attentionOnly, setAttentionOnly] = useState(false);
+  const [showUnits, setShowUnits] = useState(false);
+
+  const missingFor = (trainerId: string) => {
+    if (!data) return [] as { unit: string; name: string; missing: string[] }[];
+    const docs = data.docs.filter((d) => d.trainer_id === trainerId && d.status !== 'REJECTED');
+    const seen = new Set<string>();
+    return data.configs.filter((c) => c.trainer_id === trainerId && !seen.has(c.unit_code) && seen.add(c.unit_code))
+      .map((c) => ({
+        unit: c.unit_code, name: c.unit_name || '',
+        missing: (PER_UNIT_ONE_TIME_DOC_TYPES as readonly string[]).filter((t) => !docs.some((d) => d.unit_code === c.unit_code && d.document_type === t)),
+      }))
+      .filter((u) => u.missing.length > 0);
+  };
+
+  const exportCsv = () => {
+    const esc = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [['The Nyamira National Polytechnic — Missing Documents', dept, new Date().toLocaleString()].map(esc).join(','),
+      ['Trainer', 'Email', 'PF Number', 'Unit code', 'Unit name', 'Missing documents', 'Count'].map(esc).join(',')];
+    rows.forEach((r) => missingFor(r.user_id).forEach((u) =>
+      lines.push([r.full_name, r.email, r.pf_number || '', u.unit, u.name, u.missing.join('; '), String(u.missing.length)].map(esc).join(','))));
+    if (lines.length === 2) { toast({ title: 'Nothing missing', description: 'All registered units have their one-time documents.' }); return; }
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `missing-documents-${dept.replace(/\W+/g, '-')}.csv`;
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+
+  const copyReminder = async (r: { user_id: string; full_name: string }) => {
+    const m = missingFor(r.user_id);
+    const body = m.length ? m.map((u) => `• ${u.unit}${u.name ? ` (${u.name})` : ''}: ${u.missing.join(', ')}`).join('\n') : '• Please check your pending documents on the portal.';
+    const text = `Dear ${r.full_name || 'Trainer'},\n\nThis is a reminder from the ${dept} HOD office. The following documents are still outstanding on the EDMS portal:\n${body}\n\nKindly upload them at your earliest convenience.\n\nThank you.\nThe Nyamira National Polytechnic`;
+    try { await navigator.clipboard.writeText(text); toast({ title: 'Reminder copied', description: 'Paste it into WhatsApp, SMS or email.' }); }
+    catch { toast({ title: 'Could not copy', variant: 'destructive' }); }
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['hod-dashboard', dept],
@@ -110,6 +147,11 @@ export default function HodDashboard() {
           {attentionOnly ? 'Needs attention ✓' : 'Needs attention'}
         </Button>
       </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" className="text-xs" onClick={exportCsv}><Download className="w-3 h-3 mr-1" />Missing documents CSV</Button>
+        <Button variant={showUnits ? 'default' : 'outline'} size="sm" className="text-xs" onClick={() => setShowUnits((v) => !v)}><Settings2 className="w-3 h-3 mr-1" />Manage registered units</Button>
+      </div>
+      {showUnits && <Card><CardContent className="p-3"><UnitAllocationsManager department={dept} /></CardContent></Card>}
       {rows.length === 0 ? (
         <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">
           No trainers or documents match.
@@ -135,6 +177,11 @@ export default function HodDashboard() {
               <div className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="w-3 h-3" /> {r.missingOneTime} of {r.expectedOneTime} one-time document(s) outstanding
               </div>
+            )}
+            {r.needsAttention && (
+              <Button variant="outline" size="sm" className="w-full h-8 text-xs" onClick={() => copyReminder(r)}>
+                <Copy className="w-3 h-3 mr-1" />Copy reminder message
+              </Button>
             )}
             {r.tDocs.length > 0 && (
               <Button variant="ghost" size="sm" className="w-full h-8 text-xs" onClick={() => setOpen(open === r.user_id ? null : r.user_id)}>

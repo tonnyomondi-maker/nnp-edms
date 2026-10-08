@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Link } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { UnitAllocationsManager } from '@/components/common/UnitAllocationsManager';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Assignment = Tables<'teaching_assignments'>;
@@ -229,6 +230,10 @@ export default function ManageAssignments() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <div className="space-y-2 pt-4">
+        <h2 className="text-sm font-semibold">Registered units (trainer self-registered)</h2>
+        <UnitAllocationsManager />
+      </div>
     </div>
   );
 }

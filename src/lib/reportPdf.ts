@@ -79,6 +79,7 @@ export async function exportReportPdf({
     theme: 'grid',
     styles: { fontSize: 9 },
     headStyles: { fillColor: [23, 64, 122] },
+    margin: { top: 44 },
   });
 
   const afterY = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
@@ -101,6 +102,7 @@ export async function exportReportPdf({
     theme: 'striped',
     styles: { fontSize: 8, cellPadding: 3 },
     headStyles: { fillColor: [23, 64, 122] },
+    margin: { top: 44 },
   });
 
   section('Coverage per department');
@@ -111,6 +113,7 @@ export async function exportReportPdf({
     theme: 'striped',
     styles: { fontSize: 8, cellPadding: 3 },
     headStyles: { fillColor: [23, 64, 122] },
+    margin: { top: 44 },
   });
 
   doc.addPage();
@@ -132,6 +135,7 @@ export async function exportReportPdf({
     theme: 'striped',
     styles: { fontSize: 8, cellPadding: 3, overflow: 'linebreak' },
     headStyles: { fillColor: [23, 64, 122] },
+    margin: { top: 44 },
   });
 
   section('Workflow stages');
@@ -142,12 +146,20 @@ export async function exportReportPdf({
     theme: 'grid',
     styles: { fontSize: 8, cellPadding: 3 },
     headStyles: { fillColor: [23, 64, 122] },
+    margin: { top: 44 },
   });
 
   onProgress?.('Finalising document');
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
+    // Brand every page beyond the first two (which carry their own header).
+    if (i > 2) {
+      if (logo) { try { doc.addImage(logo, 'PNG', 40, 14, 22, 22); } catch { /* non-fatal */ } }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+      doc.text('The Nyamira National Polytechnic — EDMS', pageWidth / 2, 28, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+    }
     doc.setFontSize(8);
     const footY = doc.internal.pageSize.getHeight() - 20;
     doc.text('The Nyamira National Polytechnic — EDMS', 40, footY);
