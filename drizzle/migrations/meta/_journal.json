@@ -22,6 +22,13 @@
       "when": 1791477691222,
       "tag": "0002_scope_reference_reads_to_staff",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791478191418,
+      "tag": "0003_unit_deletion_requests",
+      "breakpoints": true
     }
   ]
 }
