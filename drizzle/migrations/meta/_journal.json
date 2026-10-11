@@ -36,6 +36,13 @@
       "when": 1791724733635,
       "tag": "0004_exam_office_role",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791724830040,
+      "tag": "0005_exam_vault",
+      "breakpoints": true
     }
   ]
 }
