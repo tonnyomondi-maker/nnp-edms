@@ -696,6 +696,296 @@ export type Database = {
         }
         Relationships: []
       }
+      exam_access_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json
+          id: string
+          paper_id: string | null
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json
+          id?: string
+          paper_id?: string | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json
+          id?: string
+          paper_id?: string | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      exam_committee_members: {
+        Row: {
+          committee_id: string
+          created_at: string
+          id: string
+          is_chair: boolean
+          user_id: string
+        }
+        Insert: {
+          committee_id: string
+          created_at?: string
+          id?: string
+          is_chair?: boolean
+          user_id: string
+        }
+        Update: {
+          committee_id?: string
+          created_at?: string
+          id?: string
+          is_chair?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_committee_members_committee_id_fkey"
+            columns: ["committee_id"]
+            isOneToOne: false
+            referencedRelation: "exam_committees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exam_committees: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          department: string
+          id: string
+          name: string
+          section: string | null
+          session_term: string
+          session_year: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          department: string
+          id?: string
+          name: string
+          section?: string | null
+          session_term: string
+          session_year: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          department?: string
+          id?: string
+          name?: string
+          section?: string | null
+          session_term?: string
+          session_year?: number
+        }
+        Relationships: []
+      }
+      exam_paper_notes: {
+        Row: {
+          author_id: string
+          author_name: string | null
+          body: string
+          created_at: string
+          id: string
+          paper_id: string
+        }
+        Insert: {
+          author_id: string
+          author_name?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          paper_id: string
+        }
+        Update: {
+          author_id?: string
+          author_name?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          paper_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_paper_notes_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "exam_papers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exam_paper_signoffs: {
+        Row: {
+          created_at: string
+          decision: string
+          id: string
+          member_id: string
+          note: string | null
+          paper_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          decision: string
+          id?: string
+          member_id: string
+          note?: string | null
+          paper_id: string
+          version: number
+        }
+        Update: {
+          created_at?: string
+          decision?: string
+          id?: string
+          member_id?: string
+          note?: string | null
+          paper_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_paper_signoffs_paper_id_fkey"
+            columns: ["paper_id"]
+            isOneToOne: false
+            referencedRelation: "exam_papers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exam_papers: {
+        Row: {
+          class_code: string | null
+          committee_endorsed_at: string | null
+          committee_id: string | null
+          committee_minutes: string | null
+          department: string
+          gdrive_error: string | null
+          gdrive_file_id: string | null
+          gdrive_scheme_id: string | null
+          gdrive_status: string
+          hod_endorsed_at: string | null
+          hod_endorsed_by: string | null
+          hod_note: string | null
+          id: string
+          iqa_cleared_at: string | null
+          iqa_cleared_by: string | null
+          iqa_note: string | null
+          paper_path: string
+          paper_type: string
+          received_at: string | null
+          received_by: string | null
+          return_reason: string | null
+          returned_stage: string | null
+          rubric: Json
+          scheme_path: string | null
+          section: string | null
+          session_term: string
+          session_year: number
+          status: string
+          submitted_at: string
+          trainer_id: string
+          unit_code: string
+          unit_name: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          class_code?: string | null
+          committee_endorsed_at?: string | null
+          committee_id?: string | null
+          committee_minutes?: string | null
+          department: string
+          gdrive_error?: string | null
+          gdrive_file_id?: string | null
+          gdrive_scheme_id?: string | null
+          gdrive_status?: string
+          hod_endorsed_at?: string | null
+          hod_endorsed_by?: string | null
+          hod_note?: string | null
+          id?: string
+          iqa_cleared_at?: string | null
+          iqa_cleared_by?: string | null
+          iqa_note?: string | null
+          paper_path: string
+          paper_type: string
+          received_at?: string | null
+          received_by?: string | null
+          return_reason?: string | null
+          returned_stage?: string | null
+          rubric?: Json
+          scheme_path?: string | null
+          section?: string | null
+          session_term: string
+          session_year: number
+          status?: string
+          submitted_at?: string
+          trainer_id: string
+          unit_code: string
+          unit_name?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          class_code?: string | null
+          committee_endorsed_at?: string | null
+          committee_id?: string | null
+          committee_minutes?: string | null
+          department?: string
+          gdrive_error?: string | null
+          gdrive_file_id?: string | null
+          gdrive_scheme_id?: string | null
+          gdrive_status?: string
+          hod_endorsed_at?: string | null
+          hod_endorsed_by?: string | null
+          hod_note?: string | null
+          id?: string
+          iqa_cleared_at?: string | null
+          iqa_cleared_by?: string | null
+          iqa_note?: string | null
+          paper_path?: string
+          paper_type?: string
+          received_at?: string | null
+          received_by?: string | null
+          return_reason?: string | null
+          returned_stage?: string | null
+          rubric?: Json
+          scheme_path?: string | null
+          section?: string | null
+          session_term?: string
+          session_year?: number
+          status?: string
+          submitted_at?: string
+          trainer_id?: string
+          unit_code?: string
+          unit_name?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_papers_committee_id_fkey"
+            columns: ["committee_id"]
+            isOneToOne: false
+            referencedRelation: "exam_committees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       export_progress: {
         Row: {
           actor: string | null
@@ -1562,6 +1852,7 @@ export type Database = {
     }
     Functions: {
       bootstrap_super_admin: { Args: { target_email: string }; Returns: Json }
+      can_access_exam_paper: { Args: { _paper_id: string }; Returns: boolean }
       can_stamp_document_file: { Args: { _path: string }; Returns: boolean }
       cancel_unit_deletion_request: {
         Args: { _request_id: string }
@@ -1576,6 +1867,26 @@ export type Database = {
         Returns: undefined
       }
       document_pack_timeline: { Args: { _document_id: string }; Returns: Json }
+      exam_add_note: {
+        Args: { _body: string; _paper_id: string }
+        Returns: undefined
+      }
+      exam_assign_committee: {
+        Args: { _committee_id: string; _paper_id: string }
+        Returns: undefined
+      }
+      exam_committee_signoff: {
+        Args: { _decision: string; _note: string; _paper_id: string }
+        Returns: string
+      }
+      exam_save_rubric: {
+        Args: { _minutes: string; _paper_id: string; _rubric: Json }
+        Returns: undefined
+      }
+      exam_transition: {
+        Args: { _action: string; _note: string; _paper_id: string }
+        Returns: string
+      }
       get_system_lock_public: {
         Args: never
         Returns: {
@@ -1591,7 +1902,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_exam_committee_member: {
+        Args: { _committee_id: string }
+        Returns: boolean
+      }
       is_portal_member: { Args: { _user_id: string }; Returns: boolean }
+      my_department: { Args: never; Returns: string }
       request_unit_deletion: {
         Args: { _config_id: string; _reason: string }
         Returns: string
@@ -1630,7 +1946,13 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "TRAINER" | "HOD" | "DP_ACADEMICS" | "IQA" | "SUPER_ADMIN"
+      app_role:
+        | "TRAINER"
+        | "HOD"
+        | "DP_ACADEMICS"
+        | "IQA"
+        | "SUPER_ADMIN"
+        | "EXAMS_OFFICE"
       document_status:
         | "SUBMITTED"
         | "HOD_APPROVED"
@@ -1777,7 +2099,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["TRAINER", "HOD", "DP_ACADEMICS", "IQA", "SUPER_ADMIN"],
+      app_role: [
+        "TRAINER",
+        "HOD",
+        "DP_ACADEMICS",
+        "IQA",
+        "SUPER_ADMIN",
+        "EXAMS_OFFICE",
+      ],
       document_status: [
         "SUBMITTED",
         "HOD_APPROVED",
