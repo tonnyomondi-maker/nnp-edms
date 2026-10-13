@@ -1,6 +1,6 @@
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useLocation, Link } from 'react-router-dom';
-import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, ScrollText, ShieldCheck, UserCheck, ListChecks, Activity, CalendarDays, FileStack } from 'lucide-react';
+import { Home, BookOpen, FileText, Users, Shield, ClipboardList, BarChart3, Settings, FileArchive, Upload, LayoutDashboard, ScrollText, ShieldCheck, UserCheck, ListChecks, Activity, CalendarDays, FileStack, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const trainerItems = [
@@ -10,6 +10,7 @@ const trainerItems = [
   { to: '/submissions', icon: FileText, label: 'Submissions' },
   { to: '/approved', icon: FileArchive, label: 'Approved' },
 
+  { to: '/exams', icon: Lock, label: 'Exams' },
 ];
 
 const hodItems = [
@@ -19,6 +20,7 @@ const hodItems = [
   { to: '/upload', icon: Upload, label: 'Upload' },
   { to: '/approved', icon: FileArchive, label: 'My Approved' },
   { to: '/reports', icon: BarChart3, label: 'Reports' },
+  { to: '/exams', icon: Lock, label: 'Exams' },
 ];
 
 const dpItems = [
@@ -33,6 +35,7 @@ const iqaItems = [
   { to: '/iqa/archive', icon: ClipboardList, label: 'Archive' },
   { to: '/iqa/verifier-packs', icon: FileArchive, label: 'Packs' },
   { to: '/iqa/verifiers', icon: UserCheck, label: 'Verifiers' },
+  { to: '/exams', icon: Lock, label: 'Exams' },
 ];
 
 const superAdminItems = [
@@ -55,6 +58,7 @@ const navMap: Record<UserRole, typeof trainerItems> = {
   DP_ACADEMICS: dpItems,
   IQA: iqaItems,
   SUPER_ADMIN: superAdminItems,
+  EXAMS_OFFICE: [{ to: '/', icon: Home, label: 'Home' }, { to: '/exams', icon: Lock, label: 'Exams' }],
 };
 
 export function BottomNav() {

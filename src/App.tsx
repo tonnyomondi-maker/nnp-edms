@@ -46,6 +46,7 @@ import PackCapacity from "./pages/iqa/PackCapacity";
 import BulkAssign from "./pages/iqa/BulkAssign";
 import NotFound from "./pages/NotFound";
 import ApproverDashboard from "./pages/ApproverDashboard";
+import ExamVault from "./pages/exams/ExamVault";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -103,6 +104,7 @@ function ProtectedRoutes() {
 
         <Route path="/reports" element={<Reports />} />
         <Route path="/approvers" element={<ApproverDashboard />} />
+        <Route path="/exams" element={<ExamVault />} />
         <Route path="/profile" element={<ProfileSettings />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/verify/:documentId" element={<VerifyDocument />} />
